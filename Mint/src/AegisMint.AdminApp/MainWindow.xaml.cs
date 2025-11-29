@@ -16,7 +16,7 @@ public partial class MainWindow : Window, IDisposable
         InitializeComponent();
         _options = LoadOptions();
         _client = MintClient.CreateDefault(_options);
-        BaseAddressText.Text = $"Service: {_options.BaseAddress}";
+        BaseAddressText.Text = $"Service Pipe: {_options.PipeName}";
         Log("Admin UI ready. Use Unlock (dev) before requesting the mnemonic.");
     }
 
@@ -34,13 +34,12 @@ public partial class MainWindow : Window, IDisposable
             using var stream = File.OpenRead(configPath);
             using var document = JsonDocument.Parse(stream);
             if (document.RootElement.TryGetProperty("Service", out var serviceNode) &&
-                serviceNode.TryGetProperty("BaseAddress", out var baseAddressNode))
+                serviceNode.TryGetProperty("PipeName", out var pipeNameNode))
             {
-                var baseAddress = baseAddressNode.GetString();
-                if (!string.IsNullOrWhiteSpace(baseAddress) &&
-                    Uri.TryCreate(baseAddress, UriKind.Absolute, out var uri))
+                var pipeName = pipeNameNode.GetString();
+                if (!string.IsNullOrWhiteSpace(pipeName))
                 {
-                    options.BaseAddress = uri;
+                    options.PipeName = pipeName;
                 }
             }
         }
@@ -50,6 +49,72 @@ public partial class MainWindow : Window, IDisposable
         }
 
         return options;
+    }
+
+    private async void OnCheckStatus(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var result = await _client.HasMnemonicAsync();
+            if (result.Success && result.Value is not null)
+            {
+                if (result.Value.HasMnemonic)
+                {
+                    Log($"✓ Genesis key is configured for device: {result.Value.DeviceId}");
+                }
+                else
+                {
+                    Log($"⚠ No genesis key found. Device ID: {result.Value.DeviceId}");
+                    Log("  Use 'Set Genesis Key' to configure the mnemonic.");
+                }
+            }
+            else
+            {
+                Log($"Status check failed ({result.StatusCode}): {result.ErrorMessage}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"Status check error: {ex.Message}");
+        }
+    }
+
+    private async void OnSetMnemonic(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var mnemonic = MnemonicInput.Text.Trim();
+            if (string.IsNullOrWhiteSpace(mnemonic))
+            {
+                Log("⚠ Please enter a 12-word mnemonic phrase");
+                return;
+            }
+
+            var result = await _client.SetMnemonicAsync(mnemonic);
+            if (result.Success && result.Value is not null)
+            {
+                Log($"✓ {result.Value.Message}");
+                if (result.Value.Shares is not null && result.Value.Shares.Count > 0)
+                {
+                    Log($"  Shamir shares generated:");
+                    foreach (var share in result.Value.Shares)
+                    {
+                        var valuePreview = share.Value.Length > 32 ? share.Value.Substring(0, 32) + "..." : share.Value;
+                        Log($"    Share #{share.Id}: {valuePreview}");
+                    }
+                    Log($"  IMPORTANT: Save these shares securely for recovery!");
+                }
+                MnemonicInput.Clear();
+            }
+            else
+            {
+                Log($"✗ Failed to set genesis key ({result.StatusCode}): {result.ErrorMessage}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"Set mnemonic error: {ex.Message}");
+        }
     }
 
     private async void OnPing(object sender, RoutedEventArgs e)
@@ -144,7 +209,7 @@ public partial class MainWindow : Window, IDisposable
                 var wordCount = result.Value.Mnemonic?.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length ?? 0;
                 Log($"Mnemonic retrieved securely ({wordCount} words, value hidden).");
             }
-            else if (result.StatusCode == System.Net.HttpStatusCode.Locked)
+            else if (result.StatusCode == 423)
             {
                 Log("Mint is locked. Obtain governance approvals or use dev unlock.");
             }

@@ -5,11 +5,13 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="AegisMint Admin"
-        Height="420"
+        Height="500"
         Width="720"
         WindowStartupLocation="CenterScreen">
     <Grid Margin="16">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -21,7 +23,26 @@
                    FontWeight="SemiBold"
                    Text="Service: https://localhost:5050"/>
 
-        <WrapPanel Grid.Row="1" Margin="0,12,0,12">
+        <!-- Genesis Key Setup Section -->
+        <GroupBox Grid.Row="1" Header="Genesis Key Setup" Margin="0,12,0,0" Padding="8">
+            <StackPanel>
+                <TextBlock Text="Enter 12-word mnemonic phrase (BIP39):" Margin="0,0,0,4"/>
+                <TextBox x:Name="MnemonicInput" 
+                         TextWrapping="Wrap" 
+                         AcceptsReturn="False"
+                         Height="50"
+                         Margin="0,0,0,4"
+                         ToolTip="Enter your 12-word recovery phrase separated by spaces"/>
+                <Button Content="Set Genesis Key" 
+                        Click="OnSetMnemonic" 
+                        Padding="12,6" 
+                        HorizontalAlignment="Left"
+                        ToolTip="Store the genesis key and generate Shamir shares"/>
+            </StackPanel>
+        </GroupBox>
+
+        <WrapPanel Grid.Row="2" Margin="0,12,0,12">
+            <Button Content="Check Status" Click="OnCheckStatus" Margin="0,0,8,8" Padding="12,6"/>
             <Button Content="Ping" Click="OnPing" Margin="0,0,8,8" Padding="12,6"/>
             <Button Content="Device Info" Click="OnDeviceInfo" Margin="0,0,8,8" Padding="12,6"/>
             <Button Content="Unlock (dev)" Click="OnDevUnlock" Margin="0,0,8,8" Padding="12,6"/>
@@ -30,12 +51,12 @@
             <Button Content="Refresh Logs" Click="OnRefreshLogs" Margin="0,0,8,8" Padding="12,6"/>
         </WrapPanel>
 
-        <TextBlock Grid.Row="2"
+        <TextBlock Grid.Row="4"
                    Margin="0,0,0,4"
                    Text="Activity"
                    FontWeight="SemiBold"/>
 
-        <Grid Grid.Row="3">
+        <Grid Grid.Row="5">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="*" />

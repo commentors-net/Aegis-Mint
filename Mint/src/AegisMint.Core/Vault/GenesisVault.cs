@@ -81,6 +81,71 @@ public class GenesisVault : IGenesisVault, IDisposable
         }
     }
 
+    public async Task<bool> HasMnemonicAsync(CancellationToken cancellationToken)
+    {
+        await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var mnemonicPath = Path.Combine(_dataDirectory, MnemonicFileName);
+            return File.Exists(mnemonicPath);
+        }
+        finally
+        {
+            _mutex.Release();
+        }
+    }
+
+    public async Task SetMnemonicAsync(string mnemonic, CancellationToken cancellationToken)
+    {
+        await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (string.IsNullOrWhiteSpace(mnemonic))
+            {
+                throw new ArgumentException("Mnemonic cannot be empty", nameof(mnemonic));
+            }
+
+            // Validate mnemonic format (should be 12 words)
+            var words = mnemonic.Trim().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            if (words.Length != 12)
+            {
+                throw new ArgumentException("Mnemonic must be exactly 12 words", nameof(mnemonic));
+            }
+
+            // Validate using NBitcoin
+            try
+            {
+                var _ = new Mnemonic(mnemonic, Wordlist.English);
+            }
+            catch
+            {
+                throw new ArgumentException("Invalid mnemonic phrase. Words must be from BIP39 wordlist.", nameof(mnemonic));
+            }
+
+            // Check if mnemonic already exists
+            var mnemonicPath = Path.Combine(_dataDirectory, MnemonicFileName);
+            if (File.Exists(mnemonicPath))
+            {
+                throw new InvalidOperationException("Genesis key already exists. Cannot overwrite existing mnemonic.");
+            }
+
+            await EnsureMetadataAsync(cancellationToken).ConfigureAwait(false);
+            await PersistMnemonicAsync(mnemonic, cancellationToken).ConfigureAwait(false);
+
+            // Generate and save shares immediately
+            var sharesPath = Path.Combine(_dataDirectory, SharesFileName);
+            var secretBytes = Encoding.UTF8.GetBytes(mnemonic);
+            ValidateThresholds(_options.ShareCount, _options.RecoveryThreshold);
+            var shares = _shamir.Split(secretBytes, _options.RecoveryThreshold, _options.ShareCount);
+            var json = JsonSerializer.Serialize(shares, _serializerOptions);
+            await File.WriteAllTextAsync(sharesPath, json, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _mutex.Release();
+        }
+    }
+
     public async Task<IReadOnlyCollection<ShamirShare>> GetOrCreateSharesAsync(CancellationToken cancellationToken)
     {
         await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);

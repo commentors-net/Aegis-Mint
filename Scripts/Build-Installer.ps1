@@ -13,9 +13,14 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $serviceProject = Join-Path $repoRoot "Mint\src\AegisMint.Service\AegisMint.Service.csproj"
+$adminProject = Join-Path $repoRoot "Mint\src\AegisMint.AdminApp\AegisMint.AdminApp.csproj"
 
 if (-not (Test-Path $serviceProject)) {
     throw "Cannot find service project at $serviceProject"
+}
+
+if (-not (Test-Path $adminProject)) {
+    throw "Cannot find admin app project at $adminProject"
 }
 
 Write-Host "Publishing service..." -ForegroundColor Cyan
@@ -27,6 +32,17 @@ dotnet publish $serviceProject `
     -p:PublishSingleFile=true `
     -p:IncludeNativeLibrariesForSelfExtract=true `
     -o $PublishDir
+
+Write-Host "Publishing admin app..." -ForegroundColor Cyan
+$adminPublishDir = "$PSScriptRoot\publish\admin"
+if (Test-Path $adminPublishDir) { Remove-Item $adminPublishDir -Recurse -Force }
+dotnet publish $adminProject `
+    -c $Configuration `
+    -r $Runtime `
+    --self-contained:$SelfContained `
+    -p:PublishSingleFile=true `
+    -p:IncludeNativeLibrariesForSelfExtract=true `
+    -o $adminPublishDir
 
 if (-not (Test-Path $OutputDir)) { New-Item -ItemType Directory -Path $OutputDir | Out-Null }
 
@@ -43,14 +59,17 @@ if (-not $innoCandidates) {
 
 $issPath = Join-Path $PSScriptRoot "AegisMint.generated.iss"
 
+$adminPublishDir = "$PSScriptRoot\publish\admin"
+
 $iss = @"
 #define AppVersion "$AppVersion"
-#define SourceDir "$PublishDir"
+#define ServiceSourceDir "$PublishDir"
+#define AdminSourceDir "$adminPublishDir"
 #define OutputDir "$OutputDir"
 #define ServiceName "$ServiceName"
 
 [Setup]
-AppName=AegisMint Service
+AppName=AegisMint
 AppVersion={#AppVersion}
 DefaultDirName={pf}\AegisMint
 DefaultGroupName=AegisMint
@@ -64,13 +83,22 @@ Compression=lzma2
 SolidCompression=yes
 
 [Files]
-Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
+Source: "{#ServiceSourceDir}\*"; DestDir: "{app}\Service"; Flags: recursesubdirs ignoreversion
+Source: "{#AdminSourceDir}\*"; DestDir: "{app}\Admin"; Flags: recursesubdirs ignoreversion
+
+[Icons]
+Name: "{group}\AegisMint Admin"; Filename: "{app}\Admin\AegisMint.AdminApp.exe"; WorkingDir: "{app}\Admin"
+Name: "{commondesktop}\AegisMint Admin"; Filename: "{app}\Admin\AegisMint.AdminApp.exe"; WorkingDir: "{app}\Admin"; Tasks: desktopicon
+
+[Tasks]
+Name: "desktopicon"; Description: "Create a desktop icon for AegisMint Admin"
 
 [Run]
 Filename: "cmd.exe"; Parameters: "/c sc stop ""{#ServiceName}"" 1>nul 2>nul"; Flags: runhidden waituntilterminated
 Filename: "cmd.exe"; Parameters: "/c sc delete ""{#ServiceName}"" 1>nul 2>nul"; Flags: runhidden waituntilterminated
-Filename: "sc.exe"; Parameters: "create ""{#ServiceName}"" binPath= ""{app}\AegisMint.Service.exe"" start= auto displayname= ""AegisMint Service"" obj= LocalSystem"; Flags: runhidden waituntilterminated
-Filename: "sc.exe"; Parameters: "start ""{#ServiceName}"""; Flags: runhidden waituntilterminated
+Filename: "sc.exe"; Parameters: "create ""{#ServiceName}"" binPath= ""{app}\Service\AegisMint.Service.exe"" start= auto displayname= ""AegisMint Service"" obj= LocalSystem"; Flags: runhidden waituntilterminated
+Filename: "sc.exe"; Parameters: "start ""{#ServiceName}"""; Flags: runhidden waituntilterminated; StatusMsg: "Starting AegisMint Service..."
+Filename: "{app}\Admin\AegisMint.AdminApp.exe"; Description: "Launch AegisMint Admin"; Flags: postinstall nowait skipifsilent
 
 [UninstallRun]
 Filename: "cmd.exe"; Parameters: "/c sc stop ""{#ServiceName}"" 1>nul 2>nul"; Flags: runhidden waituntilterminated
