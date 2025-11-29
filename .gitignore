@@ -1,0 +1,39 @@
+# Build outputs
+bin/
+obj/
+**/bin/
+**/obj/
+Scripts/publish/
+Scripts/dist/
+
+# User-specific
+*.user
+*.userosscache
+*.suo
+*.userprefs
+*.local
+.vs/
+.idea/
+
+# Logs / artifacts
+*.log
+*.cache
+*.pid
+*.tmp
+*.tmp.*
+
+# OS noise
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Tooling
+.vscode/
+*.DotSettings.user
+
+# Publish / installer outputs
+*.exe
+*.msi
+*.nupkg
+*.snk
+*.pfx

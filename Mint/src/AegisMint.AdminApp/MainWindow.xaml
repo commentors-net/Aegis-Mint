@@ -1,0 +1,66 @@
+<Window x:Class="AegisMint.AdminApp.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="AegisMint Admin"
+        Height="420"
+        Width="720"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="BaseAddressText"
+                   FontSize="14"
+                   FontWeight="SemiBold"
+                   Text="Service: https://localhost:5050"/>
+
+        <WrapPanel Grid.Row="1" Margin="0,12,0,12">
+            <Button Content="Ping" Click="OnPing" Margin="0,0,8,8" Padding="12,6"/>
+            <Button Content="Device Info" Click="OnDeviceInfo" Margin="0,0,8,8" Padding="12,6"/>
+            <Button Content="Unlock (dev)" Click="OnDevUnlock" Margin="0,0,8,8" Padding="12,6"/>
+            <Button Content="Lock" Click="OnLock" Margin="0,0,8,8" Padding="12,6"/>
+            <Button Content="Get Mnemonic" Click="OnGetMnemonic" Margin="0,0,8,8" Padding="12,6"/>
+            <Button Content="Refresh Logs" Click="OnRefreshLogs" Margin="0,0,8,8" Padding="12,6"/>
+        </WrapPanel>
+
+        <TextBlock Grid.Row="2"
+                   Margin="0,0,0,4"
+                   Text="Activity"
+                   FontWeight="SemiBold"/>
+
+        <Grid Grid.Row="3">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="OutputBox"
+                     Grid.Column="0"
+                     FontFamily="Consolas"
+                     IsReadOnly="True"
+                     VerticalScrollBarVisibility="Auto"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     BorderBrush="#FF2D2D30"
+                     BorderThickness="1"/>
+
+            <TextBox x:Name="LogsBox"
+                     Grid.Column="1"
+                     Margin="10,0,0,0"
+                     FontFamily="Consolas"
+                     IsReadOnly="True"
+                     VerticalScrollBarVisibility="Auto"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     BorderBrush="#FF2D2D30"
+                     BorderThickness="1"
+                     ToolTip="Latest service log lines (read-only)"/>
+        </Grid>
+    </Grid>
+</Window>
