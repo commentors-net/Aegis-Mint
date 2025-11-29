@@ -33,11 +33,19 @@
                          Height="50"
                          Margin="0,0,0,4"
                          ToolTip="Enter your 12-word recovery phrase separated by spaces"/>
-                <Button Content="Set Genesis Key" 
-                        Click="OnSetMnemonic" 
-                        Padding="12,6" 
-                        HorizontalAlignment="Left"
-                        ToolTip="Store the genesis key and generate Shamir shares"/>
+                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                    <Button Content="Set Genesis Key" 
+                            Click="OnSetMnemonic" 
+                            Padding="12,6" 
+                            Margin="0,0,8,0"
+                            ToolTip="Store the genesis key and generate Shamir shares"/>
+                    <Button Content="Delete Genesis Key" 
+                            Click="OnDeleteMnemonic" 
+                            Padding="12,6" 
+                            Background="#FFD32F2F"
+                            Foreground="White"
+                            ToolTip="Delete the existing genesis key and shares"/>
+                </StackPanel>
             </StackPanel>
         </GroupBox>
 

@@ -117,6 +117,39 @@ public partial class MainWindow : Window, IDisposable
         }
     }
 
+    private async void OnDeleteMnemonic(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var confirmResult = MessageBox.Show(
+                "Are you sure you want to delete the genesis key?\n\nThis action cannot be undone!",
+                "Confirm Delete",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+            if (confirmResult != MessageBoxResult.Yes)
+            {
+                Log("Delete operation cancelled");
+                return;
+            }
+
+            var result = await _client.DeleteMnemonicAsync();
+            if (result.Success)
+            {
+                Log("✓ Genesis key deleted successfully");
+                Log("  You can now set a new genesis key");
+            }
+            else
+            {
+                Log($"✗ Failed to delete genesis key ({result.StatusCode}): {result.ErrorMessage}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"Delete mnemonic error: {ex.Message}");
+        }
+    }
+
     private async void OnPing(object sender, RoutedEventArgs e)
     {
         try
@@ -205,17 +238,19 @@ public partial class MainWindow : Window, IDisposable
             var result = await _client.GetMnemonicAsync();
             if (result.Success && result.Value is not null)
             {
-                // We intentionally do not print the mnemonic to avoid accidental exposure.
-                var wordCount = result.Value.Mnemonic?.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length ?? 0;
-                Log($"Mnemonic retrieved securely ({wordCount} words, value hidden).");
+                var mnemonic = result.Value.Mnemonic ?? "(empty)";
+                var wordCount = mnemonic.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+                Log($"✓ Mnemonic retrieved ({wordCount} words):");
+                Log($"  {mnemonic}");
+                Log("  IMPORTANT: Keep this phrase secure!");
             }
             else if (result.StatusCode == 423)
             {
-                Log("Mint is locked. Obtain governance approvals or use dev unlock.");
+                Log("⚠ Mint is locked. Obtain governance approvals or use dev unlock.");
             }
             else
             {
-                Log($"Mnemonic request failed ({result.StatusCode}): {result.ErrorMessage}");
+                Log($"✗ Mnemonic request failed ({result.StatusCode}): {result.ErrorMessage}");
             }
         }
         catch (Exception ex)

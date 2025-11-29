@@ -127,6 +127,7 @@ public class NamedPipeServiceHost : BackgroundService
                 "getdeviceinfo" => await HandleGetDeviceInfoAsync(cancellationToken),
                 "hasmnemonic" => await HandleHasMnemonicAsync(cancellationToken),
                 "setmnemonic" => await HandleSetMnemonicAsync(request, cancellationToken),
+                "deletemnemonic" => await HandleDeleteMnemonicAsync(cancellationToken),
                 "getmnemonic" => await HandleGetMnemonicAsync(cancellationToken),
                 "unlockdev" => await HandleUnlockDevAsync(request, cancellationToken),
                 "lock" => HandleLock(),
@@ -202,6 +203,23 @@ public class NamedPipeServiceHost : BackgroundService
         {
             _logger.LogWarning(ex, "Cannot set mnemonic");
             return new ServiceResponse(false, 409, null, ex.Message);
+        }
+    }
+
+    private async Task<ServiceResponse> HandleDeleteMnemonicAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _vault.DeleteMnemonicAsync(cancellationToken);
+            _logger.LogWarning("Genesis key deleted");
+            var response = new { Message = "Genesis key deleted successfully" };
+            var json = JsonSerializer.Serialize(response, _jsonOptions);
+            return new ServiceResponse(true, 200, json);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Cannot delete mnemonic");
+            return new ServiceResponse(false, 404, null, ex.Message);
         }
     }
 

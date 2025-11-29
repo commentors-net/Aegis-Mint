@@ -7,6 +7,13 @@ if (args.Length > 0 && args[0] == "--mnemonic")
     return;
 }
 
+// Check if user wants to test delete workflow
+if (args.Length > 0 && args[0] == "--delete")
+{
+    await AegisMint.TestClient.TestDeleteWorkflow.RunAsync();
+    return;
+}
+
 Console.WriteLine("Testing AegisMint Named Pipe Communication...");
 Console.WriteLine();
 

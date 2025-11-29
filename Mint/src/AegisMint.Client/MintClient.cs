@@ -51,6 +51,12 @@ public class MintClient : IDisposable
         return await SendRequestAsync<SetMnemonicResponse>(request, cancellationToken);
     }
 
+    public async Task<MintClientResult<DeleteMnemonicResponse>> DeleteMnemonicAsync(CancellationToken cancellationToken = default)
+    {
+        var request = new ServiceRequest("deletemnemonic");
+        return await SendRequestAsync<DeleteMnemonicResponse>(request, cancellationToken);
+    }
+
     public async Task<MintClientResult<MnemonicResponse>> GetMnemonicAsync(CancellationToken cancellationToken = default)
     {
         var request = new ServiceRequest("getmnemonic");

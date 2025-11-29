@@ -146,6 +146,34 @@ public class GenesisVault : IGenesisVault, IDisposable
         }
     }
 
+    public async Task DeleteMnemonicAsync(CancellationToken cancellationToken)
+    {
+        await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var mnemonicPath = Path.Combine(_dataDirectory, MnemonicFileName);
+            var sharesPath = Path.Combine(_dataDirectory, SharesFileName);
+
+            if (!File.Exists(mnemonicPath))
+            {
+                throw new InvalidOperationException("No genesis key found to delete.");
+            }
+
+            // Delete mnemonic file
+            File.Delete(mnemonicPath);
+            
+            // Delete shares file if exists
+            if (File.Exists(sharesPath))
+            {
+                File.Delete(sharesPath);
+            }
+        }
+        finally
+        {
+            _mutex.Release();
+        }
+    }
+
     public async Task<IReadOnlyCollection<ShamirShare>> GetOrCreateSharesAsync(CancellationToken cancellationToken)
     {
         await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
