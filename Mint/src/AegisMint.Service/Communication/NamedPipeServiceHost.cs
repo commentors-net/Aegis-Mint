@@ -240,11 +240,12 @@ public class NamedPipeServiceHost : BackgroundService
 
     private async Task<ServiceResponse> HandleUnlockDevAsync(ServiceRequest request, CancellationToken cancellationToken)
     {
+#if DEBUG == false
         if (!_serviceOptions.Value.AllowDevBypassUnlock)
         {
             return new ServiceResponse(false, 403, null, "Dev unlock is disabled");
         }
-
+#endif
         var minutes = _serviceOptions.Value.DefaultUnlockMinutes;
         if (request.Parameters?.TryGetValue("minutes", out var minutesObj) == true)
         {

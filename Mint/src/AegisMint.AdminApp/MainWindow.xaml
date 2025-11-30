@@ -42,9 +42,19 @@
                     <Button Content="Delete Genesis Key" 
                             Click="OnDeleteMnemonic" 
                             Padding="12,6" 
+                            Margin="0,0,8,0"
                             Background="#FFD32F2F"
                             Foreground="White"
                             ToolTip="Delete the existing genesis key and shares"/>
+                    <Button Content="Lock" 
+                            Click="OnLock" 
+                            Padding="12,6" 
+                            Margin="0,0,8,0"
+                            ToolTip="Lock the device"/>
+                    <Button Content="Unlock (dev)" 
+                            Click="OnDevUnlock" 
+                            Padding="12,6" 
+                            ToolTip="Unlock for development (temporary)"/>
                 </StackPanel>
             </StackPanel>
         </GroupBox>
@@ -53,11 +63,30 @@
             <Button Content="Check Status" Click="OnCheckStatus" Margin="0,0,8,8" Padding="12,6"/>
             <Button Content="Ping" Click="OnPing" Margin="0,0,8,8" Padding="12,6"/>
             <Button Content="Device Info" Click="OnDeviceInfo" Margin="0,0,8,8" Padding="12,6"/>
-            <Button Content="Unlock (dev)" Click="OnDevUnlock" Margin="0,0,8,8" Padding="12,6"/>
-            <Button Content="Lock" Click="OnLock" Margin="0,0,8,8" Padding="12,6"/>
+            <Button Content="Export Shares" Click="OnExportShares" Margin="0,0,8,8" Padding="12,6"/>
+            <Button Content="Import/Restore" Click="OnImportRestore" Margin="0,0,8,8" Padding="12,6"/>
             <Button Content="Get Mnemonic" Click="OnGetMnemonic" Margin="0,0,8,8" Padding="12,6"/>
             <Button Content="Refresh Logs" Click="OnRefreshLogs" Margin="0,0,8,8" Padding="12,6"/>
         </WrapPanel>
+
+        <!-- Import Shares Tracking Section -->
+        <GroupBox Grid.Row="3" Header="Import Shares (Min 3 Required)" Margin="0,0,0,12" Padding="8" x:Name="ImportSection" Visibility="Collapsed">
+            <StackPanel>
+                <TextBlock x:Name="ImportStatusText" Text="No shares loaded" Margin="0,0,0,4" FontWeight="SemiBold"/>
+                <ItemsControl x:Name="LoadedSharesList" Margin="0,4,0,4">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="11" Margin="0,1"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                    <Button Content="Load Share File" Click="OnLoadShareFile" Padding="10,4" Margin="0,0,8,0"/>
+                    <Button Content="Clear All" Click="OnClearShares" Padding="10,4" Margin="0,0,8,0"/>
+                    <Button x:Name="RestoreButton" Content="Restore Genesis Key" Click="OnRestoreFromShares" Padding="10,4" IsEnabled="False" Background="#FF4CAF50" Foreground="White"/>
+                </StackPanel>
+            </StackPanel>
+        </GroupBox>
 
         <TextBlock Grid.Row="4"
                    Margin="0,0,0,4"

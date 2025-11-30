@@ -14,6 +14,13 @@ if (args.Length > 0 && args[0] == "--delete")
     return;
 }
 
+// Check if user wants to test export/import workflow
+if (args.Length > 0 && args[0] == "--export")
+{
+    await AegisMint.TestClient.TestExportImportWorkflow.RunAsync();
+    return;
+}
+
 Console.WriteLine("Testing AegisMint Named Pipe Communication...");
 Console.WriteLine();
 
