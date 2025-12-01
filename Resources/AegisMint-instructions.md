@@ -1,125 +1,67 @@
+# instructions.md — AI Coding Assistant Guidelines
 
-# instructions.md — AI Coding Assistant Guidelines (OpenAI Codex / GitHub Copilot)
-
-This document ensures AI coding assistants understand the architecture and coding rules for AegisMint and Aegis Web.
-
----
-
-# 1. Purpose
-Provide coding assistance for:
-- **AegisMint (local service)**
-- **Aegis Web (governance + recovery)**
-
-TokenControl already exists and should not be modified beyond API integrations.
+This document keeps AI coding assistants aligned with the current AegisMint/Aegis Web implementation and security rules.
 
 ---
 
-# 2. High-Level Implementation Rules
+## 1. Purpose
+Assist development for:
+- **AegisMint**: Windows service (localhost API), WPF AdminApp, .NET client SDK.
+- **Aegis Web**: governance + recovery (future Python/React work).
 
-### 2.1 Never allow AI to generate code that:
-- Prints or logs the Genesis key unless in recovery.
-- Stores plaintext mnemonics.
-- Hardcodes sensitive values.
-- Adds hidden backdoors.
-
-### 2.2 When generating code, always ensure:
-- Encryption uses AES‑256-GCM.
-- Password hashing uses Argon2.
-- TLS/HTTPS is required for API communication.
+TokenControl exists already; only integrate with its APIs. AdminApp must never display or log the mnemonic.
 
 ---
 
-# 3. Coding Conventions
-
-### AegisMint Service
-- Must expose internal API only on localhost.
-- API methods:
-  - `getMnemonic()`
-  - `getDeviceInfo()`
-  - `ping()`
-- Encrypt Genesis key at rest.
-- Allow configuration of share counts and thresholds.
-
-### Aegis Web
-- Must support:
-  - CRUD for governors
-  - Approvals (N-of-M)
-  - Unlock windows
-  - Logging
-  - Recovery UI
+## 2. Security Rules
+- Never print/log the Genesis key except inside a dedicated recovery flow.
+- Never store plaintext mnemonics outside the vault; keep AES-GCM encryption at rest with DPAPI-protected master key.
+- No hardcoded secrets or backdoors.
+- Password hashing must use Argon2.
 
 ---
 
-# 4. Directory Structure
-
-Suggested:
-
-```
-/Aegis-Mint
-   /Mint
-      /src
-      /config
-   /Web
-      /api
-      /ui
-      /config
-      /recovery
-```
+## 3. AegisMint Service Conventions (current)
+- Host: Windows service, localhost-only. Default HTTP; HTTPS only when a cert is provisioned.
+- Endpoints:
+  - `GET /ping`
+  - `GET /getDeviceInfo`
+  - `GET /getMnemonic` (only when governance unlock is active)
+  - `POST /governance/unlock/dev` (dev only; gated by config)
+  - `POST /governance/lock`
+  - `GET /logs/recent?limit=N` (tail service logs)
+- Vault: AES-256-GCM + DPAPI master key; Shamir share generation per configured M/N thresholds.
+- Config: `appsettings*.json` (data dir, thresholds, governance quorum, unlock window, dev unlock flag, log path, port/https toggle).
 
 ---
 
-# 5. API Contracts
-
-### Aegis Web → TokenControl
-`GET /api/device/{id}/isUnlocked`
-
-### TokenControl → Mint Service
-`GET http://localhost:port/getMnemonic`
-
-### Aegis Web → Recovery Flow
-`POST /api/recovery/reconstruct`
+## 4. Aegis Web Expectations
+- Governance: N-of-M approvals, default unlock window 15 minutes.
+- CRUD for governors, approvals, unlock windows, logging, recovery UI.
+- TokenControl checks `isUnlocked(deviceId)` from Aegis Web before asking Mint for the mnemonic.
 
 ---
 
-# 6. Governance Logic Rules for AI Help
-
-- Governance unlock requires **N approvals**.
-- Unlock window must default to **15 minutes**.
-- Governors must be authenticated.
-- All actions logged.
+## 5. Recovery Guidance
+- Accept exactly N Shamir shares; reconstruct via Shamir Secret Sharing.
+- Securely display/export the mnemonic; do not log it.
 
 ---
 
-# 7. Recovery Instructions for AI Help
-
-- Accept exactly N shares.
-- Use Shamir Secret Sharing library.
-- Reconstruct Genesis key.
-- Securely display/export the mnemonic.
+## 6. Testing
+- Unit tests: share reconstruction, vault persistence/encryption.
+- Integration tests: unlock/lock flow, mnemonic access only when unlocked.
+- Security tests: unauthorized access attempts to `/getMnemonic`.
 
 ---
 
-# 8. Testing Guidelines
-
-AI should help generate:
-- Unit tests for share reconstruction.
-- Integration tests for unlock workflow.
-- Security tests for unauthorized key access.
-
----
-
-# 9. What AI Should NOT Touch
+## 7. Do Not Touch
 - TokenControl internal UI logic.
 - Blockchain interaction logic.
-- Any code involving Genesis exposure outside recovery.
+- Any Genesis exposure outside controlled recovery or unlocked Mint API.
 
 ---
 
-# 10. Future Extensions
-AI may help later with:
-- Multi-device governance
-- Multi-region Aegis servers
-- Share QR codes or NFC export
-
----
-
+## 8. Future Extensions
+- Multi-device governance, multi-region Aegis servers.
+- Share export (QR/NFC) with the same secrecy constraints.

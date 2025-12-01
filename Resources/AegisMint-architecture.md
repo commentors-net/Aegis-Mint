@@ -1,157 +1,78 @@
+# Aegis + Mint Architecture (Updated)
 
-# Aegis + Mint System Architecture Document
-
-## 1. High-Level Architecture Overview
-The system consists of 3 major components that work together securely:
-
+## 1. High-Level View
 ```
 +--------------+       +------------------+        +----------------+
-| TokenControl | <---> |  AegisMint (Box) | <----> |   Aegis Web    |
-|   (on box)   |       |   (Local API)    |        |  (Governance)  |
+| TokenControl | <---> |  AegisMint Box   | <----> |   Aegis Web    |
+|   (on box)   |       |  (Local API)     |        |  (Governance)  |
 +--------------+       +------------------+        +----------------+
 ```
+Local box hosts the Mint Windows service (localhost API), TokenControl, and optional AdminApp. Aegis Web governs unlocks and provides recovery UI.
 
 ---
 
-## 2. Component Responsibilities
+## 2. Components
 
-### 2.1 AegisMint Service (Local Box)
-- Runs in the background.
-- Generates and stores the Genesis key.
-- Generates and prints/export shares.
-- Provides secure internal API endpoints to TokenControl.
+### AegisMint Service (Windows, localhost)
+- Background Windows service; auto-start on boot.
+- Responsibilities: generate/store Genesis key; encrypt at rest (AES-GCM + DPAPI); generate/persist Shamir shares; serve internal API.
+- Endpoints:
+  - `GET /ping`
+  - `GET /getDeviceInfo`
+  - `GET /getMnemonic` (requires unlock)
+  - `POST /governance/unlock/dev` (dev only, config gated)
+  - `POST /governance/lock`
+  - `GET /logs/recent?limit=N`
+- Governance state held in-memory; production unlocks should be driven by Aegis Web.
+- Config via `appsettings*.json`: data dir, share/thresholds, governance quorum, unlock window, log path, port, HTTPS toggle, dev unlock.
 
-#### AegisMint Internal APIs
-| Endpoint | Purpose |
-|---------|----------|
-| `/getMnemonic` | Returns decrypted Genesis key (requires governance unlock). |
-| `/getDeviceInfo` | Returns device ID, configuration, thresholds. |
-| `/ping` | Health check. |
+### TokenControl
+- User-facing app on the box.
+- Flow: call Aegis Web `isUnlocked(deviceId)` → if true call Mint `getMnemonic` → start session; otherwise show waiting/poll.
 
----
+### AdminApp (WPF)
+- Local admin utility to ping service, view device info, dev-unlock/lock, request mnemonic (word-count only), and view recent logs.
 
-### 2.2 TokenControl
-- User-facing app.
-- Requests governance status from Aegis Web.
-- Requests mnemonic from Mint if unlocked.
-- Operates the token for blockchain interactions.
-- Logs events.
-
-#### TokenControl Flow
-1. Start
-2. Call Aegis Web → `isUnlocked(deviceId)`
-3. If false → show waiting screen
-4. If true → call Mint → get mnemonic
-5. Load main UI
-6. Operate
-
----
-
-### 2.3 Aegis Web (Governance & Recovery)
-Provides:
-- Multi-governor approval workflow
-- Unlock logic
-- Device management
-- Event logging
-- Share-based recovery UI
-- Download of standalone recovery tool
+### Aegis Web (Governance & Recovery)
+- N-of-M approvals, unlock windows, device metadata, logs.
+- Provides `isUnlocked(deviceId)` for TokenControl.
+- Recovery UI + downloadable offline recovery tool (future).
 
 ---
 
 ## 3. Governance Unlock Flow
-
 ```
-Governors (N of M)
-        |
-        v
-+----------------+
-|  Aegis Web     |
-|  Collect N approvals
-+----------------+
-        |
-        v
-+-----------------------+
-| Device Unlock Window  |
-|  (e.g., 15 minutes)   |
-+-----------------------+
-        |
-        v
-TokenControl -> Mint -> Genesis
+Governors (N of M) -> Aegis Web -> sets unlock window (e.g., 15 min)
+TokenControl -> Mint: getMnemonic (only succeeds while unlocked)
 ```
-
-Governance is separate from shares.
+Governance is independent from recovery shares.
 
 ---
 
-## 4. Recovery Flow (Web or Standalone)
-
+## 4. Recovery Flow
 ```
-User enters shares (N required)
-        |
-        v
-Shamir Reconstruction
-        |
-        v
-Genesis Key Restored
-        |
-        +--> Shown / downloaded securely
+User enters N shares
+ -> Shamir reconstruction
+ -> Genesis restored
+ -> Secure display/export (no logging)
 ```
-
-Recovery works even if all services are down.
+Works even if other services are down.
 
 ---
 
-## 5. Data Stored in Mint
-
-| Data | Description | Access |
-|------|-------------|--------|
-| Genesis Key | 12-word mnemonic | Only Mint, or recovery tool |
-| Shares | Shamir split fragments | Printed/provided |
-| Device Config | Thresholds, share counts | Mint + Aegis Web |
-| Encryption Keys | Used internally to protect Genesis | Mint only |
-
----
-
-## 6. Data Stored in Aegis Web
-
-| Data | Description |
-|------|-------------|
-| Unlock status | Whether device is currently unlocked |
-| Governance rules | Governor list, N-of-M |
-| Logs | Governance approvals, TokenControl events |
-| Device metadata | ID, share count, thresholds |
+## 5. Data in Mint
+| Data            | Description                | Access                |
+|-----------------|----------------------------|-----------------------|
+| Genesis key     | 12-word mnemonic           | Mint (unlocked) / recovery |
+| Shamir shares   | Split fragments (M/N)      | Printed/persisted     |
+| Device config   | Thresholds, counts, quorum | Mint + Aegis Web      |
+| Master key      | DPAPI-protected key bytes  | Mint only             |
 
 ---
 
-## 7. Sequence Diagrams
-
-### 7.1 Token Startup Sequence
-
-```
-TokenControl -> Aegis Web: isUnlocked(deviceId)?
-Aegis Web -> TokenControl: Yes
-TokenControl -> Mint: getMnemonic
-Mint -> TokenControl: Genesis returned
-TokenControl: starts session
-```
-
-### 7.2 Governance Approval Sequence
-
-```
-Governor -> Aegis Web: Approve(deviceId)
-Aegis Web: Store approval
-Aegis Web: Check if N approvals reached
-If yes → set unlock(deviceId, 15min)
-```
-
----
-
-## 8. Technology Recommendations
-- Backend: Python, Go, or Node.js
-- Web UI: React or Vue
-- Database: PostgreSQL
-- Local Key Storage: OS keyring + encrypted vault
-- Communication: gRPC or HTTPS
-
----
-
+## 6. Implementation Notes
+- .NET 8 Windows service; localhost binding (HTTP by default; HTTPS optional with cert).
+- AES-256-GCM for mnemonic at rest; DPAPI LocalMachine for master key.
+- Shamir Secret Sharing implemented over GF(256).
+- Logging: file-based; exposed via `/logs/recent`.
+- Installer: Inno Setup + PowerShell script; creates/starts Windows service; uninstall stops/deletes service and removes install directory.
