@@ -28,7 +28,7 @@ public partial class MainWindow : Window
         try
         {
             OverlayStatus.Text = "Loading UI...";
-            _htmlPath = Path.Combine(AppContext.BaseDirectory, "Assets", "aegis_mint_main_screen.html");
+            _htmlPath = Path.Combine(AppContext.BaseDirectory, "Assets", "aegis_mint.html");
 
             if (!File.Exists(_htmlPath))
             {

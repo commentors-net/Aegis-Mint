@@ -7,6 +7,20 @@
   const validateBtn = document.getElementById("validate-config");
   const demoBtn = document.getElementById("load-demo");
 
+  const genEngineBtn = document.getElementById("gen-engine");
+  const engineStatus = document.getElementById("engine-status");
+  const engineAddressInput = document.getElementById("engine-address");
+
+  const genTreasuryBtn = document.getElementById("gen-treasury");
+  const treasuryStatus = document.getElementById("treasury-status");
+  const treasuryAddressInput = document.getElementById("treasury-address");
+
+  const mintBtn = document.querySelector(".btn-primary");
+
+  let engineOk = false;
+  let treasuryOk = false;
+  mintBtn.disabled = true;
+
   const sendToHost = (type, payload) => {
     if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage) {
       window.chrome.webview.postMessage({ type, payload });
@@ -29,6 +43,10 @@
       showToast("Mint request received by host");
     } else if (type === "host-error" && payload?.message) {
       showToast(`Host error: ${payload.message}`, true);
+    } else if (type === "engine-generated") {
+      applyEngine(payload);
+    } else if (type === "treasury-generated") {
+      applyTreasury(payload);
     }
   };
 
@@ -71,8 +89,39 @@
       govShares: sharesInput.value,
       govThreshold: thresholdInput.value,
       contractAddress: document.getElementById("contract-address").value,
-      treasuryAddress: document.getElementById("treasury-address").value
+      treasuryAddress: document.getElementById("treasury-address").value,
+      engineAddress: document.getElementById("engine-address").value,
+      engineReady: engineOk,
+      treasuryReady: treasuryOk
     };
+  }
+
+  function updateMintEnabled() {
+    mintBtn.disabled = !(engineOk && treasuryOk);
+  }
+
+  function applyEngine(payload) {
+    const addr = payload?.address || "";
+    const status = payload?.status || "Engine generated";
+    if (addr) {
+      engineAddressInput.value = addr;
+      engineOk = true;
+      genEngineBtn.disabled = true;
+      engineStatus.textContent = status;
+      updateMintEnabled();
+    }
+  }
+
+  function applyTreasury(payload) {
+    const addr = payload?.address || "";
+    const status = payload?.status || "Treasury generated";
+    if (addr) {
+      treasuryAddressInput.value = addr;
+      treasuryOk = true;
+      genTreasuryBtn.disabled = true;
+      treasuryStatus.textContent = status;
+      updateMintEnabled();
+    }
   }
 
   thresholdInput.addEventListener("input", () => validateThreshold(false));
@@ -81,6 +130,16 @@
   resetBtn.addEventListener("click", () => {
     form.reset();
     thresholdError.style.display = "none";
+
+    engineOk = false;
+    treasuryOk = false;
+    engineAddressInput.value = "";
+    treasuryAddressInput.value = "";
+    engineStatus.textContent = "Engine not generated";
+    treasuryStatus.textContent = "Treasury not generated";
+    genEngineBtn.disabled = false;
+    genTreasuryBtn.disabled = false;
+    updateMintEnabled();
     sendToHost("reset", {});
     logToHost("Reset requested from UI");
   });
@@ -94,16 +153,36 @@
     }
   });
 
+  genEngineBtn.addEventListener("click", () => {
+    engineStatus.textContent = "Requesting Engine...";
+    sendToHost("generate-engine", collectForm());
+    logToHost("Generate Engine requested");
+  });
+
+  genTreasuryBtn.addEventListener("click", () => {
+    treasuryStatus.textContent = "Requesting Treasury...";
+    sendToHost("generate-treasury", collectForm());
+    logToHost("Generate Treasury requested");
+  });
+
   demoBtn.addEventListener("click", () => {
     document.getElementById("token-name").value = "Aegis Demo Token";
     document.getElementById("token-supply").value = "1000000";
     document.getElementById("token-decimals").value = "18";
     sharesInput.value = "5";
     thresholdInput.value = "3";
-    document.getElementById("treasury-address").value =
-      "0x0000000000000000000000000000000000DEMO";
-    document.getElementById("contract-address").value = "";
+
+    engineOk = true;
+    treasuryOk = true;
+    engineAddressInput.value = "0xENGINE-DEMO";
+    treasuryAddressInput.value = "0xTREASURY-DEMO";
+    engineStatus.textContent = "Engine generated (demo)";
+    treasuryStatus.textContent = "Treasury generated (demo)";
+    genEngineBtn.disabled = true;
+    genTreasuryBtn.disabled = true;
+
     validateThreshold(false);
+    updateMintEnabled();
     sendToHost("load-demo", collectForm());
     logToHost("Demo config loaded");
   });
@@ -113,6 +192,10 @@
     const validForm = form.reportValidity();
     const validThreshold = validateThreshold(true);
     if (!validForm || !validThreshold) return;
+    if (!engineOk || !treasuryOk) {
+      showToast("Engine and Treasury must be generated first.", true);
+      return;
+    }
 
     sendToHost("mint-submit", collectForm());
     logToHost("Mint submitted from UI");
