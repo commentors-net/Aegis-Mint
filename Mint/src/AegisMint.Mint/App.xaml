@@ -1,7 +1,7 @@
-﻿<Application x:Class="AegisMint.AdminApp.App"
+<Application x:Class="AegisMint.Mint.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:AegisMint.AdminApp"
+             xmlns:local="clr-namespace:AegisMint.Mint"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
          

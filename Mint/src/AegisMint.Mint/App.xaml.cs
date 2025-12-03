@@ -1,8 +1,8 @@
-﻿using System.Configuration;
+using System.Configuration;
 using System.Data;
 using System.Windows;
 
-namespace AegisMint.AdminApp;
+namespace AegisMint.Mint;
 
 /// <summary>
 /// Interaction logic for App.xaml
@@ -10,4 +10,3 @@ namespace AegisMint.AdminApp;
 public partial class App : System.Windows.Application
 {
 }
-

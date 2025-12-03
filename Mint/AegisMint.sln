@@ -11,7 +11,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AegisMint.Core", "src\Aegis
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AegisMint.Client", "src\AegisMint.Client\AegisMint.Client.csproj", "{2EC2901F-5429-471C-8125-67644ED97D44}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AegisMint.AdminApp", "src\AegisMint.AdminApp\AegisMint.AdminApp.csproj", "{3356A0DB-0CA5-4E79-AA3D-EF15AAD27B70}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AegisMint.Mint", "src\AegisMint.Mint\AegisMint.Mint.csproj", "{3356A0DB-0CA5-4E79-AA3D-EF15AAD27B70}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -80,5 +80,5 @@ Global
 		{61AE322E-A41F-44F8-B6DC-4314F2201B20} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{2EC2901F-5429-471C-8125-67644ED97D44} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{3356A0DB-0CA5-4E79-AA3D-EF15AAD27B70} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
-	EndGlobalSection
+EndGlobalSection
 EndGlobal

@@ -1,4 +1,4 @@
-# AegisMint AdminApp Manual
+﻿# AegisMint.Mint Manual
 
 ## Purpose
 Lightweight WPF control panel for local Mint operations (dev and admin support). It should never display the mnemonic; it only confirms retrieval status.
@@ -19,3 +19,5 @@ Lightweight WPF control panel for local Mint operations (dev and admin support).
 - Run the AdminApp as an administrator if the service requires elevated endpoints or if the service is installed under Program Files.
 - For production, disable `AllowDevBypassUnlock` in the service config; unlock should be driven by governance signals from Aegis Web.
 - Logs are read from the service via `/logs/recent`; ensure the service log path is reachable by the service account.
+
+
