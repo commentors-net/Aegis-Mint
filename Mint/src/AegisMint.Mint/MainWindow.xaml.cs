@@ -5,17 +5,33 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using Microsoft.Web.WebView2.Core;
+using AegisMint.Mint.Services;
 
 namespace AegisMint.Mint;
 
 public partial class MainWindow : Window
 {
     private string? _htmlPath;
+    private readonly VaultManager _vaultManager;
 
     public MainWindow()
     {
         InitializeComponent();
+        _vaultManager = new VaultManager();
         Loaded += OnLoaded;
+        
+        // Add F12 keyboard shortcut to open DevTools
+        PreviewKeyDown += OnPreviewKeyDown;
+    }
+
+    private void OnPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        // F12 to open/close DevTools
+        if (e.Key == System.Windows.Input.Key.F12 && MainWebView?.CoreWebView2 != null)
+        {
+            MainWebView.CoreWebView2.OpenDevToolsWindow();
+            e.Handled = true;
+        }
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -55,7 +71,7 @@ public partial class MainWindow : Window
 
         var settings = MainWebView.CoreWebView2.Settings;
         settings.AreDefaultContextMenusEnabled = false;
-        settings.AreDevToolsEnabled = false;
+        settings.AreDevToolsEnabled = true; // Enable for debugging
         settings.IsStatusBarEnabled = false;
         settings.AreHostObjectsAllowed = false;
 
@@ -110,9 +126,16 @@ public partial class MainWindow : Window
             {
                 case "bridge-ready":
                     await SendToWebAsync("host-info", new { host = "Aegis Mint WPF", version = "1.0" });
+                    await CheckExistingVaults();
                     break;
                 case "log":
                     HandleLog(message.payload);
+                    break;
+                case "generate-engine":
+                    await HandleGenerateEngine();
+                    break;
+                case "generate-treasury":
+                    await HandleGenerateTreasury();
                     break;
                 case "mint-submit":
                     await SendToWebAsync("mint-received", new { ok = true, received = message.payload });
@@ -121,6 +144,7 @@ public partial class MainWindow : Window
                     await SendToWebAsync("validation-result", new { ok = true, message = "Validated on host" });
                     break;
                 case "reset":
+                    _vaultManager.ClearVaults();
                     await SendToWebAsync("reset-ack", new { ok = true });
                     break;
             }
@@ -192,6 +216,92 @@ public partial class MainWindow : Window
     private void ToggleMaximize()
     {
         WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+    }
+
+    private async Task CheckExistingVaults()
+    {
+        try
+        {
+            var engineAddress = _vaultManager.GetEngineAddress();
+            var treasuryAddress = _vaultManager.GetTreasuryAddress();
+            
+            // Send combined vault status
+            await SendToWebAsync("vault-status", new 
+            { 
+                hasEngine = engineAddress != null,
+                engineAddress = engineAddress,
+                hasTreasury = treasuryAddress != null,
+                treasuryAddress = treasuryAddress
+            });
+        }
+        catch (Exception ex)
+        {
+            await SendToWebAsync("host-error", new { message = $"Error loading vaults: {ex.Message}" });
+        }
+    }
+
+    private async Task HandleGenerateEngine()
+    {
+        try
+        {
+            // Check if engine already exists
+            if (_vaultManager.HasEngine())
+            {
+                await SendToWebAsync("host-error", new 
+                { 
+                    message = "Engine already exists. Use Reset to clear existing vaults." 
+                });
+                return;
+            }
+
+            // Generate new engine
+            var address = _vaultManager.GenerateEngine();
+            
+            await SendToWebAsync("engine-generated", new 
+            { 
+                address = address,
+                status = "Engine generated and secured"
+            });
+        }
+        catch (Exception ex)
+        {
+            await SendToWebAsync("host-error", new 
+            { 
+                message = $"Failed to generate Engine: {ex.Message}" 
+            });
+        }
+    }
+
+    private async Task HandleGenerateTreasury()
+    {
+        try
+        {
+            // Check if treasury already exists
+            if (_vaultManager.HasTreasury())
+            {
+                await SendToWebAsync("host-error", new 
+                { 
+                    message = "Treasury already exists. Use Reset to clear existing vaults." 
+                });
+                return;
+            }
+
+            // Generate new treasury
+            var address = _vaultManager.GenerateTreasury();
+            
+            await SendToWebAsync("treasury-generated", new 
+            { 
+                address = address,
+                status = "Treasury generated and secured"
+            });
+        }
+        catch (Exception ex)
+        {
+            await SendToWebAsync("host-error", new 
+            { 
+                message = $"Failed to generate Treasury: {ex.Message}" 
+            });
+        }
     }
 
     private record BridgeMessage(string? type, JsonElement? payload);

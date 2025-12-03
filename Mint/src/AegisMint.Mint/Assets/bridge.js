@@ -35,6 +35,7 @@
 
   window.receiveHostMessage = function (message) {
     const { type, payload } = message || {};
+    console.log("Received from host:", type, payload);
     if (type === "host-info") {
       logToHost("Connected to host");
     } else if (type === "validation-result" && payload) {
@@ -44,9 +45,13 @@
     } else if (type === "host-error" && payload?.message) {
       showToast(`Host error: ${payload.message}`, true);
     } else if (type === "engine-generated") {
+      console.log("Applying engine:", payload);
       applyEngine(payload);
     } else if (type === "treasury-generated") {
       applyTreasury(payload);
+    } else if (type === "vault-status") {
+      console.log("Applying vault status:", payload);
+      applyVaultStatus(payload);
     }
   };
 
@@ -101,13 +106,17 @@
   }
 
   function applyEngine(payload) {
+    debugger; // Pause here to inspect the disable action
     const addr = payload?.address || "";
     const status = payload?.status || "Engine generated";
+    console.log("applyEngine - addr:", addr, "button before disable:", genEngineBtn.disabled);
     if (addr) {
       engineAddressInput.value = addr;
       engineOk = true;
       genEngineBtn.disabled = true;
+      console.log("applyEngine - button after disable:", genEngineBtn.disabled);
       engineStatus.textContent = status;
+      document.getElementById("engine-pill").textContent = "Engine ready";
       updateMintEnabled();
     }
   }
@@ -124,6 +133,23 @@
     }
   }
 
+  function applyVaultStatus(payload) {
+    if (payload?.hasEngine && payload?.engineAddress) {
+      engineAddressInput.value = payload.engineAddress;
+      engineOk = true;
+      genEngineBtn.disabled = true;
+      engineStatus.textContent = "Engine loaded from vault";
+      document.getElementById("engine-pill").textContent = "Engine ready";
+    }
+    if (payload?.hasTreasury && payload?.treasuryAddress) {
+      treasuryAddressInput.value = payload.treasuryAddress;
+      treasuryOk = true;
+      genTreasuryBtn.disabled = true;
+      treasuryStatus.textContent = "Treasury loaded from vault";
+    }
+    updateMintEnabled();
+  }
+
   thresholdInput.addEventListener("input", () => validateThreshold(false));
   sharesInput.addEventListener("input", () => validateThreshold(false));
 
@@ -137,6 +163,7 @@
     treasuryAddressInput.value = "";
     engineStatus.textContent = "Engine not generated";
     treasuryStatus.textContent = "Treasury not generated";
+    document.getElementById("engine-pill").textContent = "Engine not generated";
     genEngineBtn.disabled = false;
     genTreasuryBtn.disabled = false;
     updateMintEnabled();
@@ -154,6 +181,12 @@
   });
 
   genEngineBtn.addEventListener("click", () => {
+    debugger; // Pause here when DevTools is open
+    console.log("Gen Engine button clicked, disabled:", genEngineBtn.disabled);
+    if (genEngineBtn.disabled) {
+      console.log("Button is disabled, ignoring click");
+      return;
+    }
     engineStatus.textContent = "Requesting Engine...";
     sendToHost("generate-engine", collectForm());
     logToHost("Generate Engine requested");
