@@ -159,6 +159,20 @@
       font-weight: 500;
     }
 
+    .network-select {
+      background: transparent;
+      border: none;
+      color: var(--text-main);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 6px;
+      outline: none;
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      cursor: pointer;
+    }
+
     .pill-dot {
       width: 8px;
       height: 8px;
@@ -501,7 +515,10 @@
         <div class="header-right">
           <div class="pill pill-network">
             <span class="pill-label">Network</span>
-            <span class="pill-value">Ethereum Mainnet</span>
+            <select id="network-select" class="network-select" aria-label="Select network">
+              <option value="mainnet" selected>Ethereum Mainnet</option>
+              <option value="sepolia">Ethereum Testnet (Sepolia)</option>
+            </select>
           </div>
           <div class="pill pill-genesis">
             <span class="pill-label">Engine (vault)</span>

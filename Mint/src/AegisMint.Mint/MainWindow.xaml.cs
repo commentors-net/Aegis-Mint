@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
@@ -13,11 +14,19 @@ public partial class MainWindow : Window
 {
     private string? _htmlPath;
     private readonly VaultManager _vaultManager;
+    private readonly EthereumService _ethereumService;
+    private readonly Dictionary<string, string> _rpcMap = new()
+    {
+        { "mainnet", "https://ethereum.publicnode.com" },
+        { "sepolia", "https://ethereum-sepolia-rpc.publicnode.com" }
+    };
+    private string _currentNetwork = "mainnet";
 
     public MainWindow()
     {
         InitializeComponent();
         _vaultManager = new VaultManager();
+        _ethereumService = new EthereumService(_rpcMap[_currentNetwork]);
         Loaded += OnLoaded;
         
         // Add F12 keyboard shortcut to open DevTools
@@ -125,11 +134,14 @@ public partial class MainWindow : Window
             switch (message.type)
             {
                 case "bridge-ready":
-                    await SendToWebAsync("host-info", new { host = "Aegis Mint WPF", version = "1.0" });
+                    await SendToWebAsync("host-info", new { host = "Aegis Mint WPF", version = "1.0", network = _currentNetwork });
                     await CheckExistingVaults();
                     break;
                 case "log":
                     HandleLog(message.payload);
+                    break;
+                case "network-changed":
+                    ApplyNetwork(message.payload);
                     break;
                 case "generate-engine":
                     await HandleGenerateEngine();
@@ -141,7 +153,7 @@ public partial class MainWindow : Window
                     await SendToWebAsync("mint-received", new { ok = true, received = message.payload });
                     break;
                 case "validate":
-                    await SendToWebAsync("validation-result", new { ok = true, message = "Validated on host" });
+                    await HandleValidateConfiguration();
                     break;
                 case "reset":
                     _vaultManager.ClearVaults();
@@ -181,6 +193,35 @@ public partial class MainWindow : Window
         catch
         {
             // Swallow logging errors to avoid crashing the bridge
+        }
+    }
+    private void ApplyNetwork(JsonElement? payload)
+    {
+        try
+        {
+            var network = payload.HasValue && payload.Value.TryGetProperty("network", out var netProp)
+                ? netProp.GetString()
+                : null;
+
+            if (string.IsNullOrWhiteSpace(network))
+            {
+                return;
+            }
+
+            if (_rpcMap.TryGetValue(network, out var rpc))
+            {
+                _ethereumService.SetRpcUrl(rpc);
+                _currentNetwork = network;
+                _ = SendToWebAsync("network-updated", new { network = _currentNetwork });
+            }
+            else
+            {
+                _ = SendToWebAsync("host-error", new { message = $"Unknown network: {network}" });
+            }
+        }
+        catch (Exception ex)
+        {
+            _ = SendToWebAsync("host-error", new { message = $"Network change failed: {ex.Message}" });
         }
     }
 
@@ -300,6 +341,92 @@ public partial class MainWindow : Window
             await SendToWebAsync("host-error", new 
             { 
                 message = $"Failed to generate Treasury: {ex.Message}" 
+            });
+        }
+    }
+
+    private async Task HandleValidateConfiguration()
+    {
+        try
+        {
+            // Check if Engine exists
+            var engineAddress = _vaultManager.GetEngineAddress();
+            if (engineAddress == null)
+            {
+                await SendToWebAsync("validation-result", new 
+                { 
+                    ok = false,
+                    message = "Engine must be generated first.",
+                    canMint = false
+                });
+                return;
+            }
+
+            // Check if Treasury exists
+            var treasuryAddress = _vaultManager.GetTreasuryAddress();
+            if (treasuryAddress == null)
+            {
+                await SendToWebAsync("validation-result", new 
+                { 
+                    ok = false,
+                    message = "Treasury must be generated first.",
+                    canMint = false
+                });
+                return;
+            }
+
+            // Validate RPC connection
+            var isConnected = await _ethereumService.ValidateConnectionAsync();
+            if (!isConnected)
+            {
+                await SendToWebAsync("validation-result", new 
+                { 
+                    ok = false,
+                    message = "Failed to connect to Ethereum network. Please check your internet connection.",
+                    canMint = false
+                });
+                return;
+            }
+
+            // Get network name
+            var networkName = await _ethereumService.GetNetworkNameAsync();
+
+            // Check Engine balance
+            var balance = await _ethereumService.GetBalanceAsync(engineAddress);
+            var hasSufficientBalance = balance >= 0.01m;
+
+            if (!hasSufficientBalance)
+            {
+                await SendToWebAsync("validation-result", new 
+                { 
+                    ok = false,
+                    message = $"Engine address has insufficient balance.\n\nAddress: {engineAddress}\nCurrent Balance: {balance:F6} ETH\nRequired: 0.01 ETH minimum\n\nPlease fund this address with ETH to cover gas fees for deployment.",
+                    canMint = false,
+                    balance = balance,
+                    engineAddress = engineAddress,
+                    network = networkName
+                });
+                return;
+            }
+
+            // All validations passed
+            await SendToWebAsync("validation-result", new 
+            { 
+                ok = true,
+                message = $"Configuration validated successfully!\n\nNetwork: {networkName}\nEngine Balance: {balance:F6} ETH\nReady to mint token.",
+                canMint = true,
+                balance = balance,
+                engineAddress = engineAddress,
+                network = networkName
+            });
+        }
+        catch (Exception ex)
+        {
+            await SendToWebAsync("validation-result", new 
+            { 
+                ok = false,
+                message = $"Validation failed: {ex.Message}",
+                canMint = false
             });
         }
     }

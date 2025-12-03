@@ -6,6 +6,7 @@
   const resetBtn = document.getElementById("reset-form");
   const validateBtn = document.getElementById("validate-config");
   const demoBtn = document.getElementById("load-demo");
+  const networkSelect = document.getElementById("network-select");
 
   const genEngineBtn = document.getElementById("gen-engine");
   const engineStatus = document.getElementById("engine-status");
@@ -39,7 +40,7 @@
     if (type === "host-info") {
       logToHost("Connected to host");
     } else if (type === "validation-result" && payload) {
-      showToast(payload.message || "Validation completed");
+      handleValidationResult(payload);
     } else if (type === "mint-received") {
       showToast("Mint request received by host");
     } else if (type === "host-error" && payload?.message) {
@@ -88,6 +89,7 @@
 
   function collectForm() {
     return {
+      network: networkSelect?.value || "mainnet",
       tokenName: document.getElementById("token-name").value,
       tokenSupply: document.getElementById("token-supply").value,
       tokenDecimals: document.getElementById("token-decimals").value,
@@ -106,15 +108,12 @@
   }
 
   function applyEngine(payload) {
-    debugger; // Pause here to inspect the disable action
     const addr = payload?.address || "";
     const status = payload?.status || "Engine generated";
-    console.log("applyEngine - addr:", addr, "button before disable:", genEngineBtn.disabled);
     if (addr) {
       engineAddressInput.value = addr;
       engineOk = true;
       genEngineBtn.disabled = true;
-      console.log("applyEngine - button after disable:", genEngineBtn.disabled);
       engineStatus.textContent = status;
       document.getElementById("engine-pill").textContent = "Engine ready";
       updateMintEnabled();
@@ -150,8 +149,31 @@
     updateMintEnabled();
   }
 
+  function handleValidationResult(payload) {
+    const isValid = payload?.ok === true;
+    const canMint = payload?.canMint === true;
+    const message = payload?.message || "Validation completed";
+    
+    showToast(message, !isValid);
+    
+    // Update mint button state based on validation
+    if (canMint && engineOk && treasuryOk) {
+      mintBtn.disabled = false;
+      console.log("Mint button enabled - validation passed");
+    } else {
+      mintBtn.disabled = true;
+      console.log("Mint button disabled - validation failed or vaults not ready");
+    }
+  }
+
   thresholdInput.addEventListener("input", () => validateThreshold(false));
   sharesInput.addEventListener("input", () => validateThreshold(false));
+  if (networkSelect) {
+    networkSelect.addEventListener("change", () => {
+      sendToHost("network-changed", { network: networkSelect.value });
+      logToHost(`Network changed to ${networkSelect.value}`);
+    });
+  }
 
   resetBtn.addEventListener("click", () => {
     form.reset();
@@ -181,10 +203,7 @@
   });
 
   genEngineBtn.addEventListener("click", () => {
-    debugger; // Pause here when DevTools is open
-    console.log("Gen Engine button clicked, disabled:", genEngineBtn.disabled);
     if (genEngineBtn.disabled) {
-      console.log("Button is disabled, ignoring click");
       return;
     }
     engineStatus.textContent = "Requesting Engine...";
