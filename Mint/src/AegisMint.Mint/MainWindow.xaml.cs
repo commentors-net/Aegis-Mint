@@ -599,8 +599,17 @@ public partial class MainWindow : Window
 
             if (File.Exists(binPath))
             {
-                _tokenBytecode = File.ReadAllText(binPath);
-                Logger.Info("Token bytecode loaded successfully");
+                var rawBytecode = File.ReadAllText(binPath);
+                _tokenBytecode = NormalizeHex(rawBytecode);
+
+                if (string.IsNullOrWhiteSpace(_tokenBytecode))
+                {
+                    Logger.Warning("Token bytecode file was empty or contained no hex characters");
+                }
+                else
+                {
+                    Logger.Info($"Token bytecode loaded successfully (length: {_tokenBytecode.Length} chars)");
+                }
             }
             else
             {
@@ -612,5 +621,25 @@ public partial class MainWindow : Window
             Logger.Error("Failed to load contract artifacts", ex);
             OverlayStatus.Text = $"Failed to load contract artifacts: {ex.Message}";
         }
+    }
+
+    /// <summary>
+    /// Strips whitespace, newlines, and an optional 0x prefix so the bytecode is pure hex.
+    /// </summary>
+    private static string NormalizeHex(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = raw.Trim();
+        if (trimmed.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = trimmed[2..];
+        }
+
+        // Keep only hex digits to avoid signer errors when converting to bytes.
+        return new string(trimmed.Where(Uri.IsHexDigit).ToArray());
     }
 }

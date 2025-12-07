@@ -54,18 +54,22 @@ public class ContractDeployer
 
             // Step 4: Encode constructor parameters if any
             var deploymentData = contractBytecode;
+            
+            // Remove 0x prefix if present for processing
+            if (deploymentData.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+            {
+                deploymentData = deploymentData.Substring(2);
+            }
+            
             if (constructorParams != null && constructorParams.Length > 0)
             {
                 Logger.Debug($"Encoding {constructorParams.Length} constructor parameters");
                 var encodedParams = EncodeConstructorParameters(contractAbi, constructorParams);
-                deploymentData = contractBytecode + encodedParams;
+                deploymentData = deploymentData + encodedParams; // Concatenate without 0x
             }
 
-            // Ensure 0x prefix
-            if (!deploymentData.StartsWith("0x"))
-            {
-                deploymentData = "0x" + deploymentData;
-            }
+            // Ensure 0x prefix for the final data
+            deploymentData = "0x" + deploymentData;
 
             Logger.Debug($"Deployment data length: {deploymentData.Length} characters");
 

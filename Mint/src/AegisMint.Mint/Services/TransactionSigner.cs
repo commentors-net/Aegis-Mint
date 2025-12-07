@@ -3,6 +3,7 @@ using System.Numerics;
 using Nethereum.Web3.Accounts;
 using Nethereum.Signer;
 using Nethereum.Hex.HexConvertors.Extensions;
+using Nethereum.RLP;
 
 namespace AegisMint.Mint.Services;
 
@@ -51,22 +52,37 @@ public class TransactionSigner
         {
             Logger.Debug($"Signing transaction - Nonce: {nonce}, GasPrice: {gasPrice}, GasLimit: {gasLimit}, ChainId: {chainId}");
 
-            // Use LegacyTransactionSigner for traditional transactions
+            // Ensure data has 0x prefix
+            if (!string.IsNullOrEmpty(data) && !data.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+            {
+                data = "0x" + data;
+            }
+
+            // Convert data to byte array first to avoid parsing issues
+            byte[] dataBytes = string.IsNullOrEmpty(data) || data == "0x" 
+                ? Array.Empty<byte>() 
+                : data.HexToByteArray();
+
+            // Use LegacyTransactionSigner with byte array for data
             var signer = new LegacyTransactionSigner();
             
-            // For contract deployment, 'to' is empty
-            var toAddress = string.IsNullOrEmpty(to) ? null : to;
+            // For contract deployment, 'to' should be empty string
+            var toAddress = string.IsNullOrWhiteSpace(to) ? string.Empty : to;
 
-            // Sign the transaction with EIP-155 (chainId)
+            // Convert private key to byte array
+            var privateKeyBytes = _account.PrivateKey.HexToByteArray();
+
+            // Sign the transaction - pass data as byte array by converting back to hex
+            // This avoids the internal parsing issue
             var signedTx = signer.SignTransaction(
-                _account.PrivateKey,
+                privateKeyBytes,
                 chainId,
                 toAddress,
                 value,
                 nonce,
                 gasPrice,
                 gasLimit,
-                data);
+                dataBytes.ToHex(true)); // Convert bytes back to hex with 0x prefix
             
             Logger.Debug($"Transaction signed successfully");
             return signedTx;
