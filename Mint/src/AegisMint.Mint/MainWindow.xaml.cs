@@ -1,6 +1,5 @@
 ﻿using System;
 using System.IO;
-using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
@@ -14,23 +13,38 @@ public partial class MainWindow : Window
 {
     private string? _htmlPath;
     private readonly VaultManager _vaultManager;
-    private readonly EthereumService _ethereumService;
-    private readonly Dictionary<string, string> _rpcMap = new()
-    {
-        { "mainnet", "https://ethereum.publicnode.com" },
-        { "sepolia", "https://ethereum-sepolia-rpc.publicnode.com" }
-    };
-    private string _currentNetwork = "mainnet";
+    private EthereumService? _ethereumService;
+    private string _currentNetwork = "sepolia"; // default
 
-    public MainWindow()
+    public MainWindow(string network, string rpcUrl)
     {
         InitializeComponent();
         _vaultManager = new VaultManager();
-        _ethereumService = new EthereumService(_rpcMap[_currentNetwork]);
         Loaded += OnLoaded;
         
         // Add F12 keyboard shortcut to open DevTools
         PreviewKeyDown += OnPreviewKeyDown;
+        
+        // Initialize EthereumService with selected network
+        _currentNetwork = network;
+        _ethereumService = new EthereumService(rpcUrl);
+        
+        // Update window title to show selected network
+        Title = $"Aegis Mint - {network.ToUpper()}";
+    }
+
+    private void InitializeEthereumService(string network)
+    {
+        var rpcUrl = network switch
+        {
+            "localhost" => "http://127.0.0.1:8545",
+            "mainnet" => "https://eth.llamarpc.com",
+            "sepolia" => "https://ethereum-sepolia-rpc.publicnode.com",
+            _ => "https://ethereum-sepolia-rpc.publicnode.com"
+        };
+        
+        _ethereumService = new EthereumService(rpcUrl);
+        _currentNetwork = network;
     }
 
     private void OnPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
@@ -83,8 +97,10 @@ public partial class MainWindow : Window
         settings.AreDevToolsEnabled = true; // Enable for debugging
         settings.IsStatusBarEnabled = false;
         settings.AreHostObjectsAllowed = false;
+        settings.IsScriptEnabled = true; // Explicitly enable JavaScript
 
         MainWebView.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
+        MainWebView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
     }
 
     private async void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
@@ -134,26 +150,20 @@ public partial class MainWindow : Window
             switch (message.type)
             {
                 case "bridge-ready":
-                    await SendToWebAsync("host-info", new { host = "Aegis Mint WPF", version = "1.0", network = _currentNetwork });
+                    await SendToWebAsync("host-info", new { host = "Aegis Mint WPF", version = "1.0" });
                     await CheckExistingVaults();
                     break;
                 case "log":
                     HandleLog(message.payload);
                     break;
                 case "network-changed":
-                    ApplyNetwork(message.payload);
-                    break;
-                case "generate-engine":
-                    await HandleGenerateEngine();
+                    HandleNetworkChange(message.payload);
                     break;
                 case "generate-treasury":
                     await HandleGenerateTreasury();
                     break;
                 case "mint-submit":
-                    await SendToWebAsync("mint-received", new { ok = true, received = message.payload });
-                    break;
-                case "validate":
-                    await HandleValidateConfiguration();
+                    await HandleMintSubmit(message.payload);
                     break;
                 case "reset":
                     _vaultManager.ClearVaults();
@@ -195,33 +205,21 @@ public partial class MainWindow : Window
             // Swallow logging errors to avoid crashing the bridge
         }
     }
-    private void ApplyNetwork(JsonElement? payload)
+
+    private void HandleNetworkChange(JsonElement? payload)
     {
         try
         {
-            var network = payload.HasValue && payload.Value.TryGetProperty("network", out var netProp)
-                ? netProp.GetString()
-                : null;
-
-            if (string.IsNullOrWhiteSpace(network))
+            if (payload.HasValue && payload.Value.TryGetProperty("network", out var networkProp))
             {
-                return;
-            }
-
-            if (_rpcMap.TryGetValue(network, out var rpc))
-            {
-                _ethereumService.SetRpcUrl(rpc);
-                _currentNetwork = network;
-                _ = SendToWebAsync("network-updated", new { network = _currentNetwork });
-            }
-            else
-            {
-                _ = SendToWebAsync("host-error", new { message = $"Unknown network: {network}" });
+                var network = networkProp.GetString() ?? "sepolia";
+                InitializeEthereumService(network);
+                System.Diagnostics.Debug.WriteLine($"[NETWORK] Switched to: {network}");
             }
         }
         catch (Exception ex)
         {
-            _ = SendToWebAsync("host-error", new { message = $"Network change failed: {ex.Message}" });
+            System.Diagnostics.Debug.WriteLine($"[NETWORK] Error changing network: {ex.Message}");
         }
     }
 
@@ -263,53 +261,30 @@ public partial class MainWindow : Window
     {
         try
         {
-            var engineAddress = _vaultManager.GetEngineAddress();
             var treasuryAddress = _vaultManager.GetTreasuryAddress();
+            decimal? balance = null;
+            if (_ethereumService != null && !string.IsNullOrWhiteSpace(treasuryAddress))
+            {
+                try
+                {
+                    balance = await _ethereumService.GetBalanceAsync(treasuryAddress);
+                }
+                catch
+                {
+                    balance = null;
+                }
+            }
             
-            // Send combined vault status
             await SendToWebAsync("vault-status", new 
             { 
-                hasEngine = engineAddress != null,
-                engineAddress = engineAddress,
                 hasTreasury = treasuryAddress != null,
-                treasuryAddress = treasuryAddress
+                treasuryAddress = treasuryAddress,
+                balance = balance
             });
         }
         catch (Exception ex)
         {
             await SendToWebAsync("host-error", new { message = $"Error loading vaults: {ex.Message}" });
-        }
-    }
-
-    private async Task HandleGenerateEngine()
-    {
-        try
-        {
-            // Check if engine already exists
-            if (_vaultManager.HasEngine())
-            {
-                await SendToWebAsync("host-error", new 
-                { 
-                    message = "Engine already exists. Use Reset to clear existing vaults." 
-                });
-                return;
-            }
-
-            // Generate new engine
-            var address = _vaultManager.GenerateEngine();
-            
-            await SendToWebAsync("engine-generated", new 
-            { 
-                address = address,
-                status = "Engine generated and secured"
-            });
-        }
-        catch (Exception ex)
-        {
-            await SendToWebAsync("host-error", new 
-            { 
-                message = $"Failed to generate Engine: {ex.Message}" 
-            });
         }
     }
 
@@ -345,90 +320,116 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task HandleValidateConfiguration()
+    private async Task HandleMintSubmit(JsonElement? payload)
     {
         try
         {
-            // Check if Engine exists
-            var engineAddress = _vaultManager.GetEngineAddress();
-            if (engineAddress == null)
+            // Step 1: Validate mint payload structure
+            var (ok, error) = ValidateMintPayload(payload);
+            if (!ok)
             {
-                await SendToWebAsync("validation-result", new 
-                { 
-                    ok = false,
-                    message = "Engine must be generated first.",
-                    canMint = false
-                });
+                await SendToWebAsync("validation-result", new { ok = false, message = error ?? "Validation failed" });
                 return;
             }
 
-            // Check if Treasury exists
-            var treasuryAddress = _vaultManager.GetTreasuryAddress();
-            if (treasuryAddress == null)
+            // Step 2: Validate treasury balance on blockchain
+            if (_ethereumService != null && payload.HasValue && payload.Value.TryGetProperty("treasuryAddress", out var addrProp))
             {
-                await SendToWebAsync("validation-result", new 
-                { 
-                    ok = false,
-                    message = "Treasury must be generated first.",
-                    canMint = false
-                });
-                return;
+                var treasuryAddress = addrProp.GetString();
+                if (!string.IsNullOrWhiteSpace(treasuryAddress))
+                {
+                    try
+                    {
+                        var balance = await _ethereumService.GetBalanceAsync(treasuryAddress);
+                        if (balance <= 0)
+                        {
+                            await SendToWebAsync("validation-result", new 
+                            { 
+                                ok = false, 
+                                message = $"Treasury address has 0 ETH balance on {_currentNetwork}. Fund the address before minting." 
+                            });
+                            return;
+                        }
+                        
+                        System.Diagnostics.Debug.WriteLine($"[VALIDATION] Treasury balance: {balance} ETH");
+                    }
+                    catch (Exception ex)
+                    {
+                        await SendToWebAsync("validation-result", new 
+                        { 
+                            ok = false, 
+                            message = $"Failed to check balance on {_currentNetwork}: {ex.Message}" 
+                        });
+                        return;
+                    }
+                }
             }
 
-            // Validate RPC connection
-            var isConnected = await _ethereumService.ValidateConnectionAsync();
-            if (!isConnected)
-            {
-                await SendToWebAsync("validation-result", new 
-                { 
-                    ok = false,
-                    message = "Failed to connect to Ethereum network. Please check your internet connection.",
-                    canMint = false
-                });
-                return;
-            }
-
-            // Get network name
-            var networkName = await _ethereumService.GetNetworkNameAsync();
-
-            // Check Engine balance
-            var balance = await _ethereumService.GetBalanceAsync(engineAddress);
-            var hasSufficientBalance = balance >= 0.01m;
-
-            if (!hasSufficientBalance)
-            {
-                await SendToWebAsync("validation-result", new 
-                { 
-                    ok = false,
-                    message = $"Engine address has insufficient balance.\n\nAddress: {engineAddress}\nCurrent Balance: {balance:F6} ETH\nRequired: 0.01 ETH minimum\n\nPlease fund this address with ETH to cover gas fees for deployment.",
-                    canMint = false,
-                    balance = balance,
-                    engineAddress = engineAddress,
-                    network = networkName
-                });
-                return;
-            }
-
-            // All validations passed
-            await SendToWebAsync("validation-result", new 
-            { 
-                ok = true,
-                message = $"Configuration validated successfully!\n\nNetwork: {networkName}\nEngine Balance: {balance:F6} ETH\nReady to mint token.",
-                canMint = true,
-                balance = balance,
-                engineAddress = engineAddress,
-                network = networkName
-            });
+            // Step 3: All validations passed, proceed with minting
+            await SendToWebAsync("validation-result", new { ok = true, message = "Configuration validated. Deploying token..." });
+            await SendToWebAsync("mint-received", new { ok = true, received = payload });
         }
         catch (Exception ex)
         {
-            await SendToWebAsync("validation-result", new 
-            { 
-                ok = false,
-                message = $"Validation failed: {ex.Message}",
-                canMint = false
-            });
+            await SendToWebAsync("host-error", new { message = $"Mint failed: {ex.Message}" });
         }
+    }
+
+    private (bool ok, string? error) ValidateMintPayload(JsonElement? payload)
+    {
+        if (payload is null) return (false, "No payload received.");
+
+        string GetString(string name)
+        {
+            return payload.Value.TryGetProperty(name, out var prop) ? prop.GetString() ?? string.Empty : string.Empty;
+        }
+
+        bool TryGetDecimal(string name, out decimal value)
+        {
+            value = 0m;
+            if (!payload.Value.TryGetProperty(name, out var prop)) return false;
+            if (prop.ValueKind == JsonValueKind.Number && prop.TryGetDecimal(out value)) return true;
+            if (prop.ValueKind == JsonValueKind.String && decimal.TryParse(prop.GetString(), out value)) return true;
+            return false;
+        }
+
+        var tokenName = GetString("tokenName");
+        var treasuryAddress = GetString("treasuryAddress");
+
+        if (string.IsNullOrWhiteSpace(tokenName)) return (false, "Token Name is required.");
+        if (string.IsNullOrWhiteSpace(treasuryAddress)) return (false, "Treasury address is required.");
+
+        if (!payload.Value.TryGetProperty("tokenDecimals", out var decProp) || !decProp.TryGetInt32(out var decimals) || decimals < 0 || decimals > 36)
+        {
+            return (false, "Token decimals must be between 0 and 36.");
+        }
+
+        if (!payload.Value.TryGetProperty("govShares", out var sharesProp) || !sharesProp.TryGetInt32(out var shares) || shares <= 0)
+        {
+            return (false, "Number of shares must be greater than zero.");
+        }
+
+        if (!payload.Value.TryGetProperty("govThreshold", out var thresholdProp) || !thresholdProp.TryGetInt32(out var threshold) || threshold <= 0)
+        {
+            return (false, "Threshold must be greater than zero.");
+        }
+
+        if (threshold > shares)
+        {
+            return (false, "Threshold must be less than or equal to number of shares.");
+        }
+
+        if (!TryGetDecimal("tokenSupply", out var supply) || supply <= 0)
+        {
+            return (false, "Token supply must be greater than zero.");
+        }
+
+        if (!TryGetDecimal("treasuryEth", out var treasuryEth) || treasuryEth <= 0)
+        {
+            return (false, "Treasury ETH must be greater than zero.");
+        }
+
+        return (true, null);
     }
 
     private record BridgeMessage(string? type, JsonElement? payload);

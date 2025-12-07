@@ -13,27 +13,7 @@ namespace AegisMint.Mint.Services;
 public class VaultManager
 {
     private const string RegistryPath = @"Software\AegisMint\Vault";
-    private const string EngineMnemonicKey = "EngineMnemonic";
     private const string TreasuryMnemonicKey = "TreasuryMnemonic";
-
-    /// <summary>
-    /// Generates a new Engine vault with a 12-word mnemonic and returns the Ethereum address.
-    /// The mnemonic is encrypted and stored in the Windows Registry.
-    /// </summary>
-    /// <returns>The Ethereum address derived from the mnemonic.</returns>
-    public string GenerateEngine()
-    {
-        // Generate 12-word mnemonic (128-bit entropy)
-        var mnemonic = new Mnemonic(Wordlist.English, WordCount.Twelve);
-        
-        // Derive Ethereum address from mnemonic
-        var ethereumAddress = DeriveEthereumAddress(mnemonic);
-        
-        // Store encrypted mnemonic in registry
-        StoreEncryptedMnemonic(EngineMnemonicKey, mnemonic.ToString());
-        
-        return ethereumAddress;
-    }
 
     /// <summary>
     /// Generates a new Treasury vault with a 12-word mnemonic and returns the Ethereum address.
@@ -52,26 +32,6 @@ public class VaultManager
         StoreEncryptedMnemonic(TreasuryMnemonicKey, mnemonic.ToString());
         
         return ethereumAddress;
-    }
-
-    /// <summary>
-    /// Retrieves the Engine Ethereum address if it exists.
-    /// </summary>
-    /// <returns>The Engine address or null if not generated.</returns>
-    public string? GetEngineAddress()
-    {
-        var mnemonic = RetrieveDecryptedMnemonic(EngineMnemonicKey);
-        if (mnemonic == null) return null;
-        
-        try
-        {
-            var mn = new Mnemonic(mnemonic, Wordlist.English);
-            return DeriveEthereumAddress(mn);
-        }
-        catch
-        {
-            return null;
-        }
     }
 
     /// <summary>
@@ -95,14 +55,6 @@ public class VaultManager
     }
 
     /// <summary>
-    /// Checks if the Engine vault has been generated.
-    /// </summary>
-    public bool HasEngine()
-    {
-        return GetEngineAddress() != null;
-    }
-
-    /// <summary>
     /// Checks if the Treasury vault has been generated.
     /// </summary>
     public bool HasTreasury()
@@ -120,7 +72,6 @@ public class VaultManager
             using var key = Registry.CurrentUser.OpenSubKey(RegistryPath, writable: true);
             if (key != null)
             {
-                key.DeleteValue(EngineMnemonicKey, throwOnMissingValue: false);
                 key.DeleteValue(TreasuryMnemonicKey, throwOnMissingValue: false);
             }
         }
