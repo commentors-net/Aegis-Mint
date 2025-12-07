@@ -103,9 +103,9 @@ public class VaultManager
     /// <summary>
     /// Derives an Ethereum address from a BIP39 mnemonic using BIP44 path m/44'/60'/0'/0/0.
     /// </summary>
-    private string DeriveEthereumAddress(Mnemonic mnemonic)
+    private string DeriveEthereumAddress(Mnemonic mnemonic, int index = 0)
     {
-        var key = DeriveExtKey(mnemonic);
+        var key = DeriveExtKey(mnemonic, index);
         
         // Derive public key (uncompressed, 65 bytes)
         var pubKey = key.PrivateKey.PubKey.ToBytes();
@@ -144,9 +144,9 @@ public class VaultManager
     /// <summary>
     /// Derives the private key in 0x-prefixed hex form for the Treasury path.
     /// </summary>
-    private string DerivePrivateKeyHex(Mnemonic mnemonic)
+    private string DerivePrivateKeyHex(Mnemonic mnemonic, int index = 0)
     {
-        var key = DeriveExtKey(mnemonic);
+        var key = DeriveExtKey(mnemonic, index);
         var privateKeyBytes = key.PrivateKey.ToBytes();
         return "0x" + BitConverter.ToString(privateKeyBytes).Replace("-", "").ToLowerInvariant();
     }
@@ -154,7 +154,7 @@ public class VaultManager
     /// <summary>
     /// Returns the extended key for the Treasury derivation path.
     /// </summary>
-    private ExtKey DeriveExtKey(Mnemonic mnemonic)
+    private ExtKey DeriveExtKey(Mnemonic mnemonic, int index = 0)
     {
         // Derive seed from mnemonic
         var seed = mnemonic.DeriveExtKey();
@@ -165,8 +165,46 @@ public class VaultManager
         // 0' = account
         // 0 = external chain
         // 0 = address index
-        var path = new KeyPath("m/44'/60'/0'/0/0");
+        var path = new KeyPath($"m/44'/60'/0'/0/{index}");
         return seed.Derive(path);
+    }
+
+    /// <summary>
+    /// Gets the second derived address (index 1) from the stored mnemonic for proxy admin usage.
+    /// </summary>
+    public string? GetSecondaryAddress()
+    {
+        var mnemonic = RetrieveDecryptedMnemonic(TreasuryMnemonicKey);
+        if (mnemonic == null) return null;
+
+        try
+        {
+            var mn = new Mnemonic(mnemonic, Wordlist.English);
+            return DeriveEthereumAddress(mn, 1);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Gets the second derived private key (index 1) from the stored mnemonic.
+    /// </summary>
+    public string? GetSecondaryPrivateKey()
+    {
+        var mnemonic = RetrieveDecryptedMnemonic(TreasuryMnemonicKey);
+        if (mnemonic == null) return null;
+
+        try
+        {
+            var mn = new Mnemonic(mnemonic, Wordlist.English);
+            return DerivePrivateKeyHex(mn, 1);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     /// <summary>

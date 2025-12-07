@@ -429,6 +429,15 @@ public partial class MainWindow : Window
             Logger.Info($"Deploying token: {tokenName} ({tokenSymbol}), decimals: {tokenDecimals}");
             await SendToWebAsync("validation-result", new { ok = true, message = "Configuration validated. Deploying token..." });
 
+            // Derive proxy admin as the second address from the treasury mnemonic (index 1)
+            var proxyAdminAddress = _vaultManager.GetSecondaryAddress();
+            if (string.IsNullOrWhiteSpace(proxyAdminAddress))
+            {
+                Logger.Warning("Failed to derive secondary address; defaulting proxy admin to treasury address");
+                proxyAdminAddress = _vaultManager.GetTreasuryAddress();
+            }
+            Logger.Info($"Using proxy admin address: {proxyAdminAddress}");
+
             // Step 5: Deploy token using JSON-RPC
             Logger.Info("Starting token deployment via JSON-RPC");
             var deployResult = await _ethereumService.DeployTokenAsync(
@@ -437,7 +446,8 @@ public partial class MainWindow : Window
                 _tokenBytecode,
                 tokenName,
                 tokenSymbol,
-                (byte)tokenDecimals);
+                (byte)tokenDecimals,
+                proxyAdminAddress);
 
             if (!deployResult.Success)
             {

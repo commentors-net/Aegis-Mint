@@ -350,7 +350,8 @@ public class ContractDeployer
         if (hex.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
             hex = hex.Substring(2);
 
-        return BigInteger.Parse(hex, System.Globalization.NumberStyles.HexNumber);
+        // Prefix with 0 to avoid two's complement negative interpretation
+        return BigInteger.Parse("0" + hex, System.Globalization.NumberStyles.HexNumber);
     }
 }
 
