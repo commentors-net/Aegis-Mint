@@ -1,12 +1,12 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
-using AegisMint.Mint.Services;
-using System.Linq;
+using AegisMint.Core.Services;
 
 namespace AegisMint.Mint;
 
@@ -344,7 +344,8 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task HandleMintSubmit(JsonElement? payload)
+    private async Task HandleMintSubmit(JsonElement? payload
+)
     {
         try
         {

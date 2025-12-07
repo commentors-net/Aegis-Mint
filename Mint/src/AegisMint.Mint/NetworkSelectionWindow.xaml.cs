@@ -1,4 +1,5 @@
 using System.Windows;
+using AegisMint.Core.Services;
 
 namespace AegisMint.Mint;
 

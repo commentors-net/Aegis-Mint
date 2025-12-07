@@ -6,7 +6,7 @@ using Nethereum.ABI.FunctionEncoding;
 using Nethereum.Contracts;
 using Nethereum.Hex.HexConvertors.Extensions;
 
-namespace AegisMint.Mint.Services;
+namespace AegisMint.Core.Services;
 
 /// <summary>
 /// Handles contract deployment using pure JSON-RPC calls.

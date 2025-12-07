@@ -5,7 +5,7 @@ using Nethereum.Signer;
 using Nethereum.Hex.HexConvertors.Extensions;
 using Nethereum.RLP;
 
-namespace AegisMint.Mint.Services;
+namespace AegisMint.Core.Services;
 
 /// <summary>
 /// Service for signing Ethereum transactions using Nethereum's Account class.

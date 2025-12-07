@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using Nethereum.Web3;
 using Nethereum.Util;
 
-namespace AegisMint.Mint.Services;
+namespace AegisMint.Core.Services;
 
 /// <summary>
 /// Service for interacting with Ethereum blockchain.

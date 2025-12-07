@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
 
-namespace AegisMint.Mint.Services;
+namespace AegisMint.Core.Services;
 
 public static class Logger
 {

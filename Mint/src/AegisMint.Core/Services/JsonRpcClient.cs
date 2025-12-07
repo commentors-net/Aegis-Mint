@@ -5,7 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
-namespace AegisMint.Mint.Services;
+namespace AegisMint.Core.Services;
 
 /// <summary>
 /// Direct JSON-RPC client for Ethereum communication.

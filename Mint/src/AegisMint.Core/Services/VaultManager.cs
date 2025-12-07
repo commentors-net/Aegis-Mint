@@ -5,7 +5,7 @@ using Microsoft.Win32;
 using NBitcoin;
 using Nethereum.Util;
 
-namespace AegisMint.Mint.Services;
+namespace AegisMint.Core.Services;
 
 /// <summary>
 /// Manages vault operations including mnemonic generation and secure storage in Windows Registry.
