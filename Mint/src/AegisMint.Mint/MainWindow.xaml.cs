@@ -286,6 +286,7 @@ public partial class MainWindow : Window
         try
         {
             var treasuryAddress = _vaultManager.GetTreasuryAddress();
+            var deployedContractAddress = _vaultManager.GetDeployedContractAddress();
             decimal? balance = null;
             if (_ethereumService != null && !string.IsNullOrWhiteSpace(treasuryAddress))
             {
@@ -303,7 +304,9 @@ public partial class MainWindow : Window
             { 
                 hasTreasury = treasuryAddress != null,
                 treasuryAddress = treasuryAddress,
-                balance = balance
+                balance = balance,
+                contractDeployed = _vaultManager.HasDeployedContract(),
+                contractAddress = deployedContractAddress
             });
         }
         catch (Exception ex)
@@ -316,6 +319,15 @@ public partial class MainWindow : Window
     {
         try
         {
+            if (_vaultManager.HasDeployedContract())
+            {
+                await SendToWebAsync("host-error", new
+                {
+                    message = "Contract already deployed. Deployment disabled."
+                });
+                return;
+            }
+
             // Check if treasury already exists
             if (_vaultManager.HasTreasury())
             {
@@ -350,6 +362,20 @@ public partial class MainWindow : Window
         try
         {
             Logger.Info("Mint submission started");
+
+            if (_vaultManager.HasDeployedContract())
+            {
+                var recorded = _vaultManager.GetDeployedContractAddress();
+                await SendToWebAsync("host-error", new
+                {
+                    message = "Contract already deployed. Deployment disabled."
+                });
+                await SendToWebAsync("contract-deployed", new
+                {
+                    address = recorded
+                });
+                return;
+            }
 
             // Step 1: Validate mint payload structure
             var (ok, error) = ValidateMintPayload(payload);
@@ -486,6 +512,26 @@ public partial class MainWindow : Window
                 gasUsed = deployResult.GasUsed,
                 blockNumber = deployResult.BlockNumber
             });
+
+            // Persist contract address and notify UI so future deployments are blocked
+            var recordedContractAddress = !string.IsNullOrWhiteSpace(deployResult.ProxyAddress)
+                ? deployResult.ProxyAddress
+                : deployResult.ContractAddress;
+            if (!string.IsNullOrWhiteSpace(recordedContractAddress))
+            {
+                try
+                {
+                    _vaultManager.RecordContractDeployment(recordedContractAddress);
+                    await SendToWebAsync("contract-deployed", new
+                    {
+                        address = recordedContractAddress
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warning($"Failed to record deployed contract address: {ex.Message}");
+                }
+            }
 
             Logger.Info("Token deployment completed successfully");
         }

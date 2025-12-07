@@ -14,6 +14,7 @@ public class VaultManager
 {
     private const string RegistryPath = @"Software\AegisMint\Vault";
     private const string TreasuryMnemonicKey = "TreasuryMnemonic";
+    private const string ContractAddressKey = "ContractAddress";
 
     /// <summary>
     /// Generates a new Treasury vault with a 12-word mnemonic and returns the Ethereum address.
@@ -98,6 +99,52 @@ public class VaultManager
         {
             // Ignore errors during cleanup
         }
+    }
+
+    /// <summary>
+    /// Records a deployed contract address so the app cannot deploy again.
+    /// </summary>
+    public void RecordContractDeployment(string contractAddress)
+    {
+        if (string.IsNullOrWhiteSpace(contractAddress))
+        {
+            throw new ArgumentException("Contract address cannot be empty", nameof(contractAddress));
+        }
+
+        try
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(RegistryPath);
+            key.SetValue(ContractAddressKey, contractAddress, RegistryValueKind.String);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Failed to persist deployed contract address: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Returns the deployed contract address if one is recorded.
+    /// </summary>
+    public string? GetDeployedContractAddress()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(RegistryPath);
+            return key?.GetValue(ContractAddressKey) as string;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Indicates whether a contract has already been deployed.
+    /// </summary>
+    public bool HasDeployedContract()
+    {
+        var address = GetDeployedContractAddress();
+        return !string.IsNullOrWhiteSpace(address);
     }
 
     /// <summary>

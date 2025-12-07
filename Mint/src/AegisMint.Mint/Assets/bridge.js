@@ -7,6 +7,7 @@
   const thresholdInput = document.getElementById("gov-threshold");
   const thresholdError = document.getElementById("threshold-error");
 
+  const contractAddressInput = document.getElementById("contract-address");
   const treasuryAddressInput = document.getElementById("treasury-address");
   const treasuryEthInput = document.getElementById("treasury-eth");
   const treasuryTokensInput = document.getElementById("treasury-tokens");
@@ -30,6 +31,7 @@
 
   let treasuryGenerated = false;
   let selectedNetwork = "sepolia"; // default
+  let contractDeploymentLocked = false;
 
   const sendToHost = (type, payload) => {
     if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage) {
@@ -55,6 +57,9 @@
         break;
       case "mint-received":
         showToast("Mint request received by host");
+        break;
+      case "contract-deployed":
+        lockUiForDeployedContract(payload?.address);
         break;
       case "host-error":
         showToast(payload?.message || "Host error", true);
@@ -106,6 +111,52 @@
     setTimeout(() => toast.remove(), 2200);
   }
 
+  function showPermanentToast(text, isError = false) {
+    const existing = document.getElementById("permanent-toast");
+    if (existing) {
+      existing.textContent = text;
+      existing.style.background = isError ? "rgba(249, 115, 115, 0.12)" : "rgba(56, 189, 248, 0.14)";
+      existing.style.borderColor = isError ? "rgba(249, 115, 115, 0.6)" : "rgba(56, 189, 248, 0.6)";
+      return;
+    }
+
+    const toast = document.createElement("div");
+    toast.id = "permanent-toast";
+    toast.textContent = text;
+    toast.style.position = "fixed";
+    toast.style.bottom = "18px";
+    toast.style.right = "18px";
+    toast.style.padding = "12px 16px";
+    toast.style.borderRadius = "14px";
+    toast.style.background = isError ? "rgba(249, 115, 115, 0.12)" : "rgba(56, 189, 248, 0.14)";
+    toast.style.color = "#e5e7eb";
+    toast.style.border = `1px solid ${isError ? "rgba(249, 115, 115, 0.6)" : "rgba(56, 189, 248, 0.6)"}`;
+    toast.style.boxShadow = "0 14px 30px rgba(0,0,0,0.35)";
+    toast.style.backdropFilter = "blur(8px)";
+    toast.style.zIndex = "999";
+    document.body.appendChild(toast);
+  }
+
+  function lockUiForDeployedContract(address) {
+    if (contractDeploymentLocked) return;
+    contractDeploymentLocked = true;
+
+    const controls = document.querySelectorAll("input, select, button, textarea");
+    controls.forEach((el) => {
+      el.disabled = true;
+      el.classList.add("locked-control");
+    });
+
+    if (contractAddressInput && address) {
+      contractAddressInput.value = address;
+    }
+
+    treasuryStatus.textContent = "Contract already deployed. Deployment disabled.";
+    showPermanentToast("Contract is already deployed");
+    updateMintState();
+    updateGenerateState();
+  }
+
   function validateThreshold(showMessage) {
     const shares = parseInt(sharesInput.value, 10);
     const threshold = parseInt(thresholdInput.value, 10);
@@ -116,13 +167,13 @@
 
   function updateGenerateState() {
     // Only gate when a treasury already exists; otherwise leave it clickable.
-    genTreasuryBtn.disabled = treasuryGenerated;
+    genTreasuryBtn.disabled = contractDeploymentLocked || treasuryGenerated;
   }
 
   function updateMintState() {
     const eth = parseFloat(treasuryEthInput.value || "0");
     const hasEth = !Number.isNaN(eth) && eth > 0;
-    mintBtn.disabled = !(treasuryGenerated && hasEth);
+    mintBtn.disabled = contractDeploymentLocked || !(treasuryGenerated && hasEth);
   }
 
   function collectForm() {
@@ -171,6 +222,13 @@
         treasuryEthInput.value = bal.toFixed(6);
         treasuryEthInput.classList.toggle("eth-alert", bal <= 0);
       }
+    }
+
+    if (payload?.contractDeployed) {
+      if (payload.contractAddress && contractAddressInput) {
+        contractAddressInput.value = payload.contractAddress;
+      }
+      lockUiForDeployedContract(payload.contractAddress);
     }
     updateHeaderTreasury();
     updateMintState();
