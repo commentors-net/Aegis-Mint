@@ -37,3 +37,6 @@ ehthumbs.db
 *.nupkg
 *.snk
 *.pfx
+
+# Other
+contracts/

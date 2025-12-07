@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Input;
 using Microsoft.Web.WebView2.Core;
 using AegisMint.Mint.Services;
+using System.Linq;
 
 namespace AegisMint.Mint;
 
@@ -15,6 +16,8 @@ public partial class MainWindow : Window
     private readonly VaultManager _vaultManager;
     private EthereumService? _ethereumService;
     private string _currentNetwork = "sepolia"; // default
+    private string? _tokenAbi;
+    private string? _tokenBytecode;
 
     public MainWindow(string network, string rpcUrl)
     {
@@ -59,6 +62,7 @@ public partial class MainWindow : Window
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
+        LoadContractArtifacts();
         await InitializeWebViewAsync();
     }
 
@@ -66,11 +70,13 @@ public partial class MainWindow : Window
     {
         try
         {
+            Logger.Info("Initializing WebView");
             OverlayStatus.Text = "Loading UI...";
             _htmlPath = Path.Combine(AppContext.BaseDirectory, "Assets", "aegis_mint.html");
 
             if (!File.Exists(_htmlPath))
             {
+                Logger.Error($"UI asset not found: {_htmlPath}");
                 OverlayStatus.Text = "Missing UI asset: aegis_mint_main_screen.html";
                 return;
             }
@@ -78,9 +84,11 @@ public partial class MainWindow : Window
             await MainWebView.EnsureCoreWebView2Async();
             ConfigureWebView();
             MainWebView.Source = new Uri(_htmlPath);
+            Logger.Info("WebView initialized successfully");
         }
         catch (Exception ex)
         {
+            Logger.Error("Failed to initialize WebView", ex);
             OverlayStatus.Text = $"Failed to load UI: {ex.Message}";
         }
     }
@@ -197,12 +205,28 @@ public partial class MainWindow : Window
             var message = payload.HasValue && payload.Value.TryGetProperty("message", out var msg) ? msg.GetString() ?? string.Empty : string.Empty;
             if (!string.IsNullOrWhiteSpace(message))
             {
-                System.Diagnostics.Debug.WriteLine($"[WEBVIEW:{level}] {message}");
+                // Log with appropriate level
+                switch (level.ToLower())
+                {
+                    case "error":
+                        Logger.Error($"[WEBVIEW] {message}");
+                        break;
+                    case "warn":
+                    case "warning":
+                        Logger.Warning($"[WEBVIEW] {message}");
+                        break;
+                    case "debug":
+                        Logger.Debug($"[WEBVIEW] {message}");
+                        break;
+                    default:
+                        Logger.Info($"[WEBVIEW] {message}");
+                        break;
+                }
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Swallow logging errors to avoid crashing the bridge
+            Logger.Error("Error handling log message from WebView", ex);
         }
     }
 
@@ -214,12 +238,12 @@ public partial class MainWindow : Window
             {
                 var network = networkProp.GetString() ?? "sepolia";
                 InitializeEthereumService(network);
-                System.Diagnostics.Debug.WriteLine($"[NETWORK] Switched to: {network}");
+                Logger.Info($"Network switched to: {network}");
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[NETWORK] Error changing network: {ex.Message}");
+            Logger.Error("Error changing network", ex);
         }
     }
 
@@ -324,13 +348,18 @@ public partial class MainWindow : Window
     {
         try
         {
+            Logger.Info("Mint submission started");
+
             // Step 1: Validate mint payload structure
             var (ok, error) = ValidateMintPayload(payload);
             if (!ok)
             {
+                Logger.Warning($"Validation failed: {error}");
                 await SendToWebAsync("validation-result", new { ok = false, message = error ?? "Validation failed" });
                 return;
             }
+
+            Logger.Info("Payload validation passed");
 
             // Step 2: Validate treasury balance on blockchain
             if (_ethereumService != null && payload.HasValue && payload.Value.TryGetProperty("treasuryAddress", out var addrProp))
@@ -340,9 +369,12 @@ public partial class MainWindow : Window
                 {
                     try
                     {
+                        Logger.Debug($"Checking balance for treasury: {treasuryAddress}");
                         var balance = await _ethereumService.GetBalanceAsync(treasuryAddress);
+                        
                         if (balance <= 0)
                         {
+                            Logger.Warning($"Treasury has insufficient balance: {balance} ETH");
                             await SendToWebAsync("validation-result", new 
                             { 
                                 ok = false, 
@@ -351,10 +383,11 @@ public partial class MainWindow : Window
                             return;
                         }
                         
-                        System.Diagnostics.Debug.WriteLine($"[VALIDATION] Treasury balance: {balance} ETH");
+                        Logger.Info($"Treasury balance confirmed: {balance} ETH");
                     }
                     catch (Exception ex)
                     {
+                        Logger.Error($"Failed to check balance on {_currentNetwork}", ex);
                         await SendToWebAsync("validation-result", new 
                         { 
                             ok = false, 
@@ -365,12 +398,89 @@ public partial class MainWindow : Window
                 }
             }
 
-            // Step 3: All validations passed, proceed with minting
+            // Step 3: Validate required components
+            if (_ethereumService == null)
+            {
+                Logger.Error("Ethereum service is not initialized");
+                await SendToWebAsync("host-error", new { message = "Ethereum service is not initialized." });
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(_tokenAbi) || string.IsNullOrWhiteSpace(_tokenBytecode))
+            {
+                Logger.Error("Token artifacts not loaded");
+                await SendToWebAsync("host-error", new { message = "Token ABI/bytecode not loaded. Ensure TokenImplementationV2 artifacts are present." });
+                return;
+            }
+
+            var privateKey = _vaultManager.GetTreasuryPrivateKey();
+            if (string.IsNullOrWhiteSpace(privateKey))
+            {
+                Logger.Error("Treasury key not found");
+                await SendToWebAsync("host-error", new { message = "Treasury key not found. Generate treasury first." });
+                return;
+            }
+
+            // Step 4: Extract token parameters
+            var tokenName = GetString(payload, "tokenName");
+            var tokenDecimals = GetInt(payload, "tokenDecimals");
+            var tokenSymbol = DeriveSymbol(tokenName);
+
+            Logger.Info($"Deploying token: {tokenName} ({tokenSymbol}), decimals: {tokenDecimals}");
             await SendToWebAsync("validation-result", new { ok = true, message = "Configuration validated. Deploying token..." });
-            await SendToWebAsync("mint-received", new { ok = true, received = payload });
+
+            // Step 5: Deploy token using JSON-RPC
+            Logger.Info("Starting token deployment via JSON-RPC");
+            var deployResult = await _ethereumService.DeployTokenAsync(
+                privateKey,
+                _tokenAbi,
+                _tokenBytecode,
+                tokenName,
+                tokenSymbol,
+                (byte)tokenDecimals);
+
+            if (!deployResult.Success)
+            {
+                Logger.Error($"Token deployment failed: {deployResult.ErrorMessage}");
+                await SendToWebAsync("host-error", new 
+                { 
+                    message = $"Deployment failed: {deployResult.ErrorMessage}" 
+                });
+                return;
+            }
+
+            Logger.Info($"✓ Token deployed successfully at: {deployResult.ContractAddress}");
+            Logger.Info($"  Deployment TX: {deployResult.DeploymentTxHash}");
+            if (!string.IsNullOrEmpty(deployResult.InitializeTxHash))
+            {
+                Logger.Info($"  Initialize TX: {deployResult.InitializeTxHash}");
+            }
+            Logger.Info($"  Gas used: {deployResult.GasUsed}");
+            Logger.Info($"  Block: {deployResult.BlockNumber}");
+
+            // Step 6: Send success response to UI
+            await SendToWebAsync("validation-result", new 
+            { 
+                ok = true, 
+                message = $"✓ Token deployed at {deployResult.ContractAddress}" 
+            });
+
+            await SendToWebAsync("mint-received", new 
+            { 
+                ok = true, 
+                received = payload,
+                contractAddress = deployResult.ContractAddress,
+                deployTx = deployResult.DeploymentTxHash,
+                initTx = deployResult.InitializeTxHash,
+                gasUsed = deployResult.GasUsed,
+                blockNumber = deployResult.BlockNumber
+            });
+
+            Logger.Info("Token deployment completed successfully");
         }
         catch (Exception ex)
         {
+            Logger.Error("Mint submission failed with exception", ex);
             await SendToWebAsync("host-error", new { message = $"Mint failed: {ex.Message}" });
         }
     }
@@ -379,9 +489,13 @@ public partial class MainWindow : Window
     {
         if (payload is null) return (false, "No payload received.");
 
-        string GetString(string name)
+        bool TryGetInt32(string name, out int value)
         {
-            return payload.Value.TryGetProperty(name, out var prop) ? prop.GetString() ?? string.Empty : string.Empty;
+            value = 0;
+            if (!payload.Value.TryGetProperty(name, out var prop)) return false;
+            if (prop.ValueKind == JsonValueKind.Number && prop.TryGetInt32(out value)) return true;
+            if (prop.ValueKind == JsonValueKind.String && int.TryParse(prop.GetString(), out value)) return true;
+            return false;
         }
 
         bool TryGetDecimal(string name, out decimal value)
@@ -393,23 +507,23 @@ public partial class MainWindow : Window
             return false;
         }
 
-        var tokenName = GetString("tokenName");
-        var treasuryAddress = GetString("treasuryAddress");
+        var tokenName = GetString(payload, "tokenName");
+        var treasuryAddress = GetString(payload, "treasuryAddress");
 
         if (string.IsNullOrWhiteSpace(tokenName)) return (false, "Token Name is required.");
         if (string.IsNullOrWhiteSpace(treasuryAddress)) return (false, "Treasury address is required.");
 
-        if (!payload.Value.TryGetProperty("tokenDecimals", out var decProp) || !decProp.TryGetInt32(out var decimals) || decimals < 0 || decimals > 36)
+        if (!TryGetInt32("tokenDecimals", out var decimals) || decimals < 0 || decimals > 36)
         {
             return (false, "Token decimals must be between 0 and 36.");
         }
 
-        if (!payload.Value.TryGetProperty("govShares", out var sharesProp) || !sharesProp.TryGetInt32(out var shares) || shares <= 0)
+        if (!TryGetInt32("govShares", out var shares) || shares <= 0)
         {
             return (false, "Number of shares must be greater than zero.");
         }
 
-        if (!payload.Value.TryGetProperty("govThreshold", out var thresholdProp) || !thresholdProp.TryGetInt32(out var threshold) || threshold <= 0)
+        if (!TryGetInt32("govThreshold", out var threshold) || threshold <= 0)
         {
             return (false, "Threshold must be greater than zero.");
         }
@@ -432,5 +546,71 @@ public partial class MainWindow : Window
         return (true, null);
     }
 
+    private string DeriveSymbol(string tokenName)
+    {
+        if (string.IsNullOrWhiteSpace(tokenName)) return "TOKEN";
+        var trimmed = new string(tokenName.Where(char.IsLetterOrDigit).ToArray());
+        if (string.IsNullOrWhiteSpace(trimmed)) return "TOKEN";
+        return trimmed.Length > 8 ? trimmed[..8].ToUpperInvariant() : trimmed.ToUpperInvariant();
+    }
+
+    private string GetString(JsonElement? payload, string name)
+    {
+        return payload.HasValue && payload.Value.TryGetProperty(name, out var prop) ? prop.GetString() ?? string.Empty : string.Empty;
+    }
+
+    private int GetInt(JsonElement? payload, string name)
+    {
+        if (payload.HasValue && payload.Value.TryGetProperty(name, out var prop))
+        {
+            if (prop.ValueKind == JsonValueKind.Number && prop.TryGetInt32(out var value))
+            {
+                return value;
+            }
+            if (prop.ValueKind == JsonValueKind.String && int.TryParse(prop.GetString(), out value))
+            {
+                return value;
+            }
+        }
+        return 0;
+    }
+
     private record BridgeMessage(string? type, JsonElement? payload);
+
+    private void LoadContractArtifacts()
+    {
+        try
+        {
+            var basePath = Path.Combine(AppContext.BaseDirectory, "Resources");
+            var abiPath = Path.Combine(basePath, "TokenImplementationV2.abi");
+            var binPath = Path.Combine(basePath, "TokenImplementationV2.bin");
+
+            Logger.Debug($"Loading contract artifacts from: {basePath}");
+
+            if (File.Exists(abiPath))
+            {
+                _tokenAbi = File.ReadAllText(abiPath);
+                Logger.Info("Token ABI loaded successfully");
+            }
+            else
+            {
+                Logger.Warning($"Token ABI not found at: {abiPath}");
+            }
+
+            if (File.Exists(binPath))
+            {
+                _tokenBytecode = File.ReadAllText(binPath);
+                Logger.Info("Token bytecode loaded successfully");
+            }
+            else
+            {
+                Logger.Warning($"Token bytecode not found at: {binPath}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("Failed to load contract artifacts", ex);
+            OverlayStatus.Text = $"Failed to load contract artifacts: {ex.Message}";
+        }
+    }
 }

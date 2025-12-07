@@ -55,6 +55,25 @@ public class VaultManager
     }
 
     /// <summary>
+    /// Retrieves the private key (hex) for the Treasury account if it exists.
+    /// </summary>
+    public string? GetTreasuryPrivateKey()
+    {
+        var mnemonic = RetrieveDecryptedMnemonic(TreasuryMnemonicKey);
+        if (mnemonic == null) return null;
+        
+        try
+        {
+            var mn = new Mnemonic(mnemonic, Wordlist.English);
+            return DerivePrivateKeyHex(mn);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Checks if the Treasury vault has been generated.
     /// </summary>
     public bool HasTreasury()
@@ -86,20 +105,7 @@ public class VaultManager
     /// </summary>
     private string DeriveEthereumAddress(Mnemonic mnemonic)
     {
-        // Derive seed from mnemonic
-        var seed = mnemonic.DeriveExtKey();
-        
-        // Use Ethereum's BIP44 path: m/44'/60'/0'/0/0
-        // 44' = purpose (BIP44)
-        // 60' = Ethereum coin type
-        // 0' = account
-        // 0 = external chain
-        // 0 = address index
-        var path = new KeyPath("m/44'/60'/0'/0/0");
-        var key = seed.Derive(path);
-        
-        // Get the private key bytes
-        var privateKeyBytes = key.PrivateKey.ToBytes();
+        var key = DeriveExtKey(mnemonic);
         
         // Derive public key (uncompressed, 65 bytes)
         var pubKey = key.PrivateKey.PubKey.ToBytes();
@@ -133,6 +139,34 @@ public class VaultManager
         Array.Copy(hash, hash.Length - 20, addressBytes, 0, 20);
         
         return "0x" + BitConverter.ToString(addressBytes).Replace("-", "").ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Derives the private key in 0x-prefixed hex form for the Treasury path.
+    /// </summary>
+    private string DerivePrivateKeyHex(Mnemonic mnemonic)
+    {
+        var key = DeriveExtKey(mnemonic);
+        var privateKeyBytes = key.PrivateKey.ToBytes();
+        return "0x" + BitConverter.ToString(privateKeyBytes).Replace("-", "").ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Returns the extended key for the Treasury derivation path.
+    /// </summary>
+    private ExtKey DeriveExtKey(Mnemonic mnemonic)
+    {
+        // Derive seed from mnemonic
+        var seed = mnemonic.DeriveExtKey();
+        
+        // Use Ethereum's BIP44 path: m/44'/60'/0'/0/0
+        // 44' = purpose (BIP44)
+        // 60' = Ethereum coin type
+        // 0' = account
+        // 0 = external chain
+        // 0 = address index
+        var path = new KeyPath("m/44'/60'/0'/0/0");
+        return seed.Derive(path);
     }
 
     /// <summary>

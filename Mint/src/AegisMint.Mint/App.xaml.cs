@@ -1,6 +1,8 @@
 using System.Configuration;
 using System.Data;
 using System.Windows;
+using System.Windows.Threading;
+using AegisMint.Mint.Services;
 
 namespace AegisMint.Mint;
 
@@ -9,8 +11,17 @@ namespace AegisMint.Mint;
 /// </summary>
 public partial class App : System.Windows.Application
 {
+    public App()
+    {
+        // Handle unhandled exceptions
+        DispatcherUnhandledException += OnDispatcherUnhandledException;
+        AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
+    }
+
     private void OnStartup(object sender, StartupEventArgs e)
     {
+        Logger.Info("Application starting...");
+
         // Prevent automatic shutdown when dialog closes
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
@@ -22,6 +33,8 @@ public partial class App : System.Windows.Application
         {
             try
             {
+                Logger.Info($"User selected network: {networkDialog.SelectedNetwork}");
+
                 // User selected a network, create and show main window
                 var mainWindow = new MainWindow(networkDialog.SelectedNetwork, networkDialog.RpcUrl);
                 
@@ -33,6 +46,7 @@ public partial class App : System.Windows.Application
             }
             catch (Exception ex)
             {
+                Logger.Error("Failed to create main window", ex);
                 System.Windows.MessageBox.Show($"Error creating main window: {ex.Message}\n\nStack Trace:\n{ex.StackTrace}", 
                     "Startup Error", 
                     MessageBoxButton.OK, 
@@ -42,8 +56,35 @@ public partial class App : System.Windows.Application
         }
         else
         {
+            Logger.Info("User cancelled network selection");
             // User cancelled, exit application
             Shutdown();
+        }
+    }
+
+    private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+    {
+        Logger.Error("Unhandled UI exception", e.Exception);
+        
+        var result = System.Windows.MessageBox.Show(
+            $"An unexpected error occurred:\n\n{e.Exception.Message}\n\nLog file: {Logger.GetLogFilePath()}\n\nContinue running?",
+            "Error",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Error);
+
+        e.Handled = result == MessageBoxResult.Yes;
+    }
+
+    private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
+    {
+        if (e.ExceptionObject is Exception ex)
+        {
+            Logger.Error("Unhandled domain exception", ex);
+            System.Windows.MessageBox.Show(
+                $"A fatal error occurred:\n\n{ex.Message}\n\nLog file: {Logger.GetLogFilePath()}",
+                "Fatal Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
     }
 }
