@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
@@ -563,7 +564,7 @@ public partial class MainWindow : Window
                         GetInt(payload, "govThreshold"),
                         GetString(payload, "treasuryAddress"),
                         GetString(payload, "treasuryEth"),
-                        "0",
+                        FormatTokenDisplay(GetString(payload, "tokenSupply"), tokenDecimals),
                         DateTimeOffset.UtcNow);
 
                     _vaultManager.RecordDeploymentSnapshot(_currentNetwork, snapshot);
@@ -672,6 +673,21 @@ public partial class MainWindow : Window
             JsonValueKind.True or JsonValueKind.False => prop.GetRawText(),
             _ => string.Empty
         };
+    }
+
+    private string FormatTokenDisplay(string supplyRaw, int decimals)
+    {
+        if (string.IsNullOrWhiteSpace(supplyRaw))
+        {
+            return "0";
+        }
+
+        if (decimal.TryParse(supplyRaw, NumberStyles.Any, CultureInfo.InvariantCulture, out var supply))
+        {
+            return string.Format(CultureInfo.InvariantCulture, "{0:N0}", supply);
+        }
+
+        return supplyRaw;
     }
 
     private int GetInt(JsonElement? payload, string name)
