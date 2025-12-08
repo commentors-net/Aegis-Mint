@@ -7,6 +7,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
+using WinForms = System.Windows.Forms;
 using Microsoft.Win32;
 using AegisMint.Core.Services;
 using AegisMint.Core.Security;
@@ -718,39 +719,46 @@ public partial class MainWindow : Window
                 return false;
             }
 
-            var dialog = new Microsoft.Win32.SaveFileDialog
+            var shamir = new ShamirSecretSharingService();
+            var secretBytes = Encoding.UTF8.GetBytes(mnemonic);
+            var shares = shamir.Split(secretBytes, threshold, totalShares);
+
+            using var folderDialog = new WinForms.FolderBrowserDialog
             {
-                Title = "Save recovery shares",
-                Filter = "JSON files|*.json|All files|*.*",
-                FileName = "aegis-mint-recovery-shares.json",
-                AddExtension = true,
-                DefaultExt = "json"
+                Description = "Choose a folder to save individual recovery share files",
+                ShowNewFolderButton = true
             };
 
-            var dialogResult = dialog.ShowDialog();
-            if (dialogResult != true || string.IsNullOrWhiteSpace(dialog.FileName))
+            var dialogResult = folderDialog.ShowDialog();
+            if (dialogResult != WinForms.DialogResult.OK || string.IsNullOrWhiteSpace(folderDialog.SelectedPath))
             {
                 await SendToWebAsync("host-error", new { message = "Share creation cancelled by user." });
                 return false;
             }
 
-            var shamir = new ShamirSecretSharingService();
-            var secretBytes = Encoding.UTF8.GetBytes(mnemonic);
-            var shares = shamir.Split(secretBytes, threshold, totalShares);
-
-            var export = new
+            var options = new JsonSerializerOptions { WriteIndented = true };
+            var createdAt = DateTimeOffset.UtcNow;
+            foreach (var share in shares)
             {
-                createdAtUtc = DateTimeOffset.UtcNow,
-                totalShares,
-                threshold,
-                clientShareCount = clientShares,
-                safekeepingShareCount = threshold,
-                shares
-            };
+                var sharePayload = new
+                {
+                    createdAtUtc = createdAt,
+                    network = _currentNetwork,
+                    totalShares,
+                    threshold,
+                    clientShareCount = clientShares,
+                    safekeepingShareCount = threshold,
+                    shareId = share.Id,
+                    shareValue = share.Value
+                };
 
-            var json = JsonSerializer.Serialize(export, new JsonSerializerOptions { WriteIndented = true });
-            await File.WriteAllTextAsync(dialog.FileName, json);
-            Logger.Info($"Recovery shares saved to {dialog.FileName}");
+                var fileName = $"aegis-share-{share.Id:D3}.json";
+                var path = Path.Combine(folderDialog.SelectedPath, fileName);
+                var json = JsonSerializer.Serialize(sharePayload, options);
+                await File.WriteAllTextAsync(path, json);
+                Logger.Info($"Recovery share saved: {path}");
+            }
+
             return true;
         }
         catch (Exception ex)
