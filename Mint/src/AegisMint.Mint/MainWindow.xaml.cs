@@ -1,12 +1,15 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
+using Microsoft.Win32;
 using AegisMint.Core.Services;
+using AegisMint.Core.Security;
 
 namespace AegisMint.Mint;
 
@@ -448,6 +451,25 @@ public partial class MainWindow : Window
                 return;
             }
 
+            // Step 4: Generate recovery shares before deployment
+            var govShares = GetInt(payload, "govShares");
+            var govThreshold = GetInt(payload, "govThreshold");
+            var totalShares = govShares + govThreshold;
+            if (govThreshold < 2)
+            {
+                await SendToWebAsync("host-error", new { message = "Threshold must be at least 2 to create recovery shares." });
+                return;
+            }
+            if (totalShares > 255)
+            {
+                await SendToWebAsync("host-error", new { message = "Total share count cannot exceed 255." });
+                return;
+            }
+            if (!await CreateAndSaveRecoverySharesAsync(totalShares, govThreshold, govShares))
+            {
+                return;
+            }
+
             // Step 4: Extract token parameters
             var tokenName = GetString(payload, "tokenName");
             var tokenDecimals = GetInt(payload, "tokenDecimals");
@@ -630,6 +652,60 @@ public partial class MainWindow : Window
             }
         }
         return 0;
+    }
+
+    private async Task<bool> CreateAndSaveRecoverySharesAsync(int totalShares, int threshold, int clientShares)
+    {
+        try
+        {
+            var mnemonic = _vaultManager.GetTreasuryMnemonic();
+            if (string.IsNullOrWhiteSpace(mnemonic))
+            {
+                await SendToWebAsync("host-error", new { message = "Treasury mnemonic missing; cannot create recovery shares." });
+                return false;
+            }
+
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "Save recovery shares",
+                Filter = "JSON files|*.json|All files|*.*",
+                FileName = "aegis-mint-recovery-shares.json",
+                AddExtension = true,
+                DefaultExt = "json"
+            };
+
+            var dialogResult = dialog.ShowDialog();
+            if (dialogResult != true || string.IsNullOrWhiteSpace(dialog.FileName))
+            {
+                await SendToWebAsync("host-error", new { message = "Share creation cancelled by user." });
+                return false;
+            }
+
+            var shamir = new ShamirSecretSharingService();
+            var secretBytes = Encoding.UTF8.GetBytes(mnemonic);
+            var shares = shamir.Split(secretBytes, threshold, totalShares);
+
+            var export = new
+            {
+                createdAtUtc = DateTimeOffset.UtcNow,
+                totalShares,
+                threshold,
+                clientShareCount = clientShares,
+                safekeepingShareCount = threshold,
+                shares
+            };
+
+            var json = JsonSerializer.Serialize(export, new JsonSerializerOptions { WriteIndented = true });
+            await File.WriteAllTextAsync(dialog.FileName, json);
+            Logger.Info($"Recovery shares saved to {dialog.FileName}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("Failed to create recovery shares", ex);
+            await SendToWebAsync("host-error", new { message = $"Failed to create recovery shares: {ex.Message}" });
+            return false;
+        }
     }
 
     private record BridgeMessage(string? type, JsonElement? payload);

@@ -143,6 +143,7 @@
 
     const controls = document.querySelectorAll("input, select, button, textarea");
     controls.forEach((el) => {
+      if (el === networkSelect) return; // allow network change even after deployment
       el.disabled = true;
       el.classList.add("locked-control");
     });

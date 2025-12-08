@@ -255,6 +255,14 @@ public class VaultManager
     }
 
     /// <summary>
+    /// Returns the stored treasury mnemonic for recovery workflows. Never log this value.
+    /// </summary>
+    public string? GetTreasuryMnemonic()
+    {
+        return RetrieveDecryptedMnemonic(TreasuryMnemonicKey);
+    }
+
+    /// <summary>
     /// Computes Keccak256 hash (used by Ethereum).
     /// </summary>
     private byte[] ComputeKeccak256(byte[] input)
