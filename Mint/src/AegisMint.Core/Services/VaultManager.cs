@@ -14,7 +14,7 @@ public class VaultManager
 {
     private const string RegistryPath = @"Software\AegisMint\Vault";
     private const string TreasuryMnemonicKey = "TreasuryMnemonic";
-    private const string ContractAddressKey = "ContractAddress";
+    private const string ContractAddressKeyPrefix = "ContractAddress";
 
     /// <summary>
     /// Generates a new Treasury vault with a 12-word mnemonic and returns the Ethereum address.
@@ -104,7 +104,7 @@ public class VaultManager
     /// <summary>
     /// Records a deployed contract address so the app cannot deploy again.
     /// </summary>
-    public void RecordContractDeployment(string contractAddress)
+    public void RecordContractDeployment(string contractAddress, string network)
     {
         if (string.IsNullOrWhiteSpace(contractAddress))
         {
@@ -114,7 +114,7 @@ public class VaultManager
         try
         {
             using var key = Registry.CurrentUser.CreateSubKey(RegistryPath);
-            key.SetValue(ContractAddressKey, contractAddress, RegistryValueKind.String);
+            key.SetValue(BuildContractKey(network), contractAddress, RegistryValueKind.String);
         }
         catch (Exception ex)
         {
@@ -125,12 +125,12 @@ public class VaultManager
     /// <summary>
     /// Returns the deployed contract address if one is recorded.
     /// </summary>
-    public string? GetDeployedContractAddress()
+    public string? GetDeployedContractAddress(string network)
     {
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(RegistryPath);
-            return key?.GetValue(ContractAddressKey) as string;
+            return key?.GetValue(BuildContractKey(network)) as string;
         }
         catch
         {
@@ -141,10 +141,18 @@ public class VaultManager
     /// <summary>
     /// Indicates whether a contract has already been deployed.
     /// </summary>
-    public bool HasDeployedContract()
+    public bool HasDeployedContract(string network)
     {
-        var address = GetDeployedContractAddress();
+        var address = GetDeployedContractAddress(network);
         return !string.IsNullOrWhiteSpace(address);
+    }
+
+    private static string BuildContractKey(string network)
+    {
+        var normalized = string.IsNullOrWhiteSpace(network)
+            ? "default"
+            : network.Trim().ToLowerInvariant().Replace(" ", "_");
+        return $"{ContractAddressKeyPrefix}_{normalized}";
     }
 
     /// <summary>

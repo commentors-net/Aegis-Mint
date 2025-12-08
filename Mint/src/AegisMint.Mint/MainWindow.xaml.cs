@@ -242,6 +242,7 @@ public partial class MainWindow : Window
                 var network = networkProp.GetString() ?? "sepolia";
                 InitializeEthereumService(network);
                 Logger.Info($"Network switched to: {network}");
+                _ = CheckExistingVaults();
             }
         }
         catch (Exception ex)
@@ -289,7 +290,7 @@ public partial class MainWindow : Window
         try
         {
             var treasuryAddress = _vaultManager.GetTreasuryAddress();
-            var deployedContractAddress = _vaultManager.GetDeployedContractAddress();
+            var deployedContractAddress = _vaultManager.GetDeployedContractAddress(_currentNetwork);
             decimal? balance = null;
             if (_ethereumService != null && !string.IsNullOrWhiteSpace(treasuryAddress))
             {
@@ -308,7 +309,7 @@ public partial class MainWindow : Window
                 hasTreasury = treasuryAddress != null,
                 treasuryAddress = treasuryAddress,
                 balance = balance,
-                contractDeployed = _vaultManager.HasDeployedContract(),
+                contractDeployed = _vaultManager.HasDeployedContract(_currentNetwork),
                 contractAddress = deployedContractAddress
             });
         }
@@ -322,7 +323,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            if (_vaultManager.HasDeployedContract())
+            if (_vaultManager.HasDeployedContract(_currentNetwork))
             {
                 await SendToWebAsync("host-error", new
                 {
@@ -366,9 +367,9 @@ public partial class MainWindow : Window
         {
             Logger.Info("Mint submission started");
 
-            if (_vaultManager.HasDeployedContract())
+            if (_vaultManager.HasDeployedContract(_currentNetwork))
             {
-                var recorded = _vaultManager.GetDeployedContractAddress();
+                var recorded = _vaultManager.GetDeployedContractAddress(_currentNetwork);
                 await SendToWebAsync("host-error", new
                 {
                     message = "Contract already deployed. Deployment disabled."
@@ -543,7 +544,7 @@ public partial class MainWindow : Window
             {
                 try
                 {
-                    _vaultManager.RecordContractDeployment(recordedContractAddress);
+                    _vaultManager.RecordContractDeployment(recordedContractAddress, _currentNetwork);
                     await SendToWebAsync("contract-deployed", new
                     {
                         address = recordedContractAddress
