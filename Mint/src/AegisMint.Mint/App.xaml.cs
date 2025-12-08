@@ -22,42 +22,32 @@ public partial class App : System.Windows.Application
     {
         Logger.Info("Application starting...");
 
-        // Prevent automatic shutdown when dialog closes
-        ShutdownMode = ShutdownMode.OnExplicitShutdown;
-
-        // Show network selection dialog
-        var networkDialog = new NetworkSelectionWindow();
-        var result = networkDialog.ShowDialog();
-
-        if (result == true)
+        var vault = new VaultManager();
+        var lastNetwork = vault.GetLastNetwork();
+        if (string.IsNullOrWhiteSpace(lastNetwork))
         {
-            try
-            {
-                Logger.Info($"User selected network: {networkDialog.SelectedNetwork}");
-
-                // User selected a network, create and show main window
-                var mainWindow = new MainWindow(networkDialog.SelectedNetwork, networkDialog.RpcUrl);
-                
-                // Change shutdown mode to close when main window closes
-                ShutdownMode = ShutdownMode.OnMainWindowClose;
-                MainWindow = mainWindow; // Set as the application's main window
-                
-                mainWindow.Show();
-            }
-            catch (Exception ex)
-            {
-                Logger.Error("Failed to create main window", ex);
-                System.Windows.MessageBox.Show($"Error creating main window: {ex.Message}\n\nStack Trace:\n{ex.StackTrace}", 
-                    "Startup Error", 
-                    MessageBoxButton.OK, 
-                    MessageBoxImage.Error);
-                Shutdown();
-            }
+            lastNetwork = "sepolia";
         }
-        else
+
+        var rpcUrl = ResolveRpcUrl(lastNetwork);
+
+        try
         {
-            Logger.Info("User cancelled network selection");
-            // User cancelled, exit application
+            Logger.Info($"Launching with network: {lastNetwork}");
+
+            var mainWindow = new MainWindow(lastNetwork, rpcUrl);
+
+            ShutdownMode = ShutdownMode.OnMainWindowClose;
+            MainWindow = mainWindow;
+            mainWindow.Show();
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("Failed to create main window", ex);
+            System.Windows.MessageBox.Show($"Error creating main window: {ex.Message}\n\nStack Trace:\n{ex.StackTrace}",
+                "Startup Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
             Shutdown();
         }
     }
@@ -86,5 +76,16 @@ public partial class App : System.Windows.Application
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
         }
+    }
+
+    private static string ResolveRpcUrl(string network)
+    {
+        return network switch
+        {
+            "localhost" => "http://127.0.0.1:8545",
+            "mainnet" => "https://eth.llamarpc.com",
+            "sepolia" => "https://ethereum-sepolia-rpc.publicnode.com",
+            _ => "https://ethereum-sepolia-rpc.publicnode.com"
+        };
     }
 }

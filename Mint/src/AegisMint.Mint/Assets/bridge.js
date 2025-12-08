@@ -43,11 +43,120 @@
     sendToHost("log", { message, level });
   };
 
+  function resetForNetworkChange() {
+    contractDeploymentLocked = false;
+    const controls = document.querySelectorAll("input, select, button, textarea");
+    controls.forEach((el) => {
+      if (el === networkSelect) return;
+      el.disabled = false;
+      el.classList.remove("locked-control");
+    });
+
+    tokenNameInput.value = "";
+    tokenSupplyInput.value = "";
+    tokenDecimalsInput.value = "";
+    sharesInput.value = "";
+    thresholdInput.value = "";
+    contractAddressInput.value = "";
+    if (!treasuryGenerated) {
+      treasuryEthInput.value = "";
+      treasuryTokensInput.value = "0";
+      treasuryAddressInput.value = "";
+      treasuryEthInput.classList.remove("eth-alert");
+      treasuryEthInput.disabled = true;
+      treasuryStatus.textContent = "Fill Steps 1 & 2, then generate Treasury.";
+    }
+    clearPermanentToast();
+
+    updateHeaderTreasury();
+    updateGenerateState();
+    updateMintState();
+    updateResetState();
+  }
+
+  function ensureProgressStyles() {
+    if (document.getElementById("progress-style")) return;
+    const style = document.createElement("style");
+    style.id = "progress-style";
+    style.textContent = `
+      @keyframes mint-progress-stripe {
+        0% { background-position: 0 0; }
+        100% { background-position: 200% 0; }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function showProgress(text = "Processing...") {
+    ensureProgressStyles();
+    let container = document.getElementById("mint-progress");
+    if (!container) {
+      container = document.createElement("div");
+      container.id = "mint-progress";
+      container.style.position = "fixed";
+      container.style.bottom = "18px";
+      container.style.left = "50%";
+      container.style.transform = "translateX(-50%)";
+      container.style.minWidth = "260px";
+      container.style.maxWidth = "520px";
+      container.style.background = "rgba(15, 23, 42, 0.9)";
+      container.style.border = "1px solid rgba(56, 189, 248, 0.6)";
+      container.style.borderRadius = "14px";
+      container.style.boxShadow = "0 12px 30px rgba(0,0,0,0.45)";
+      container.style.padding = "12px 14px 16px";
+      container.style.zIndex = "1200";
+
+      const label = document.createElement("div");
+      label.id = "mint-progress-label";
+      label.style.color = "#e5e7eb";
+      label.style.fontSize = "13px";
+      label.style.fontWeight = "600";
+      label.style.marginBottom = "8px";
+      container.appendChild(label);
+
+      const bar = document.createElement("div");
+      bar.style.width = "100%";
+      bar.style.height = "8px";
+      bar.style.borderRadius = "999px";
+      bar.style.overflow = "hidden";
+      bar.style.background = "rgba(56, 189, 248, 0.18)";
+
+      const inner = document.createElement("div");
+      inner.id = "mint-progress-bar";
+      inner.style.width = "60%";
+      inner.style.height = "100%";
+      inner.style.borderRadius = "999px";
+      inner.style.background = "linear-gradient(90deg, rgba(56,189,248,0.9), rgba(14,165,233,0.9), rgba(56,189,248,0.9))";
+      inner.style.backgroundSize = "200% 100%";
+      inner.style.animation = "mint-progress-stripe 1.2s linear infinite";
+
+      bar.appendChild(inner);
+      container.appendChild(bar);
+
+      document.body.appendChild(container);
+    }
+
+    const labelEl = document.getElementById("mint-progress-label");
+    if (labelEl) {
+      labelEl.textContent = text;
+    }
+  }
+
+  function hideProgress() {
+    const container = document.getElementById("mint-progress");
+    if (container) {
+      container.remove();
+    }
+  }
+
   window.receiveHostMessage = function (message) {
     const { type, payload } = message || {};
     switch (type) {
       case "host-info":
         logToHost("Connected to host");
+        if (payload?.network) {
+          applyNetworkFromHost(payload.network);
+        }
         break;
       case "treasury-generated":
         applyTreasury(payload);
@@ -57,15 +166,22 @@
         break;
       case "mint-received":
         showToast("Mint request received by host");
+        hideProgress();
         break;
       case "contract-deployed":
-        lockUiForDeployedContract(payload?.address);
+        applyPrefill(payload?.prefill || payload);
+        lockUiForDeployedContract(payload);
+        hideProgress();
         break;
       case "host-error":
         showToast(payload?.message || "Host error", true);
+        hideProgress();
         break;
       case "validation-result":
         showToast(payload?.message || "Validation completed", payload?.ok === false);
+        if (payload?.ok === false) {
+          hideProgress();
+        }
         break;
     }
   };
@@ -97,18 +213,44 @@
   }
 
   function showToast(text, isError = false) {
+    let container = document.getElementById("toast-container");
+    if (!container) {
+      container = document.createElement("div");
+      container.id = "toast-container";
+      container.style.position = "fixed";
+      container.style.bottom = "18px";
+      container.style.left = "18px";
+      container.style.display = "flex";
+      container.style.flexDirection = "column-reverse";
+      container.style.gap = "8px";
+      container.style.zIndex = "1000";
+      document.body.appendChild(container);
+    }
+
     const toast = document.createElement("div");
     toast.textContent = text;
-    toast.style.position = "fixed";
-    toast.style.bottom = "18px";
-    toast.style.right = "18px";
     toast.style.padding = "10px 14px";
     toast.style.borderRadius = "12px";
     toast.style.background = isError ? "rgba(249, 115, 115, 0.9)" : "rgba(56, 189, 248, 0.9)";
     toast.style.color = "#020617";
     toast.style.boxShadow = "0 10px 24px rgba(0,0,0,0.35)";
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 2200);
+    toast.style.maxWidth = "320px";
+    toast.style.wordBreak = "break-word";
+    container.appendChild(toast);
+
+    setTimeout(() => {
+      toast.remove();
+      if (container.childElementCount === 0) {
+        container.remove();
+      }
+    }, 5000);
+  }
+
+  function clearPermanentToast() {
+    const existing = document.getElementById("permanent-toast");
+    if (existing) {
+      existing.remove();
+    }
   }
 
   function showPermanentToast(text, isError = false) {
@@ -137,9 +279,58 @@
     document.body.appendChild(toast);
   }
 
-  function lockUiForDeployedContract(address) {
-    if (contractDeploymentLocked) return;
-    contractDeploymentLocked = true;
+  function unlockUi() {
+    contractDeploymentLocked = false;
+    const controls = document.querySelectorAll("input, select, button, textarea");
+    controls.forEach((el) => {
+      if (el === networkSelect) return;
+      el.disabled = false;
+      el.classList.remove("locked-control");
+    });
+    clearPermanentToast();
+    updateGenerateState();
+    updateMintState();
+    updateResetState();
+  }
+
+  function applyPrefill(prefill) {
+    if (!prefill) return;
+    if (prefill.tokenName !== undefined) tokenNameInput.value = prefill.tokenName;
+    if (prefill.tokenSupply !== undefined) tokenSupplyInput.value = prefill.tokenSupply;
+    if (prefill.tokenDecimals !== undefined) tokenDecimalsInput.value = prefill.tokenDecimals;
+    if (prefill.govShares !== undefined) sharesInput.value = prefill.govShares;
+    if (prefill.govThreshold !== undefined) thresholdInput.value = prefill.govThreshold;
+    if (prefill.contractAddress !== undefined) contractAddressInput.value = prefill.contractAddress;
+    if (prefill.treasuryEth !== undefined) {
+      const num = parseFloat(prefill.treasuryEth);
+      treasuryEthInput.value = Number.isFinite(num) ? num.toFixed(4) : prefill.treasuryEth;
+    }
+    if (prefill.treasuryTokens !== undefined) treasuryTokensInput.value = prefill.treasuryTokens;
+    if (prefill.treasuryAddress !== undefined) {
+      treasuryAddressInput.value = prefill.treasuryAddress;
+      headerTreasuryAddress.textContent = prefill.treasuryAddress;
+      treasuryGenerated = true;
+      treasuryStatus.textContent = "Treasury loaded from vault";
+    }
+    updateHeaderTreasury();
+    updateGenerateState();
+    updateMintState();
+    updateResetState();
+  }
+
+  function applyNetworkFromHost(network) {
+    if (!networkSelect) return;
+    resetForNetworkChange();
+    const option = Array.from(networkSelect.options).find(opt => opt.value === network);
+    if (option) {
+      networkSelect.value = network;
+      selectedNetwork = network;
+      logToHost(`Network set by host: ${network}`);
+    }
+  }
+
+  function lockUiForDeployedContract(data) {
+    const address = data?.contractAddress || data?.address || data;
 
     const controls = document.querySelectorAll("input, select, button, textarea");
     controls.forEach((el) => {
@@ -152,10 +343,12 @@
       contractAddressInput.value = address;
     }
 
+    contractDeploymentLocked = true;
     treasuryStatus.textContent = "Contract already deployed. Deployment disabled.";
     showPermanentToast("Contract is already deployed");
     updateMintState();
     updateGenerateState();
+    updateResetState();
   }
 
   function validateThreshold(showMessage) {
@@ -175,6 +368,10 @@
     const eth = parseFloat(treasuryEthInput.value || "0");
     const hasEth = !Number.isNaN(eth) && eth > 0;
     mintBtn.disabled = contractDeploymentLocked || !(treasuryGenerated && hasEth);
+  }
+
+  function updateResetState() {
+    resetBtn.disabled = contractDeploymentLocked;
   }
 
   function collectForm() {
@@ -209,6 +406,10 @@
   }
 
   function applyVault(payload) {
+    if (payload?.currentNetwork) {
+      applyNetworkFromHost(payload.currentNetwork);
+    }
+
     if (payload?.hasTreasury && payload?.treasuryAddress) {
       treasuryAddressInput.value = payload.treasuryAddress;
       treasuryGenerated = true;
@@ -220,19 +421,20 @@
     if (payload?.balance !== undefined && payload.balance !== null) {
       const bal = Number(payload.balance);
       if (!Number.isNaN(bal)) {
-        treasuryEthInput.value = bal.toFixed(6);
+        treasuryEthInput.value = bal.toFixed(4);
         treasuryEthInput.classList.toggle("eth-alert", bal <= 0);
       }
     }
 
     if (payload?.contractDeployed) {
-      if (payload.contractAddress && contractAddressInput) {
-        contractAddressInput.value = payload.contractAddress;
-      }
-      lockUiForDeployedContract(payload.contractAddress);
+      applyPrefill(payload.prefill);
+      lockUiForDeployedContract(payload);
+    } else {
+      unlockUi();
     }
     updateHeaderTreasury();
     updateMintState();
+    updateResetState();
   }
 
   thresholdInput.addEventListener("input", () => { validateThreshold(false); updateGenerateState(); });
@@ -262,22 +464,43 @@
   treasuryAddressInput.addEventListener("input", updateHeaderTreasury);
 
   resetBtn.addEventListener("click", () => {
+    const preserveTreasury = treasuryGenerated
+      ? {
+          addr: treasuryAddressInput.value,
+          eth: treasuryEthInput.value,
+          tokens: treasuryTokensInput.value
+        }
+      : null;
+
     form.reset();
     thresholdError.style.display = "none";
-    treasuryTokensInput.value = "0";
-    treasuryEthInput.classList.remove("eth-alert");
-    treasuryEthInput.disabled = true;
-    treasuryGenerated = false;
-    treasuryStatus.textContent = "Fill Steps 1 & 2, then generate Treasury.";
-    treasuryAddressInput.value = "";
-    genTreasuryBtn.disabled = false;
+
+    if (preserveTreasury) {
+      treasuryGenerated = true;
+      treasuryAddressInput.value = preserveTreasury.addr;
+      treasuryEthInput.value = preserveTreasury.eth;
+      treasuryTokensInput.value = preserveTreasury.tokens || "0";
+      treasuryEthInput.disabled = false;
+      treasuryStatus.textContent = "Treasury loaded from vault";
+    } else {
+      treasuryTokensInput.value = "0";
+      treasuryEthInput.classList.remove("eth-alert");
+      treasuryEthInput.disabled = true;
+      treasuryGenerated = false;
+      treasuryStatus.textContent = "Fill Steps 1 & 2, then generate Treasury.";
+      treasuryAddressInput.value = "";
+      genTreasuryBtn.disabled = false;
+    }
+
     updateHeaderTreasury();
     updateMintState();
     updateGenerateState();
+    updateResetState();
     sendToHost("reset", {});
   });
 
   networkSelect.addEventListener("change", () => {
+    resetForNetworkChange();
     selectedNetwork = networkSelect.value;
     sendToHost("network-changed", { network: selectedNetwork });
     logToHost(`Network changed to: ${selectedNetwork}`);
@@ -307,6 +530,7 @@
 
     sendToHost("mint-submit", collectForm());
     logToHost("Mint submitted from UI");
+    showProgress("Deploying token contract...");
   });
 
   // Initialize network selection
@@ -317,4 +541,5 @@
   updateHeaderTreasury();
   updateMintState();
   updateGenerateState();
+  updateResetState();
 });

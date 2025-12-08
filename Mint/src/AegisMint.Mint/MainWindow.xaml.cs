@@ -119,7 +119,7 @@ public partial class MainWindow : Window
         if (e.IsSuccess)
         {
             Overlay.Visibility = Visibility.Collapsed;
-            await SendToWebAsync("host-info", new { host = "Aegis Mint WPF", version = "1.0" });
+            await SendToWebAsync("host-info", new { host = "Aegis Mint WPF", version = "1.0", network = _currentNetwork });
         }
         else
         {
@@ -242,6 +242,8 @@ public partial class MainWindow : Window
                 var network = networkProp.GetString() ?? "sepolia";
                 InitializeEthereumService(network);
                 Logger.Info($"Network switched to: {network}");
+                _vaultManager.SaveLastNetwork(network);
+                Title = $"Aegis Mint - {network.ToUpperInvariant()}";
                 _ = CheckExistingVaults();
             }
         }
@@ -291,6 +293,8 @@ public partial class MainWindow : Window
         {
             var treasuryAddress = _vaultManager.GetTreasuryAddress();
             var deployedContractAddress = _vaultManager.GetDeployedContractAddress(_currentNetwork);
+            var snapshot = _vaultManager.GetDeploymentSnapshot(_currentNetwork);
+            var prefill = snapshot is null ? null : MapSnapshotForUi(snapshot);
             decimal? balance = null;
             if (_ethereumService != null && !string.IsNullOrWhiteSpace(treasuryAddress))
             {
@@ -310,7 +314,9 @@ public partial class MainWindow : Window
                 treasuryAddress = treasuryAddress,
                 balance = balance,
                 contractDeployed = _vaultManager.HasDeployedContract(_currentNetwork),
-                contractAddress = deployedContractAddress
+                contractAddress = deployedContractAddress,
+                prefill,
+                currentNetwork = _currentNetwork
             });
         }
         catch (Exception ex)
@@ -545,9 +551,26 @@ public partial class MainWindow : Window
                 try
                 {
                     _vaultManager.RecordContractDeployment(recordedContractAddress, _currentNetwork);
+
+                    var snapshot = new DeploymentSnapshot(
+                        _currentNetwork,
+                        recordedContractAddress!,
+                        tokenName ?? string.Empty,
+                        GetString(payload, "tokenSupply"),
+                        tokenDecimals,
+                        GetInt(payload, "govShares"),
+                        GetInt(payload, "govThreshold"),
+                        GetString(payload, "treasuryAddress"),
+                        GetString(payload, "treasuryEth"),
+                        "0",
+                        DateTimeOffset.UtcNow);
+
+                    _vaultManager.RecordDeploymentSnapshot(_currentNetwork, snapshot);
+
                     await SendToWebAsync("contract-deployed", new
                     {
-                        address = recordedContractAddress
+                        address = recordedContractAddress,
+                        prefill = MapSnapshotForUi(snapshot)
                     });
                 }
                 catch (Exception ex)
@@ -636,7 +659,18 @@ public partial class MainWindow : Window
 
     private string GetString(JsonElement? payload, string name)
     {
-        return payload.HasValue && payload.Value.TryGetProperty(name, out var prop) ? prop.GetString() ?? string.Empty : string.Empty;
+        if (!payload.HasValue || !payload.Value.TryGetProperty(name, out var prop))
+        {
+            return string.Empty;
+        }
+
+        return prop.ValueKind switch
+        {
+            JsonValueKind.String => prop.GetString() ?? string.Empty,
+            JsonValueKind.Number => prop.GetRawText(), // preserve numeric text without throwing
+            JsonValueKind.True or JsonValueKind.False => prop.GetRawText(),
+            _ => string.Empty
+        };
     }
 
     private int GetInt(JsonElement? payload, string name)
@@ -653,6 +687,24 @@ public partial class MainWindow : Window
             }
         }
         return 0;
+    }
+
+    private object MapSnapshotForUi(DeploymentSnapshot snapshot)
+    {
+        return new
+        {
+            network = snapshot.Network,
+            contractAddress = snapshot.ContractAddress,
+            tokenName = snapshot.TokenName,
+            tokenSupply = snapshot.TokenSupply,
+            tokenDecimals = snapshot.TokenDecimals,
+            govShares = snapshot.GovShares,
+            govThreshold = snapshot.GovThreshold,
+            treasuryAddress = snapshot.TreasuryAddress,
+            treasuryEth = snapshot.TreasuryEth,
+            treasuryTokens = snapshot.TreasuryTokens,
+            createdAtUtc = snapshot.CreatedAtUtc
+        };
     }
 
     private async Task<bool> CreateAndSaveRecoverySharesAsync(int totalShares, int threshold, int clientShares)

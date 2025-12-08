@@ -1,6 +1,7 @@
 using System;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Microsoft.Win32;
 using NBitcoin;
 using Nethereum.Util;
@@ -15,6 +16,8 @@ public class VaultManager
     private const string RegistryPath = @"Software\AegisMint\Vault";
     private const string TreasuryMnemonicKey = "TreasuryMnemonic";
     private const string ContractAddressKeyPrefix = "ContractAddress";
+    private const string DeploymentSnapshotKeyPrefix = "DeploymentSnapshot";
+    private const string LastNetworkKey = "LastNetwork";
 
     /// <summary>
     /// Generates a new Treasury vault with a 12-word mnemonic and returns the Ethereum address.
@@ -114,7 +117,7 @@ public class VaultManager
         try
         {
             using var key = Registry.CurrentUser.CreateSubKey(RegistryPath);
-            key.SetValue(BuildContractKey(network), contractAddress, RegistryValueKind.String);
+            SafeSetString(key, BuildContractKey(network), contractAddress);
         }
         catch (Exception ex)
         {
@@ -147,12 +150,93 @@ public class VaultManager
         return !string.IsNullOrWhiteSpace(address);
     }
 
+    public void RecordDeploymentSnapshot(string network, DeploymentSnapshot snapshot)
+    {
+        if (snapshot is null) throw new ArgumentNullException(nameof(snapshot));
+
+        try
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(RegistryPath);
+            var json = JsonSerializer.Serialize(snapshot);
+            SafeSetString(key, BuildSnapshotKey(network), json);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Failed to persist deployment snapshot: {ex.Message}", ex);
+        }
+    }
+
+    public DeploymentSnapshot? GetDeploymentSnapshot(string network)
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(RegistryPath);
+            var json = key?.GetValue(BuildSnapshotKey(network)) as string;
+            if (string.IsNullOrWhiteSpace(json)) return null;
+            return JsonSerializer.Deserialize<DeploymentSnapshot>(json);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public void SaveLastNetwork(string network)
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(RegistryPath);
+            SafeSetString(key, LastNetworkKey, network);
+        }
+        catch
+        {
+            // ignore persistence issues for last network
+        }
+    }
+
+    public string GetLastNetwork()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(RegistryPath);
+            var value = key?.GetValue(LastNetworkKey) as string;
+            return string.IsNullOrWhiteSpace(value) ? string.Empty : value;
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
     private static string BuildContractKey(string network)
     {
         var normalized = string.IsNullOrWhiteSpace(network)
             ? "default"
             : network.Trim().ToLowerInvariant().Replace(" ", "_");
         return $"{ContractAddressKeyPrefix}_{normalized}";
+    }
+
+    private static string BuildSnapshotKey(string network)
+    {
+        var normalized = string.IsNullOrWhiteSpace(network)
+            ? "default"
+            : network.Trim().ToLowerInvariant().Replace(" ", "_");
+        return $"{DeploymentSnapshotKeyPrefix}_{normalized}";
+    }
+
+    private static void SafeSetString(RegistryKey key, string valueName, string value)
+    {
+        try
+        {
+            // Always remove existing to avoid type mismatches (e.g., legacy numeric values)
+            key.DeleteValue(valueName, false);
+        }
+        catch
+        {
+            // ignore lookup/delete issues; proceed to set
+        }
+
+        key.SetValue(valueName, value, RegistryValueKind.String);
     }
 
     /// <summary>
@@ -336,3 +420,16 @@ public class VaultManager
         }
     }
 }
+
+public record DeploymentSnapshot(
+    string Network,
+    string ContractAddress,
+    string TokenName,
+    string TokenSupply,
+    int TokenDecimals,
+    int GovShares,
+    int GovThreshold,
+    string TreasuryAddress,
+    string TreasuryEth,
+    string TreasuryTokens,
+    DateTimeOffset CreatedAtUtc);

@@ -67,7 +67,7 @@
                 MouseLeftButtonDown="OnTitleBarMouseDown">
             <DockPanel LastChildFill="True">
                 <StackPanel Orientation="Vertical" DockPanel.Dock="Left">
-                    <TextBlock Text="Aegis Mint"
+                    <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}"
                                Foreground="White"
                                FontSize="20"
                                FontWeight="Bold"
