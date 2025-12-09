@@ -12,7 +12,11 @@ public static class Logger
 
     static Logger()
     {
-        var logDir = Path.Combine(AppContext.BaseDirectory, "Logs");
+        var logDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "AegisMint",
+            "Logs");
+
         Directory.CreateDirectory(logDir);
         LogFilePath = Path.Combine(logDir, $"aegismint_{DateTime.Now:yyyyMMdd_HHmmss}.log");
     }

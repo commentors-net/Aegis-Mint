@@ -112,7 +112,7 @@ Source: "{#AdminSourceDir}\*"; DestDir: "{app}\Mint"; Flags: recursesubdirs igno
 "@
 
 $runSection = @"
-Filename: "{app}\Mint\AegisMint.Mint.exe"; Description: "Launch Aegis Mint"; Flags: postinstall nowait skipifsilent
+Filename: "{app}\Mint\AegisMint.Mint.exe"; Description: "Launch Aegis Mint"; WorkingDir: "{app}\Mint"; Flags: postinstall nowait skipifsilent
 "@
 
 $iss = @"
@@ -152,6 +152,8 @@ $runSection
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"
+Type: filesandordirs; Name: "HKCU\Software\AegisMint"
+Type: filesandordirs; Name: "HKLM\Software\AegisMint"
 "@
 
 $iss | Set-Content -Path $issPath -Encoding UTF8

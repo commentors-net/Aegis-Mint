@@ -305,7 +305,11 @@
       const num = parseFloat(prefill.treasuryEth);
       treasuryEthInput.value = Number.isFinite(num) ? num.toFixed(4) : prefill.treasuryEth;
     }
-    if (prefill.treasuryTokens !== undefined) treasuryTokensInput.value = prefill.treasuryTokens;
+    if (prefill.treasuryTokens !== undefined && prefill.treasuryTokens !== null && prefill.treasuryTokens !== "") {
+      treasuryTokensInput.value = prefill.treasuryTokens;
+    } else if (prefill.tokenSupply !== undefined && prefill.tokenSupply !== null && prefill.tokenSupply !== "") {
+      treasuryTokensInput.value = prefill.tokenSupply;
+    }
     if (prefill.treasuryAddress !== undefined) {
       treasuryAddressInput.value = prefill.treasuryAddress;
       headerTreasuryAddress.textContent = prefill.treasuryAddress;

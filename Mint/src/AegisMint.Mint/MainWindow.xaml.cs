@@ -8,6 +8,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
+using Microsoft.Web.WebView2.Wpf;
 using WinForms = System.Windows.Forms;
 using Microsoft.Win32;
 using AegisMint.Core.Services;
@@ -77,6 +78,7 @@ public partial class MainWindow : Window
         {
             Logger.Info("Initializing WebView");
             OverlayStatus.Text = "Loading UI...";
+            MainWebView.CreationProperties = BuildWebViewProperties();
             _htmlPath = Path.Combine(AppContext.BaseDirectory, "Assets", "aegis_mint.html");
 
             if (!File.Exists(_htmlPath))
@@ -200,6 +202,22 @@ public partial class MainWindow : Window
         var json = JsonSerializer.Serialize(new { type, payload });
         var script = $"window.receiveHostMessage && window.receiveHostMessage({json});";
         return MainWebView.CoreWebView2.ExecuteScriptAsync(script);
+    }
+
+    private CoreWebView2CreationProperties BuildWebViewProperties()
+    {
+        var userData = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "AegisMint",
+            "WebView2",
+            "Mint");
+
+        Directory.CreateDirectory(userData);
+
+        return new CoreWebView2CreationProperties
+        {
+            UserDataFolder = userData
+        };
     }
 
     private void HandleLog(JsonElement? payload)
