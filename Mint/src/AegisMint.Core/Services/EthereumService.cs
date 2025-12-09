@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Threading.Tasks;
 using Nethereum.Web3;
 using Nethereum.Util;
+using Nethereum.Contracts;
 
 namespace AegisMint.Core.Services;
 
@@ -290,6 +291,25 @@ public class EthereumService
         {
             Logger.Error($"Failed to get balance for {address}", ex);
             throw new InvalidOperationException($"Failed to get balance for {address}: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Gets the ERC-20 token balance for an owner address (using balanceOf).
+    /// </summary>
+    public async Task<decimal> GetTokenBalanceAsync(string tokenAbi, string tokenAddress, string ownerAddress, int decimals)
+    {
+        try
+        {
+            var contract = _web3.Eth.GetContract(tokenAbi, tokenAddress);
+            var balanceOf = contract.GetFunction("balanceOf");
+            var raw = await balanceOf.CallAsync<BigInteger>(ownerAddress);
+            return Web3.Convert.FromWei(raw, decimals);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"Failed to get token balance for {ownerAddress} on {tokenAddress}", ex);
+            throw new InvalidOperationException($"Failed to get token balance: {ex.Message}", ex);
         }
     }
 

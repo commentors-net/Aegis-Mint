@@ -316,25 +316,48 @@ public partial class MainWindow : Window
             var treasuryAddress = _vaultManager.GetTreasuryAddress();
             var deployedContractAddress = _vaultManager.GetDeployedContractAddress(_currentNetwork);
             var snapshot = _vaultManager.GetDeploymentSnapshot(_currentNetwork);
-            var prefill = snapshot is null ? null : MapSnapshotForUi(snapshot);
             decimal? balance = null;
+            string? liveTreasuryEth = null;
+            string? liveTreasuryTokens = null;
             if (_ethereumService != null && !string.IsNullOrWhiteSpace(treasuryAddress))
             {
                 try
                 {
                     balance = await _ethereumService.GetBalanceAsync(treasuryAddress);
+                    if (balance.HasValue)
+                    {
+                        liveTreasuryEth = balance.Value.ToString("0.####", CultureInfo.InvariantCulture);
+                    }
                 }
                 catch
                 {
                     balance = null;
                 }
             }
+
+            // Fetch live token balance if we have a contract and ABI
+            if (_ethereumService != null && !string.IsNullOrWhiteSpace(deployedContractAddress) && !string.IsNullOrWhiteSpace(_tokenAbi) && snapshot != null && !string.IsNullOrWhiteSpace(treasuryAddress))
+            {
+                try
+                {
+                    var tokenBal = await _ethereumService.GetTokenBalanceAsync(_tokenAbi, deployedContractAddress, treasuryAddress, snapshot.TokenDecimals);
+                    liveTreasuryTokens = tokenBal.ToString("0.####", CultureInfo.InvariantCulture);
+                }
+                catch
+                {
+                    liveTreasuryTokens = null;
+                }
+            }
+            
+            var prefill = snapshot is null ? null : MapSnapshotForUi(snapshot, liveTreasuryEth, liveTreasuryTokens);
             
             await SendToWebAsync("vault-status", new 
             { 
                 hasTreasury = treasuryAddress != null,
                 treasuryAddress = treasuryAddress,
                 balance = balance,
+                liveTreasuryEth,
+                liveTreasuryTokens,
                 contractDeployed = _vaultManager.HasDeployedContract(_currentNetwork),
                 contractAddress = deployedContractAddress,
                 prefill,
@@ -587,6 +610,22 @@ public partial class MainWindow : Window
                 {
                     _vaultManager.RecordContractDeployment(recordedContractAddress, _currentNetwork);
 
+                    string? liveTreasuryEth = null;
+                    string? liveTreasuryTokens = null;
+                    try
+                    {
+                        var liveEth = await _ethereumService.GetBalanceAsync(GetString(payload, "treasuryAddress"));
+                        liveTreasuryEth = liveEth.ToString("0.####", CultureInfo.InvariantCulture);
+                    }
+                    catch { /* ignore */ }
+
+                    try
+                    {
+                        var liveTokenBal = await _ethereumService.GetTokenBalanceAsync(_tokenAbi, recordedContractAddress, GetString(payload, "treasuryAddress"), tokenDecimals);
+                        liveTreasuryTokens = liveTokenBal.ToString("0.####", CultureInfo.InvariantCulture);
+                    }
+                    catch { /* ignore */ }
+
                     var snapshot = new DeploymentSnapshot(
                         _currentNetwork,
                         recordedContractAddress!,
@@ -605,7 +644,7 @@ public partial class MainWindow : Window
                     await SendToWebAsync("contract-deployed", new
                     {
                         address = recordedContractAddress,
-                        prefill = MapSnapshotForUi(snapshot)
+                        prefill = MapSnapshotForUi(snapshot, liveTreasuryEth, liveTreasuryTokens)
                     });
                 }
                 catch (Exception ex)
@@ -739,7 +778,7 @@ public partial class MainWindow : Window
         return 0;
     }
 
-    private object MapSnapshotForUi(DeploymentSnapshot snapshot)
+    private object MapSnapshotForUi(DeploymentSnapshot snapshot, string? liveTreasuryEth = null, string? liveTreasuryTokens = null)
     {
         return new
         {
@@ -751,8 +790,10 @@ public partial class MainWindow : Window
             govShares = snapshot.GovShares,
             govThreshold = snapshot.GovThreshold,
             treasuryAddress = snapshot.TreasuryAddress,
-            treasuryEth = snapshot.TreasuryEth,
-            treasuryTokens = snapshot.TreasuryTokens,
+            treasuryEth = liveTreasuryEth ?? snapshot.TreasuryEth,
+            treasuryTokens = liveTreasuryTokens ?? snapshot.TreasuryTokens,
+            liveTreasuryEth,
+            liveTreasuryTokens,
             createdAtUtc = snapshot.CreatedAtUtc
         };
     }

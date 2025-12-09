@@ -301,14 +301,14 @@
     if (prefill.govShares !== undefined) sharesInput.value = prefill.govShares;
     if (prefill.govThreshold !== undefined) thresholdInput.value = prefill.govThreshold;
     if (prefill.contractAddress !== undefined) contractAddressInput.value = prefill.contractAddress;
-    if (prefill.treasuryEth !== undefined) {
-      const num = parseFloat(prefill.treasuryEth);
-      treasuryEthInput.value = Number.isFinite(num) ? num.toFixed(4) : prefill.treasuryEth;
+    const ethToUse = prefill.liveTreasuryEth ?? prefill.treasuryEth;
+    if (ethToUse !== undefined) {
+      const num = parseFloat(ethToUse);
+      treasuryEthInput.value = Number.isFinite(num) ? num.toFixed(4) : ethToUse;
     }
-    if (prefill.treasuryTokens !== undefined && prefill.treasuryTokens !== null && prefill.treasuryTokens !== "") {
-      treasuryTokensInput.value = prefill.treasuryTokens;
-    } else if (prefill.tokenSupply !== undefined && prefill.tokenSupply !== null && prefill.tokenSupply !== "") {
-      treasuryTokensInput.value = prefill.tokenSupply;
+    const tokensToUse = prefill.liveTreasuryTokens ?? prefill.treasuryTokens ?? prefill.tokenSupply;
+    if (tokensToUse !== undefined && tokensToUse !== null && tokensToUse !== "") {
+      treasuryTokensInput.value = tokensToUse;
     }
     if (prefill.treasuryAddress !== undefined) {
       treasuryAddressInput.value = prefill.treasuryAddress;
@@ -428,6 +428,16 @@
         treasuryEthInput.value = bal.toFixed(4);
         treasuryEthInput.classList.toggle("eth-alert", bal <= 0);
       }
+    }
+    if (payload?.liveTreasuryEth !== undefined) {
+      const bal = Number(payload.liveTreasuryEth);
+      if (!Number.isNaN(bal)) {
+        treasuryEthInput.value = bal.toFixed(4);
+        treasuryEthInput.classList.toggle("eth-alert", bal <= 0);
+      }
+    }
+    if (payload?.liveTreasuryTokens !== undefined && payload.liveTreasuryTokens !== null && payload.liveTreasuryTokens !== "") {
+      treasuryTokensInput.value = payload.liveTreasuryTokens;
     }
 
     if (payload?.contractDeployed) {
