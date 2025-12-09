@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Globalization;
+using System.Numerics;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
@@ -13,6 +14,7 @@ using WinForms = System.Windows.Forms;
 using Microsoft.Win32;
 using AegisMint.Core.Services;
 using AegisMint.Core.Security;
+using Nethereum.Web3;
 
 namespace AegisMint.Mint;
 
@@ -501,6 +503,13 @@ public partial class MainWindow : Window
             var tokenName = GetString(payload, "tokenName");
             var tokenDecimals = GetInt(payload, "tokenDecimals");
             var tokenSymbol = DeriveSymbol(tokenName);
+            var tokenSupplyRaw = GetString(payload, "tokenSupply");
+            if (!decimal.TryParse(tokenSupplyRaw, NumberStyles.Any, CultureInfo.InvariantCulture, out var tokenSupplyDecimal) || tokenSupplyDecimal <= 0)
+            {
+                await SendToWebAsync("host-error", new { message = "Invalid token supply." });
+                return;
+            }
+            var tokenSupplyBaseUnits = Web3.Convert.ToWei(tokenSupplyDecimal, tokenDecimals);
 
             Logger.Info($"Deploying token: {tokenName} ({tokenSymbol}), decimals: {tokenDecimals}");
             await SendToWebAsync("validation-result", new { ok = true, message = "Configuration validated. Deploying token..." });
@@ -523,6 +532,7 @@ public partial class MainWindow : Window
                 tokenName,
                 tokenSymbol,
                 (byte)tokenDecimals,
+                tokenSupplyBaseUnits,
                 proxyAdminAddress);
 
             if (!deployResult.Success)
@@ -541,6 +551,10 @@ public partial class MainWindow : Window
             {
                 Logger.Info($"  Initialize TX: {deployResult.InitializeTxHash}");
             }
+            if (!string.IsNullOrEmpty(deployResult.IncreaseSupplyTxHash))
+            {
+                Logger.Info($"  Mint supply TX: {deployResult.IncreaseSupplyTxHash}");
+            }
             Logger.Info($"  Gas used: {deployResult.GasUsed}");
             Logger.Info($"  Block: {deployResult.BlockNumber}");
 
@@ -558,6 +572,7 @@ public partial class MainWindow : Window
                 contractAddress = deployResult.ContractAddress,
                 deployTx = deployResult.DeploymentTxHash,
                 initTx = deployResult.InitializeTxHash,
+                increaseSupplyTx = deployResult.IncreaseSupplyTxHash,
                 gasUsed = deployResult.GasUsed,
                 blockNumber = deployResult.BlockNumber
             });

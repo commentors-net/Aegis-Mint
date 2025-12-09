@@ -74,6 +74,7 @@ public class EthereumService
         string name,
         string symbol,
         byte decimals,
+        BigInteger initialSupply,
         string? proxyAdminAddress = null)
     {
         try
@@ -192,6 +193,32 @@ public class EthereumService
                 Logger.Warning($"Set asset protection role failed: {ex.Message}");
             }
 
+            // Step 6: Mint initial supply to the caller (treasury) via increaseSupply
+            string? increaseSupplyTxHash = null;
+            try
+            {
+                if (initialSupply > 0)
+                {
+                    Logger.Info($"Step 6: Minting initial supply ({initialSupply} base units)...");
+                    increaseSupplyTxHash = await _deployer.CallContractMethodAsync(
+                        privateKey,
+                        proxyAddress, // Call through proxy
+                        tokenAbi,
+                        "increaseSupply",
+                        initialSupply);
+
+                    Logger.Info($"Initial supply minted. Tx: {increaseSupplyTxHash}");
+                }
+                else
+                {
+                    Logger.Warning("Initial supply was zero; skipping increaseSupply");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warning($"increaseSupply failed: {ex.Message}");
+            }
+
             Logger.Info("✓ Token deployment with proxy completed successfully!");
             Logger.Info($"  - Implementation: {implementationAddress}");
             Logger.Info($"  - Proxy (use this address): {proxyAddress}");
@@ -206,6 +233,7 @@ public class EthereumService
                 ChangeAdminTxHash = changeAdminTxHash,
                 InitializeTxHash = initTxHash,
                 AssetProtectionTxHash = assetProtectionTxHash,
+                IncreaseSupplyTxHash = increaseSupplyTxHash,
                 GasUsed = deployResult.GasUsed,
                 BlockNumber = deployResult.BlockNumber
             };
@@ -437,6 +465,7 @@ public class TokenDeploymentResult
     public string? ChangeAdminTxHash { get; set; }
     public string? InitializeTxHash { get; set; }
     public string? AssetProtectionTxHash { get; set; }
+    public string? IncreaseSupplyTxHash { get; set; }
     public string? GasUsed { get; set; }
     public string? BlockNumber { get; set; }
     public string? ErrorMessage { get; set; }
