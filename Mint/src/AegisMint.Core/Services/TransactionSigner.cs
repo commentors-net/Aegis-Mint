@@ -85,7 +85,10 @@ public class TransactionSigner
                 dataBytes.ToHex(true)); // Convert bytes back to hex with 0x prefix
             
             Logger.Debug($"Transaction signed successfully");
-            return signedTx;
+            // Ensure 0x prefix for downstream RPC
+            return signedTx.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+                ? signedTx
+                : "0x" + signedTx;
         }
         catch (Exception ex)
         {

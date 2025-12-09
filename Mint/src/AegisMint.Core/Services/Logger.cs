@@ -18,7 +18,8 @@ public static class Logger
             "Logs");
 
         Directory.CreateDirectory(logDir);
-        LogFilePath = Path.Combine(logDir, $"aegismint_{DateTime.Now:yyyyMMdd_HHmmss}.log");
+        // Use one log file per day for easier tracking and sharing
+        LogFilePath = Path.Combine(logDir, $"aegismint_{DateTime.Now:yyyyMMdd}.log");
     }
 
     public static void Info(string message, [CallerMemberName] string? caller = null)

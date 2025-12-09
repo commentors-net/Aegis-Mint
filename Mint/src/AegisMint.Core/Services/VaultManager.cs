@@ -39,6 +39,24 @@ public class VaultManager
     }
 
     /// <summary>
+    /// Imports an existing mnemonic and stores it securely, returning the derived treasury address.
+    /// </summary>
+    public string ImportTreasuryMnemonic(string mnemonicPhrase)
+    {
+        if (string.IsNullOrWhiteSpace(mnemonicPhrase))
+        {
+            throw new ArgumentException("Mnemonic cannot be empty", nameof(mnemonicPhrase));
+        }
+
+        // Validate/normalize mnemonic
+        var mnemonic = new Mnemonic(mnemonicPhrase.Trim(), Wordlist.English);
+        var ethereumAddress = DeriveEthereumAddress(mnemonic);
+
+        StoreEncryptedMnemonic(TreasuryMnemonicKey, mnemonic.ToString());
+        return ethereumAddress;
+    }
+
+    /// <summary>
     /// Retrieves the Treasury Ethereum address if it exists.
     /// </summary>
     /// <returns>The Treasury address or null if not generated.</returns>
