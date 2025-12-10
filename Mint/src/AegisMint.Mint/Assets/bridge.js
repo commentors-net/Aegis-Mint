@@ -60,7 +60,7 @@
     contractAddressInput.value = "";
     if (!treasuryGenerated) {
       treasuryEthInput.value = "";
-      treasuryTokensInput.value = "0";
+      treasuryTokensInput.value = "";
       treasuryAddressInput.value = "";
       treasuryEthInput.classList.remove("eth-alert");
       treasuryEthInput.disabled = true;
@@ -371,7 +371,11 @@
   function updateMintState() {
     const eth = parseFloat(treasuryEthInput.value || "0");
     const hasEth = !Number.isNaN(eth) && eth > 0;
-    mintBtn.disabled = contractDeploymentLocked || !(treasuryGenerated && hasEth);
+    const shouldDisable = contractDeploymentLocked || !(treasuryGenerated && hasEth);
+    
+    logToHost(`updateMintState: locked=${contractDeploymentLocked}, treasuryGen=${treasuryGenerated}, eth=${eth}, hasEth=${hasEth}, disable=${shouldDisable}`);
+    
+    mintBtn.disabled = shouldDisable;
   }
 
   function updateResetState() {
@@ -440,14 +444,35 @@
       treasuryTokensInput.value = payload.liveTreasuryTokens;
     }
 
+    // Only lock UI if contract is deployed on the CURRENT network
     if (payload?.contractDeployed) {
+      contractDeploymentLocked = true;
       applyPrefill(payload.prefill);
       lockUiForDeployedContract(payload);
     } else {
-      unlockUi();
+      // Contract not deployed on current network - unlock UI
+      contractDeploymentLocked = false;
+      clearPermanentToast();
+      
+      // Unlock all controls except those that should remain disabled
+      const controls = document.querySelectorAll("input, select, button, textarea");
+      controls.forEach((el) => {
+        if (el === networkSelect) return;
+        el.disabled = false;
+        el.classList.remove("locked-control");
+      });
+      
+      // Re-enable treasury ETH input if treasury was generated
+      if (treasuryGenerated) {
+        treasuryEthInput.disabled = false;
+      }
+      
+      treasuryTokensInput.value = "";
+      contractAddressInput.value = "";
     }
-    updateHeaderTreasury();
     updateMintState();
+    updateHeaderTreasury();
+    updateGenerateState();
     updateResetState();
   }
 
@@ -514,8 +539,8 @@
   });
 
   networkSelect.addEventListener("change", () => {
-    resetForNetworkChange();
     selectedNetwork = networkSelect.value;
+    resetForNetworkChange();
     sendToHost("network-changed", { network: selectedNetwork });
     logToHost(`Network changed to: ${selectedNetwork}`);
   });
