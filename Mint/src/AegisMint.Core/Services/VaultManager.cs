@@ -2,26 +2,31 @@ using System;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Microsoft.Win32;
 using NBitcoin;
 using Nethereum.Util;
+using Microsoft.Win32;
 
 namespace AegisMint.Core.Services;
 
 /// <summary>
-/// Manages vault operations including mnemonic generation and secure storage in Windows Registry.
+/// Manages vault operations including mnemonic generation and secure storage in encrypted SQLite.
 /// </summary>
 public class VaultManager
 {
-    private const string RegistryPath = @"Software\AegisMint\Vault";
+    private const string LegacyRegistryPath = @"Software\AegisMint\Vault";
+    private readonly VaultDataStore _store = new();
     private const string TreasuryMnemonicKey = "TreasuryMnemonic";
-    private const string ContractAddressKeyPrefix = "ContractAddress";
-    private const string DeploymentSnapshotKeyPrefix = "DeploymentSnapshot";
     private const string LastNetworkKey = "LastNetwork";
+    private bool _legacyMigrationAttempted;
+
+    public VaultManager()
+    {
+        TryMigrateFromRegistry();
+    }
 
     /// <summary>
     /// Generates a new Treasury vault with a 12-word mnemonic and returns the Ethereum address.
-    /// The mnemonic is encrypted and stored in the Windows Registry.
+    /// The mnemonic is encrypted and stored in SQLite (SQLCipher).
     /// </summary>
     /// <returns>The Ethereum address derived from the mnemonic.</returns>
     public string GenerateTreasury()
@@ -104,17 +109,13 @@ public class VaultManager
     }
 
     /// <summary>
-    /// Clears all vault data from the registry.
+    /// Clears all vault data from the encrypted database.
     /// </summary>
     public void ClearVaults()
     {
         try
         {
-            using var key = Registry.CurrentUser.OpenSubKey(RegistryPath, writable: true);
-            if (key != null)
-            {
-                key.DeleteValue(TreasuryMnemonicKey, throwOnMissingValue: false);
-            }
+            _store.ClearAll();
         }
         catch
         {
@@ -134,8 +135,7 @@ public class VaultManager
 
         try
         {
-            using var key = Registry.CurrentUser.CreateSubKey(RegistryPath);
-            SafeSetString(key, BuildContractKey(network), contractAddress);
+            _store.SaveContractDeployment(NormalizeNetwork(network), contractAddress);
         }
         catch (Exception ex)
         {
@@ -150,8 +150,7 @@ public class VaultManager
     {
         try
         {
-            using var key = Registry.CurrentUser.OpenSubKey(RegistryPath);
-            return key?.GetValue(BuildContractKey(network)) as string;
+            return _store.GetContractDeployment(NormalizeNetwork(network));
         }
         catch
         {
@@ -164,8 +163,7 @@ public class VaultManager
     /// </summary>
     public bool HasDeployedContract(string network)
     {
-        var address = GetDeployedContractAddress(network);
-        return !string.IsNullOrWhiteSpace(address);
+        return !string.IsNullOrWhiteSpace(GetDeployedContractAddress(network));
     }
 
     public void RecordDeploymentSnapshot(string network, DeploymentSnapshot snapshot)
@@ -174,9 +172,7 @@ public class VaultManager
 
         try
         {
-            using var key = Registry.CurrentUser.CreateSubKey(RegistryPath);
-            var json = JsonSerializer.Serialize(snapshot);
-            SafeSetString(key, BuildSnapshotKey(network), json);
+            _store.SaveDeploymentSnapshot(snapshot with { Network = NormalizeNetwork(network) });
         }
         catch (Exception ex)
         {
@@ -188,10 +184,7 @@ public class VaultManager
     {
         try
         {
-            using var key = Registry.CurrentUser.OpenSubKey(RegistryPath);
-            var json = key?.GetValue(BuildSnapshotKey(network)) as string;
-            if (string.IsNullOrWhiteSpace(json)) return null;
-            return JsonSerializer.Deserialize<DeploymentSnapshot>(json);
+            return _store.GetDeploymentSnapshot(NormalizeNetwork(network));
         }
         catch
         {
@@ -203,8 +196,7 @@ public class VaultManager
     {
         try
         {
-            using var key = Registry.CurrentUser.CreateSubKey(RegistryPath);
-            SafeSetString(key, LastNetworkKey, network);
+            _store.SaveSetting(LastNetworkKey, network);
         }
         catch
         {
@@ -216,8 +208,7 @@ public class VaultManager
     {
         try
         {
-            using var key = Registry.CurrentUser.OpenSubKey(RegistryPath);
-            var value = key?.GetValue(LastNetworkKey) as string;
+            var value = _store.GetSetting(LastNetworkKey);
             return string.IsNullOrWhiteSpace(value) ? string.Empty : value;
         }
         catch
@@ -226,35 +217,86 @@ public class VaultManager
         }
     }
 
-    private static string BuildContractKey(string network)
+    private static string NormalizeNetwork(string network)
     {
         var normalized = string.IsNullOrWhiteSpace(network)
             ? "default"
             : network.Trim().ToLowerInvariant().Replace(" ", "_");
-        return $"{ContractAddressKeyPrefix}_{normalized}";
+        return normalized;
     }
 
-    private static string BuildSnapshotKey(string network)
+    private void TryMigrateFromRegistry()
     {
-        var normalized = string.IsNullOrWhiteSpace(network)
-            ? "default"
-            : network.Trim().ToLowerInvariant().Replace(" ", "_");
-        return $"{DeploymentSnapshotKeyPrefix}_{normalized}";
-    }
+        if (_legacyMigrationAttempted)
+        {
+            return;
+        }
 
-    private static void SafeSetString(RegistryKey key, string valueName, string value)
-    {
+        _legacyMigrationAttempted = true;
+
         try
         {
-            // Always remove existing to avoid type mismatches (e.g., legacy numeric values)
-            key.DeleteValue(valueName, false);
+            using var key = Registry.CurrentUser.OpenSubKey(LegacyRegistryPath, writable: false);
+            if (key == null)
+            {
+                return;
+            }
+
+            // Treasury mnemonic (already DPAPI encrypted)
+            var legacyMnemonic = key.GetValue(TreasuryMnemonicKey) as string;
+            if (!string.IsNullOrWhiteSpace(legacyMnemonic))
+            {
+                _store.SaveEncryptedMnemonic(TreasuryMnemonicKey, legacyMnemonic);
+            }
+
+            // Last network
+            var legacyNetwork = key.GetValue(LastNetworkKey) as string;
+            if (!string.IsNullOrWhiteSpace(legacyNetwork))
+            {
+                _store.SaveSetting(LastNetworkKey, legacyNetwork);
+            }
+
+            // Contracts and snapshots
+            foreach (var valueName in key.GetValueNames())
+            {
+                if (valueName.StartsWith("ContractAddress_", StringComparison.OrdinalIgnoreCase))
+                {
+                    var networkSuffix = valueName.Substring("ContractAddress_".Length);
+                    var address = key.GetValue(valueName) as string;
+                    if (!string.IsNullOrWhiteSpace(address))
+                    {
+                        _store.SaveContractDeployment(NormalizeNetwork(networkSuffix), address);
+                    }
+                }
+                else if (valueName.StartsWith("DeploymentSnapshot_", StringComparison.OrdinalIgnoreCase))
+                {
+                    var networkSuffix = valueName.Substring("DeploymentSnapshot_".Length);
+                    var json = key.GetValue(valueName) as string;
+                    if (string.IsNullOrWhiteSpace(json))
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        var snapshot = JsonSerializer.Deserialize<DeploymentSnapshot>(json);
+                        if (snapshot != null)
+                        {
+                            var network = string.IsNullOrWhiteSpace(snapshot.Network) ? networkSuffix : snapshot.Network;
+                            _store.SaveDeploymentSnapshot(snapshot with { Network = NormalizeNetwork(network) });
+                        }
+                    }
+                    catch
+                    {
+                        // ignore malformed legacy snapshot
+                    }
+                }
+            }
         }
         catch
         {
-            // ignore lookup/delete issues; proceed to set
+            // best-effort migration only
         }
-
-        key.SetValue(valueName, value, RegistryValueKind.String);
     }
 
     /// <summary>
@@ -382,7 +424,7 @@ public class VaultManager
     }
 
     /// <summary>
-    /// Stores an encrypted mnemonic in the Windows Registry using DPAPI.
+    /// Stores an encrypted mnemonic in the SQLCipher database using DPAPI-protected payload.
     /// </summary>
     private void StoreEncryptedMnemonic(string keyName, string mnemonic)
     {
@@ -399,9 +441,7 @@ public class VaultManager
             // Convert to Base64 for storage
             var encryptedBase64 = Convert.ToBase64String(encryptedBytes);
             
-            // Store in registry
-            using var key = Registry.CurrentUser.CreateSubKey(RegistryPath);
-            key.SetValue(keyName, encryptedBase64, RegistryValueKind.String);
+            _store.SaveEncryptedMnemonic(keyName, encryptedBase64);
         }
         catch (Exception ex)
         {
@@ -410,16 +450,13 @@ public class VaultManager
     }
 
     /// <summary>
-    /// Retrieves and decrypts a mnemonic from the Windows Registry using DPAPI.
+    /// Retrieves and decrypts a mnemonic from the SQLCipher database using DPAPI.
     /// </summary>
     private string? RetrieveDecryptedMnemonic(string keyName)
     {
         try
         {
-            using var key = Registry.CurrentUser.OpenSubKey(RegistryPath);
-            if (key == null) return null;
-            
-            var encryptedBase64 = key.GetValue(keyName) as string;
+            var encryptedBase64 = _store.GetEncryptedMnemonic(keyName);
             if (string.IsNullOrEmpty(encryptedBase64)) return null;
             
             // Decrypt using DPAPI
