@@ -26,6 +26,7 @@ public partial class MainWindow : Window
     private string _currentNetwork = "sepolia"; // default
     private string? _tokenAbi;
     private string? _tokenBytecode;
+    private readonly ContractArtifactLoader _artifactLoader = new();
 
     public MainWindow(string network, string rpcUrl)
     {
@@ -865,39 +866,33 @@ public partial class MainWindow : Window
     {
         try
         {
-            var basePath = Path.Combine(AppContext.BaseDirectory, "Resources");
-            var abiPath = Path.Combine(basePath, "TokenImplementationV2.abi");
-            var binPath = Path.Combine(basePath, "TokenImplementationV2.bin");
+            var artifacts = _artifactLoader.LoadTokenImplementation();
 
-            Logger.Debug($"Loading contract artifacts from: {basePath}");
+            Logger.Debug($"Loading contract artifacts from: {Path.GetDirectoryName(artifacts.AbiPath)}");
 
-            if (File.Exists(abiPath))
+            _tokenAbi = artifacts.Abi;
+            _tokenBytecode = artifacts.Bytecode;
+
+            if (!artifacts.HasAbi)
             {
-                _tokenAbi = File.ReadAllText(abiPath);
+                Logger.Warning($"Token ABI not found at: {artifacts.AbiPath}");
+            }
+            else
+            {
                 Logger.Info("Token ABI loaded successfully");
             }
-            else
+
+            if (!artifacts.HasBytecode)
             {
-                Logger.Warning($"Token ABI not found at: {abiPath}");
+                Logger.Warning($"Token bytecode not found at: {artifacts.BinPath}");
             }
-
-            if (File.Exists(binPath))
+            else if (string.IsNullOrWhiteSpace(_tokenBytecode))
             {
-                var rawBytecode = File.ReadAllText(binPath);
-                _tokenBytecode = NormalizeHex(rawBytecode);
-
-                if (string.IsNullOrWhiteSpace(_tokenBytecode))
-                {
-                    Logger.Warning("Token bytecode file was empty or contained no hex characters");
-                }
-                else
-                {
-                    Logger.Info($"Token bytecode loaded successfully (length: {_tokenBytecode.Length} chars)");
-                }
+                Logger.Warning("Token bytecode file was empty or contained no hex characters");
             }
             else
             {
-                Logger.Warning($"Token bytecode not found at: {binPath}");
+                Logger.Info($"Token bytecode loaded successfully (length: {_tokenBytecode.Length} chars)");
             }
         }
         catch (Exception ex)
@@ -905,25 +900,5 @@ public partial class MainWindow : Window
             Logger.Error("Failed to load contract artifacts", ex);
             OverlayStatus.Text = $"Failed to load contract artifacts: {ex.Message}";
         }
-    }
-
-    /// <summary>
-    /// Strips whitespace, newlines, and an optional 0x prefix so the bytecode is pure hex.
-    /// </summary>
-    private static string NormalizeHex(string raw)
-    {
-        if (string.IsNullOrWhiteSpace(raw))
-        {
-            return string.Empty;
-        }
-
-        var trimmed = raw.Trim();
-        if (trimmed.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
-        {
-            trimmed = trimmed[2..];
-        }
-
-        // Keep only hex digits to avoid signer errors when converting to bytes.
-        return new string(trimmed.Where(Uri.IsHexDigit).ToArray());
     }
 }

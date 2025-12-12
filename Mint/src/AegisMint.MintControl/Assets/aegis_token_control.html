@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Aegis Token Control</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #f9fafb;
+      --bg-elevated: #ffffff;
+      --accent: #d72638;
+      --border: #e5e7eb;
+      --border-soft: #eceff1;
+      --text-main: #0f172a;
+      --text-soft: #1f2937;
+      --text-muted: #6b7280;
+      --danger: #b91c1c;
+      --radius-xl: 24px;
+      --shadow-soft: 0 18px 40px rgba(15, 23, 42, 0.16);
+      --shadow-subtle: 0 1px 0 rgba(15, 23, 42, 0.05);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #ffffff 0, #f8fafc 45%, #eef2f7 100%);
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .app-shell {
+      width: 100%;
+      max-width: 1040px;
+      background: #ffffff;
+      border-radius: 28px;
+      box-shadow: var(--shadow-soft);
+      border: 1px solid var(--border);
+      padding: 22px 22px 24px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .app-shell::before {
+      content: "";
+      position: absolute;
+      inset: -120px;
+      background:
+        radial-gradient(circle at 0% 0%, rgba(215, 38, 56, 0.12), transparent 55%),
+        radial-gradient(circle at 100% 0%, rgba(239, 68, 68, 0.12), transparent 55%);
+      opacity: 0.55;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .app-content { position: relative; z-index: 1; }
+
+    .app-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--border-soft);
+      margin-bottom: 20px;
+    }
+
+    .logo-wrap { display: flex; align-items: center; gap: 12px; }
+
+    .logo-mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      border: 1px solid #f1f5f9;
+      background: radial-gradient(circle at 30% 0%, #fca5a5 0, #fecaca 30%, #ffffff 80%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 30px rgba(215, 38, 56, 0.28);
+      font-size: 16px;
+      font-weight: 700;
+      color: #7f1d1d;
+      letter-spacing: 0.02em;
+    }
+
+    .logo-text-main {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    .logo-text-main span:first-child {
+      text-transform: uppercase;
+      color: var(--text-main);
+    }
+
+    .logo-text-main span:last-child {
+      font-size: 15px;
+      color: var(--text-soft);
+      text-transform: uppercase;
+    }
+
+    .logo-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    .header-right {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(10px);
+      white-space: nowrap;
+    }
+
+    .pill-label {
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+    }
+
+    .pill-value { font-weight: 500; }
+
+    .pill-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: #22c55e;
+      box-shadow: 0 0 10px rgba(34, 197, 94, 0.85);
+    }
+
+    .pill-network {
+      border-color: rgba(215, 38, 56, 0.65);
+      background: radial-gradient(circle at 0 0, rgba(215, 38, 56, 0.12), transparent 55%);
+    }
+
+    .pill-key {
+      border-color: rgba(52, 211, 153, 0.8);
+      background: radial-gradient(circle at 0 0, rgba(16, 185, 129, 0.12), transparent 55%);
+    }
+
+    .main-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 3fr) minmax(0, 2.3fr);
+      gap: 18px;
+    }
+
+    @media (max-width: 880px) {
+      .main-grid { grid-template-columns: minmax(0, 1fr); }
+    }
+
+    .panel {
+      background: linear-gradient(145deg, #ffffff, #f8fafc);
+      border-radius: var(--radius-xl);
+      padding: 16px 18px 18px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-subtle);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .panel-inner { position: relative; z-index: 1; }
+
+    .panel-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .panel-title {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--text-soft);
+    }
+
+    .panel-badge {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--accent);
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(215, 38, 56, 0.4);
+      background: rgba(215, 38, 56, 0.08);
+    }
+
+    .panel-subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .field-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    @media (max-width: 640px) {
+      .field-row { grid-template-columns: minmax(0, 1fr); }
+    }
+
+    .label {
+      font-size: 12px;
+      color: var(--text-soft);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .label span.main {
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 11px;
+    }
+
+    .label span.hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: none;
+    }
+
+    .input,
+    .select,
+    .textarea {
+      width: 100%;
+      padding: 9px 11px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #ffffff;
+      color: var(--text-main);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, transform 0.05s ease;
+    }
+
+    .textarea { resize: vertical; min-height: 46px; max-height: 120px; }
+
+    .input:focus,
+    .select:focus,
+    .textarea:focus {
+      border-color: rgba(215, 38, 56, 0.85);
+      box-shadow: 0 0 0 1px rgba(215, 38, 56, 0.35);
+      transform: translateY(-0.5px);
+    }
+
+    .input::placeholder,
+    .textarea::placeholder { color: #4b5563; }
+
+    .input[readonly] { opacity: 0.85; cursor: default; }
+
+    .hint-inline {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .btn {
+      border: none;
+      outline: none;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 8px 16px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: transform 0.08s ease, box-shadow 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+      white-space: nowrap;
+    }
+
+    .btn:active {
+      transform: translateY(1px) scale(0.99);
+      box-shadow: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #f87171, #dc2626);
+      color: #ffffff;
+      border: 1px solid rgba(220, 38, 38, 0.95);
+      box-shadow: 0 12px 24px rgba(220, 38, 38, 0.35);
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #dc2626, #f87171);
+    }
+
+    .btn-outline {
+      background: rgba(255, 255, 255, 0.9);
+      color: var(--accent);
+      border: 1px solid rgba(215, 38, 56, 0.35);
+    }
+
+    .btn-ghost {
+      background: #ffffff;
+      color: var(--text-soft);
+      border: 1px solid var(--border);
+    }
+
+    .btn-danger {
+      background: radial-gradient(circle at 0 0, rgba(239, 68, 68, 0.18), #fee2e2);
+      color: #991b1b;
+      border: 1px solid rgba(220, 38, 38, 0.6);
+    }
+
+    .btn-icon { font-size: 13px; opacity: 0.9; }
+
+    .section-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 14px 0;
+    }
+
+    .switch-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+
+    .switch-label-main {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-soft);
+    }
+
+    .switch-label-hint { font-size: 11px; color: var(--text-muted); }
+
+    .switch {
+      width: 42px;
+      height: 22px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: #ffffff;
+      padding: 1px;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+
+    .switch-knob {
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      background: #e5e7eb;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+      transform: translateX(0);
+      transition: transform 0.15s ease, background 0.15s ease;
+    }
+
+    .switch[data-on="true"] {
+      background: rgba(215, 38, 56, 0.15);
+      border-color: rgba(215, 38, 56, 0.95);
+    }
+
+    .switch[data-on="true"] .switch-knob {
+      transform: translateX(18px);
+      background: #fee2e2;
+    }
+
+    .metrics-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .metric {
+      padding: 8px 10px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: #ffffff;
+      font-size: 11px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .metric-label {
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-muted);
+    }
+
+    .metric-value { font-size: 13px; font-weight: 500; }
+
+    .metric-pill {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--accent);
+    }
+
+    .log-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 6px;
+      max-height: 150px;
+      overflow-y: auto;
+      padding-right: 3px;
+    }
+
+    .log-item {
+      font-size: 11px;
+      color: var(--text-soft);
+      padding: 6px 8px;
+      border-radius: 10px;
+      background: #ffffff;
+      border: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .log-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .log-tag {
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--accent);
+    }
+
+    .footer {
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .footer-left { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+
+    .footer-status {
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: #4ade80;
+      box-shadow: 0 0 12px rgba(74, 222, 128, 0.95);
+    }
+
+    .footer-note {
+      font-size: 11px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .footer-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <div class="app-content">
+      <header class="app-header">
+        <div class="logo-wrap">
+          <div class="logo-mark">A</div>
+          <div>
+            <div class="logo-text-main">
+              <span>Aegis</span>
+              <span>Token Control</span>
+            </div>
+            <div class="logo-sub">Key-managed token controls</div>
+          </div>
+        </div>
+        <div class="header-right">
+          <div class="pill pill-network">
+            <span class="pill-label">Network</span>
+            <span class="pill-value">Ethereum Mainnet ▾</span>
+          </div>
+          <div class="pill">
+            <span class="pill-label">Controller</span>
+            <span class="pill-value">0x1234…ABCD</span>
+            <span class="pill-dot"></span>
+          </div>
+          <div class="pill pill-key">
+            <span class="pill-label">Key</span>
+            <span class="pill-value">Loaded from vault</span>
+            <span class="pill-dot"></span>
+          </div>
+        </div>
+      </header>
+
+      <form id="token-control-form" autocomplete="off">
+        <div class="main-grid">
+          <!-- LEFT: OPERATIONS -->
+          <div class="panel">
+            <div class="panel-inner">
+              <div class="panel-header">
+                <div>
+                  <div class="panel-title">Token Operations</div>
+                  <div class="panel-subtitle">Send, freeze and retrieve using the Aegis-managed key.</div>
+                </div>
+                <div class="panel-badge">Live controls</div>
+              </div>
+
+              <!-- Send -->
+              <div class="field-group">
+                <label class="label" for="send-to">
+                  <span class="main">Send tokens</span>
+                  <span class="hint">Standard transfer via vault key</span>
+                </label>
+                <div class="field-row">
+                  <div class="field-group">
+                    <label class="label" for="send-from">
+                      <span class="main">From</span>
+                      <span class="hint">Treasury / controller</span>
+                    </label>
+                    <input id="send-from" class="input" type="text" value="0x0000…TREASURY" readonly />
+                  </div>
+                  <div class="field-group">
+                    <label class="label" for="send-to">
+                      <span class="main">To</span>
+                      <span class="hint">Recipient address</span>
+                    </label>
+                    <input id="send-to" class="input" type="text" placeholder="0x… recipient" />
+                  </div>
+                </div>
+                <div class="field-row">
+                  <div class="field-group">
+                    <label class="label" for="send-amount">
+                      <span class="main">Amount</span>
+                      <span class="hint">Tokens (pre-decimals)</span>
+                    </label>
+                    <input id="send-amount" class="input" type="number" min="0" step="0.000001" placeholder="0.0" />
+                  </div>
+                  <div class="field-group">
+                    <label class="label" for="send-memo">
+                      <span class="main">Memo</span>
+                      <span class="hint">Internal note</span>
+                    </label>
+                    <input id="send-memo" class="input" type="text" placeholder="Ticket, purpose, etc." />
+                  </div>
+                </div>
+                <div class="hint-inline">No key entry needed. Aegis reconstructs and signs in the vault only.</div>
+                <div style="margin-top: 8px; display:flex; justify-content:flex-end;">
+                  <button type="button" class="btn btn-primary" id="send-btn">
+                    <span class="btn-icon">➤</span> Send
+                  </button>
+                </div>
+              </div>
+
+              <hr class="section-divider" />
+
+              <!-- Freeze / Unfreeze -->
+              <div class="field-group">
+                <label class="label" for="freeze-address">
+                  <span class="main">Freeze address</span>
+                  <span class="hint">Block or restore transfers for a wallet</span>
+                </label>
+                <div class="field-row">
+                  <div class="field-group">
+                    <input id="freeze-address" class="input" type="text" placeholder="0x… address" />
+                    <div class="hint-inline">Frozen addresses cannot send or receive this token.</div>
+                  </div>
+                  <div class="field-group">
+                    <select id="freeze-action" class="select">
+                      <option value="freeze">Freeze</option>
+                      <option value="unfreeze">Unfreeze</option>
+                    </select>
+                  </div>
+                </div>
+                <textarea id="freeze-reason" class="textarea" placeholder="Internal reason / case reference (off-chain)"></textarea>
+                <div style="margin-top: 8px; display:flex; justify-content:flex-end;">
+                  <button type="button" class="btn btn-outline" id="freeze-btn">
+                    <span class="btn-icon">⛔</span> Apply rule
+                  </button>
+                </div>
+              </div>
+
+              <hr class="section-divider" />
+
+              <!-- Retrieve -->
+              <div class="field-group">
+                <label class="label" for="retrieve-from">
+                  <span class="main">Retrieve tokens</span>
+                  <span class="hint">Move from (typically frozen) address back to treasury</span>
+                </label>
+                <div class="field-row">
+                  <div class="field-group">
+                    <label class="label" for="retrieve-from">
+                      <span class="main">From</span>
+                      <span class="hint">Source address</span>
+                    </label>
+                    <input id="retrieve-from" class="input" type="text" placeholder="0x… source" />
+                  </div>
+                  <div class="field-group">
+                    <label class="label" for="retrieve-to">
+                      <span class="main">To</span>
+                      <span class="hint">Treasury</span>
+                    </label>
+                    <input id="retrieve-to" class="input" type="text" value="0x0000…TREASURY" readonly />
+                  </div>
+                </div>
+                <div class="field-row">
+                  <div class="field-group">
+                    <label class="label" for="retrieve-amount">
+                      <span class="main">Amount</span>
+                      <span class="hint">Blank = full balance</span>
+                    </label>
+                    <input id="retrieve-amount" class="input" type="number" min="0" step="0.000001" placeholder="Full" />
+                  </div>
+                  <div class="field-group">
+                    <label class="label" for="retrieve-memo">
+                      <span class="main">Reason</span>
+                      <span class="hint">Shown in control log</span>
+                    </label>
+                    <input id="retrieve-memo" class="input" type="text" placeholder="Compliance, recovery, etc." />
+                  </div>
+                </div>
+                <div style="margin-top: 8px; display:flex; justify-content:flex-end;">
+                  <button type="button" class="btn btn-outline" id="retrieve-btn">
+                    <span class="btn-icon">⟲</span> Retrieve
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- RIGHT: SYSTEM STATE -->
+          <div class="panel">
+            <div class="panel-inner">
+              <div class="panel-header">
+                <div>
+                  <div class="panel-title">System state</div>
+                  <div class="panel-subtitle">Pause, emergency controls and recent actions.</div>
+                </div>
+                <div class="panel-badge">Guard rail</div>
+              </div>
+
+              <div class="metrics-row">
+                <div class="metric">
+                  <div class="metric-label">Token status</div>
+                  <div class="metric-value" id="metric-status">Active</div>
+                  <div class="metric-pill" id="metric-status-pill">Transfers enabled</div>
+                </div>
+                <div class="metric">
+                  <div class="metric-label">Key mode</div>
+                  <div class="metric-value">Vault only</div>
+                  <div class="metric-pill">No raw key exposure</div>
+                </div>
+              </div>
+
+              <div class="field-group">
+                <div class="switch-row">
+                  <div>
+                    <div class="switch-label-main">System pause</div>
+                    <div class="switch-label-hint">Stops all token transfers while on.</div>
+                  </div>
+                  <div class="switch" id="pause-switch" data-on="false">
+                    <div class="switch-knob"></div>
+                  </div>
+                </div>
+                <div class="hint-inline">Aegis signs pause / unpause transactions via the vault.</div>
+              </div>
+
+              <div class="field-group">
+                <label class="label">
+                  <span class="main">Emergency actions</span>
+                  <span class="hint">Wire into your incident playbook</span>
+                </label>
+                <div class="field-row">
+                  <button type="button" class="btn btn-danger" id="emergency-freeze-all">
+                    <span class="btn-icon">🛑</span> Freeze all
+                  </button>
+                  <button type="button" class="btn btn-ghost" id="emergency-clear">
+                    <span class="btn-icon">↺</span> Clear emergency
+                  </button>
+                </div>
+              </div>
+
+              <hr class="section-divider" />
+
+              <div class="field-group">
+                <label class="label">
+                  <span class="main">Recent control actions</span>
+                  <span class="hint">Local view – back-end should persist real audit log</span>
+                </label>
+                <div id="log-list" class="log-list">
+                  <div class="log-item">
+                    <div class="log-meta">
+                      <span class="log-tag">System</span>
+                      <span>Just now</span>
+                    </div>
+                    <div>Token Control console opened.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FOOTER -->
+        <div class="footer">
+          <div class="footer-left">
+            <div class="footer-status">
+              <span class="status-dot"></span>
+              <span>Key operations routed through Aegis vault</span>
+            </div>
+            <div class="footer-note">Users never see the private key; all actions are mediated here.</div>
+          </div>
+          <div class="footer-right">
+            <button type="button" class="btn btn-ghost" id="reset-form">Reset form</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const form = document.getElementById('token-control-form');
+      const logList = document.getElementById('log-list');
+      const pauseSwitch = document.getElementById('pause-switch');
+      const metricStatus = document.getElementById('metric-status');
+      const metricStatusPill = document.getElementById('metric-status-pill');
+      const resetBtn = document.getElementById('reset-form');
+
+      const sendBtn = document.getElementById('send-btn');
+      const freezeBtn = document.getElementById('freeze-btn');
+      const retrieveBtn = document.getElementById('retrieve-btn');
+      const emergencyFreezeAllBtn = document.getElementById('emergency-freeze-all');
+      const emergencyClearBtn = document.getElementById('emergency-clear');
+
+      function addLog(tag, text) {
+        const item = document.createElement('div');
+        item.className = 'log-item';
+        const meta = document.createElement('div');
+        meta.className = 'log-meta';
+        const tagSpan = document.createElement('span');
+        tagSpan.className = 'log-tag';
+        tagSpan.textContent = tag;
+        const timeSpan = document.createElement('span');
+        timeSpan.textContent = 'Now';
+        meta.appendChild(tagSpan);
+        meta.appendChild(timeSpan);
+        const textDiv = document.createElement('div');
+        textDiv.textContent = text;
+        item.appendChild(meta);
+        item.appendChild(textDiv);
+        logList.insertBefore(item, logList.firstChild);
+      }
+
+      pauseSwitch.addEventListener('click', () => {
+        const isOn = pauseSwitch.getAttribute('data-on') === 'true';
+        const next = !isOn;
+        pauseSwitch.setAttribute('data-on', next ? 'true' : 'false');
+        if (next) {
+          metricStatus.textContent = 'Paused';
+          metricStatusPill.textContent = 'Transfers halted';
+          addLog('Pause', 'System pause toggled ON.');
+        } else {
+          metricStatus.textContent = 'Active';
+          metricStatusPill.textContent = 'Transfers enabled';
+          addLog('Pause', 'System pause toggled OFF.');
+        }
+      });
+
+      resetBtn.addEventListener('click', () => {
+        form.reset();
+        pauseSwitch.setAttribute('data-on', 'false');
+        metricStatus.textContent = 'Active';
+        metricStatusPill.textContent = 'Transfers enabled';
+        addLog('System', 'Local form state reset.');
+      });
+
+      sendBtn.addEventListener('click', () => {
+        const to = (document.getElementById('send-to').value || '0x…').trim();
+        const amount = document.getElementById('send-amount').value || '?';
+        addLog('Send', `Queued send of ${amount} tokens to ${to}.`);
+      });
+
+      freezeBtn.addEventListener('click', () => {
+        const addr = (document.getElementById('freeze-address').value || '0x…').trim();
+        const action = document.getElementById('freeze-action').value === 'freeze' ? 'Freeze' : 'Unfreeze';
+        addLog('Freeze', `${action} rule requested for ${addr}.`);
+      });
+
+      retrieveBtn.addEventListener('click', () => {
+        const from = (document.getElementById('retrieve-from').value || '0x…').trim();
+        const amount = document.getElementById('retrieve-amount').value || 'full';
+        addLog('Retrieve', `Requested retrieval of ${amount} tokens from ${from} to treasury.`);
+      });
+
+      emergencyFreezeAllBtn.addEventListener('click', () => {
+        addLog('Emergency', 'Emergency freeze-all requested.');
+      });
+
+      emergencyClearBtn.addEventListener('click', () => {
+        addLog('Emergency', 'Clear emergency state requested.');
+      });
+    })();
+  </script>
+</body>
+</html>
