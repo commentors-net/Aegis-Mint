@@ -31,7 +31,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 24px;
+      padding: 0;
     }
 
     .app-shell {
@@ -121,6 +121,7 @@
       flex-wrap: wrap;
       gap: 8px;
       justify-content: flex-end;
+      align-items: center;
     }
 
     .pill {
@@ -161,6 +162,25 @@
     .pill-key {
       border-color: rgba(52, 211, 153, 0.8);
       background: radial-gradient(circle at 0 0, rgba(16, 185, 129, 0.12), transparent 55%);
+    }
+
+    .pill-value-select {
+      background: transparent;
+      border: none;
+      color: var(--text-main);
+      font-size: 12px;
+      font-weight: 500;
+      outline: none;
+      cursor: pointer;
+      padding: 0;
+      appearance: none;
+      -moz-appearance: none;
+      -webkit-appearance: none;
+    }
+
+    .pill-value-select option {
+      background: var(--bg-elevated);
+      color: var(--text-main);
     }
 
     .main-grid {
@@ -526,11 +546,15 @@
         <div class="header-right">
           <div class="pill pill-network">
             <span class="pill-label">Network</span>
-            <span class="pill-value">Ethereum Mainnet ▾</span>
+            <select id="network-select" class="pill-value-select">
+              <option value="localhost">Localhost 8545</option>
+              <option value="mainnet">Ethereum Mainnet</option>
+              <option value="sepolia" selected>Ethereum Testnet (Sepolia)</option>
+            </select>
           </div>
           <div class="pill">
             <span class="pill-label">Controller</span>
-            <span class="pill-value">0x1234…ABCD</span>
+            <span class="pill-value">0x1234ƒ?İABCD</span>
             <span class="pill-dot"></span>
           </div>
           <div class="pill pill-key">
@@ -566,14 +590,14 @@
                       <span class="main">From</span>
                       <span class="hint">Treasury / controller</span>
                     </label>
-                    <input id="send-from" class="input" type="text" value="0x0000…TREASURY" readonly />
+                    <input id="send-from" class="input" type="text" value="0x0000ƒ?İTREASURY" readonly />
                   </div>
                   <div class="field-group">
                     <label class="label" for="send-to">
                       <span class="main">To</span>
                       <span class="hint">Recipient address</span>
                     </label>
-                    <input id="send-to" class="input" type="text" placeholder="0x… recipient" />
+                    <input id="send-to" class="input" type="text" placeholder="0xƒ?İ recipient" />
                   </div>
                 </div>
                 <div class="field-row">
@@ -595,7 +619,7 @@
                 <div class="hint-inline">No key entry needed. Aegis reconstructs and signs in the vault only.</div>
                 <div style="margin-top: 8px; display:flex; justify-content:flex-end;">
                   <button type="button" class="btn btn-primary" id="send-btn">
-                    <span class="btn-icon">➤</span> Send
+                    <span class="btn-icon">ƒz</span> Send
                   </button>
                 </div>
               </div>
@@ -610,7 +634,7 @@
                 </label>
                 <div class="field-row">
                   <div class="field-group">
-                    <input id="freeze-address" class="input" type="text" placeholder="0x… address" />
+                    <input id="freeze-address" class="input" type="text" placeholder="0xƒ?İ address" />
                     <div class="hint-inline">Frozen addresses cannot send or receive this token.</div>
                   </div>
                   <div class="field-group">
@@ -623,7 +647,7 @@
                 <textarea id="freeze-reason" class="textarea" placeholder="Internal reason / case reference (off-chain)"></textarea>
                 <div style="margin-top: 8px; display:flex; justify-content:flex-end;">
                   <button type="button" class="btn btn-outline" id="freeze-btn">
-                    <span class="btn-icon">⛔</span> Apply rule
+                    <span class="btn-icon">ƒ>"</span> Apply rule
                   </button>
                 </div>
               </div>
@@ -642,14 +666,14 @@
                       <span class="main">From</span>
                       <span class="hint">Source address</span>
                     </label>
-                    <input id="retrieve-from" class="input" type="text" placeholder="0x… source" />
+                    <input id="retrieve-from" class="input" type="text" placeholder="0xƒ?İ source" />
                   </div>
                   <div class="field-group">
                     <label class="label" for="retrieve-to">
                       <span class="main">To</span>
                       <span class="hint">Treasury</span>
                     </label>
-                    <input id="retrieve-to" class="input" type="text" value="0x0000…TREASURY" readonly />
+                    <input id="retrieve-to" class="input" type="text" value="0x0000ƒ?İTREASURY" readonly />
                   </div>
                 </div>
                 <div class="field-row">
@@ -670,7 +694,7 @@
                 </div>
                 <div style="margin-top: 8px; display:flex; justify-content:flex-end;">
                   <button type="button" class="btn btn-outline" id="retrieve-btn">
-                    <span class="btn-icon">⟲</span> Retrieve
+                    <span class="btn-icon">ƒYı</span> Retrieve
                   </button>
                 </div>
               </div>
@@ -721,10 +745,10 @@
                 </label>
                 <div class="field-row">
                   <button type="button" class="btn btn-danger" id="emergency-freeze-all">
-                    <span class="btn-icon">🛑</span> Freeze all
+                    <span class="btn-icon">dY>`</span> Freeze all
                   </button>
                   <button type="button" class="btn btn-ghost" id="emergency-clear">
-                    <span class="btn-icon">↺</span> Clear emergency
+                    <span class="btn-icon">ƒ+§</span> Clear emergency
                   </button>
                 </div>
               </div>
@@ -734,7 +758,7 @@
               <div class="field-group">
                 <label class="label">
                   <span class="main">Recent control actions</span>
-                  <span class="hint">Local view – back-end should persist real audit log</span>
+                  <span class="hint">Local view ƒ?" back-end should persist real audit log</span>
                 </label>
                 <div id="log-list" class="log-list">
                   <div class="log-item">
@@ -763,93 +787,11 @@
             <button type="button" class="btn btn-ghost" id="reset-form">Reset form</button>
           </div>
         </div>
+
       </form>
     </div>
   </div>
 
-  <script>
-    (function () {
-      const form = document.getElementById('token-control-form');
-      const logList = document.getElementById('log-list');
-      const pauseSwitch = document.getElementById('pause-switch');
-      const metricStatus = document.getElementById('metric-status');
-      const metricStatusPill = document.getElementById('metric-status-pill');
-      const resetBtn = document.getElementById('reset-form');
-
-      const sendBtn = document.getElementById('send-btn');
-      const freezeBtn = document.getElementById('freeze-btn');
-      const retrieveBtn = document.getElementById('retrieve-btn');
-      const emergencyFreezeAllBtn = document.getElementById('emergency-freeze-all');
-      const emergencyClearBtn = document.getElementById('emergency-clear');
-
-      function addLog(tag, text) {
-        const item = document.createElement('div');
-        item.className = 'log-item';
-        const meta = document.createElement('div');
-        meta.className = 'log-meta';
-        const tagSpan = document.createElement('span');
-        tagSpan.className = 'log-tag';
-        tagSpan.textContent = tag;
-        const timeSpan = document.createElement('span');
-        timeSpan.textContent = 'Now';
-        meta.appendChild(tagSpan);
-        meta.appendChild(timeSpan);
-        const textDiv = document.createElement('div');
-        textDiv.textContent = text;
-        item.appendChild(meta);
-        item.appendChild(textDiv);
-        logList.insertBefore(item, logList.firstChild);
-      }
-
-      pauseSwitch.addEventListener('click', () => {
-        const isOn = pauseSwitch.getAttribute('data-on') === 'true';
-        const next = !isOn;
-        pauseSwitch.setAttribute('data-on', next ? 'true' : 'false');
-        if (next) {
-          metricStatus.textContent = 'Paused';
-          metricStatusPill.textContent = 'Transfers halted';
-          addLog('Pause', 'System pause toggled ON.');
-        } else {
-          metricStatus.textContent = 'Active';
-          metricStatusPill.textContent = 'Transfers enabled';
-          addLog('Pause', 'System pause toggled OFF.');
-        }
-      });
-
-      resetBtn.addEventListener('click', () => {
-        form.reset();
-        pauseSwitch.setAttribute('data-on', 'false');
-        metricStatus.textContent = 'Active';
-        metricStatusPill.textContent = 'Transfers enabled';
-        addLog('System', 'Local form state reset.');
-      });
-
-      sendBtn.addEventListener('click', () => {
-        const to = (document.getElementById('send-to').value || '0x…').trim();
-        const amount = document.getElementById('send-amount').value || '?';
-        addLog('Send', `Queued send of ${amount} tokens to ${to}.`);
-      });
-
-      freezeBtn.addEventListener('click', () => {
-        const addr = (document.getElementById('freeze-address').value || '0x…').trim();
-        const action = document.getElementById('freeze-action').value === 'freeze' ? 'Freeze' : 'Unfreeze';
-        addLog('Freeze', `${action} rule requested for ${addr}.`);
-      });
-
-      retrieveBtn.addEventListener('click', () => {
-        const from = (document.getElementById('retrieve-from').value || '0x…').trim();
-        const amount = document.getElementById('retrieve-amount').value || 'full';
-        addLog('Retrieve', `Requested retrieval of ${amount} tokens from ${from} to treasury.`);
-      });
-
-      emergencyFreezeAllBtn.addEventListener('click', () => {
-        addLog('Emergency', 'Emergency freeze-all requested.');
-      });
-
-      emergencyClearBtn.addEventListener('click', () => {
-        addLog('Emergency', 'Clear emergency state requested.');
-      });
-    })();
-  </script>
+  <script src="bridge.js"></script>
 </body>
 </html>
