@@ -12,10 +12,10 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$mintProject = Join-Path $repoRoot "Mint\src\AegisMint.Mint\AegisMint.Mint.csproj"
+$tokenControlProject = Join-Path $repoRoot "Mint\src\AegisMint.TokenControl\AegisMint.TokenControl.csproj"
 
-if (-not (Test-Path $mintProject)) {
-    throw "Cannot find mint app project at $mintProject"
+if (-not (Test-Path $tokenControlProject)) {
+    throw "Cannot find token control app project at $tokenControlProject"
 }
 
 # Helpers: version management
@@ -57,8 +57,8 @@ function Bump-Patch([string]$version) {
     }
 }
 
-$currentVersion = Get-ProjectVersion $mintProject
-Write-Host "Current AegisMint.Mint version: $currentVersion" -ForegroundColor Yellow
+$currentVersion = Get-ProjectVersion $tokenControlProject
+Write-Host "Current AegisMint.TokenControl version: $currentVersion" -ForegroundColor Yellow
 $inputVersion = Read-Host "Enter new version (blank to bump patch)"
 
 if ([string]::IsNullOrWhiteSpace($inputVersion)) {
@@ -76,18 +76,18 @@ if ([string]::IsNullOrWhiteSpace($inputVersion)) {
 }
 
 # Persist the chosen version back into the project for consistency
-Set-ProjectVersion $mintProject $AppVersion
+Set-ProjectVersion $tokenControlProject $AppVersion
 
-Write-Host "Publishing mint app..." -ForegroundColor Cyan
-$mintPublishDir = "$PSScriptRoot\publish\mint"
-if (Test-Path $mintPublishDir) { Remove-Item $mintPublishDir -Recurse -Force }
-dotnet publish $mintProject `
+Write-Host "Publishing token control app..." -ForegroundColor Cyan
+$tokenControlPublishDir = "$PSScriptRoot\publish\tokencontrol"
+if (Test-Path $tokenControlPublishDir) { Remove-Item $tokenControlPublishDir -Recurse -Force }
+dotnet publish $tokenControlProject `
     -c $Configuration `
     -r $Runtime `
     --self-contained:$SelfContained `
     -p:PublishSingleFile=true `
     -p:IncludeNativeLibrariesForSelfExtract=true `
-    -o $mintPublishDir
+    -o $tokenControlPublishDir
 
 if (-not (Test-Path $OutputDir)) { New-Item -ItemType Directory -Path $OutputDir | Out-Null }
 
@@ -102,35 +102,35 @@ if (-not $innoCandidates) {
     throw "Inno Setup 6 (ISCC.exe) not found. Set INNOSETUP_PATH or install Inno Setup."
 }
 
-$issPath = Join-Path $PSScriptRoot "AegisMint.generated.iss"
+$issPath = Join-Path $PSScriptRoot "AegisMint.TokenControl.generated.iss"
 
-$mintPublishDir = "$PSScriptRoot\publish\mint"
-$outputBase = "AegisMint-Mint-Setup-$AppVersion"
+$tokenControlPublishDir = "$PSScriptRoot\publish\tokencontrol"
+$outputBase = "AegisMint-TokenControl-Setup-$AppVersion"
 
 $filesSection = @"
 Source: "{#AdminSourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
 "@
 
 $runSection = @"
-Filename: "{app}\AegisMint.Mint.exe"; Description: "Launch Aegis Mint"; WorkingDir: "{app}"; Flags: postinstall nowait skipifsilent
+Filename: "{app}\AegisMint.TokenControl.exe"; Description: "Launch Aegis Mint Token Control"; WorkingDir: "{app}"; Flags: postinstall nowait skipifsilent
 "@
 
 $iss = @"
 #define AppVersion "$AppVersion"
-#define AdminSourceDir "$mintPublishDir"
+#define AdminSourceDir "$tokenControlPublishDir"
 #define OutputDir "$OutputDir"
 #define ServiceName "$ServiceName"
 
 [Setup]
-AppName=AegisMint
+AppName=AegisMint Token Control
 AppVersion={#AppVersion}
-DefaultDirName={pf}\AegisMint\Mint
+DefaultDirName={pf}\AegisMint\TokenControl
 DefaultGroupName=AegisMint
 DisableProgramGroupPage=yes
 OutputBaseFilename=$outputBase
 OutputDir={#OutputDir}
-UninstallDisplayIcon={app}\AegisMint.Mint.exe
-UninstallDisplayName=AegisMint
+UninstallDisplayIcon={app}\AegisMint.TokenControl.exe
+UninstallDisplayName=AegisMint Token Control
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 PrivilegesRequired=admin
@@ -141,11 +141,11 @@ SolidCompression=yes
 $filesSection
 
 [Icons]
-Name: "{group}\Aegis Mint"; Filename: "{app}\AegisMint.Mint.exe"; WorkingDir: "{app}"
-Name: "{commondesktop}\Aegis Mint"; Filename: "{app}\AegisMint.Mint.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{group}\Aegis Mint Token Control"; Filename: "{app}\AegisMint.TokenControl.exe"; WorkingDir: "{app}"
+Name: "{commondesktop}\Aegis Mint Token Control"; Filename: "{app}\AegisMint.TokenControl.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Tasks]
-Name: "desktopicon"; Description: "Create a desktop icon for Aegis Mint"
+Name: "desktopicon"; Description: "Create a desktop icon for Aegis Mint Token Control"
 
 [Run]
 $runSection

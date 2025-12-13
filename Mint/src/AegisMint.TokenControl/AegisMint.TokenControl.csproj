@@ -1,5 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
@@ -9,25 +8,22 @@
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>AegisMint.TokenControl</AssemblyName>
     <RootNamespace>AegisMint.TokenControl</RootNamespace>
+    <Version>1.0.1</Version>
   </PropertyGroup>
-
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2420.47" />
     <PackageReference Include="NBitcoin" Version="9.0.4" />
     <PackageReference Include="Nethereum.Util" Version="5.0.0" />
     <PackageReference Include="Nethereum.Web3" Version="5.0.0" />
   </ItemGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\AegisMint.Core\AegisMint.Core.csproj" />
   </ItemGroup>
-
   <ItemGroup>
     <None Remove="Assets\aegis_token_control.html" />
     <None Remove="..\..\Resources\TokenImplementationV2.abi" />
     <None Remove="..\..\Resources\TokenImplementationV2.bin" />
   </ItemGroup>
-
   <ItemGroup>
     <Content Include="Assets\aegis_token_control.html">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -44,5 +40,4 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
-
 </Project>
