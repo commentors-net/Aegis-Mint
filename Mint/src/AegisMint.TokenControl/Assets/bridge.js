@@ -49,6 +49,9 @@ window.addEventListener('DOMContentLoaded', function() {
     const isOn = pauseSwitch.getAttribute('data-on') === 'true';
     const next = !isOn;
     pauseSwitch.setAttribute('data-on', next ? 'true' : 'false');
+    
+    sendToHost('set-paused', { paused: next });
+    
     if (next) {
       metricStatus.textContent = 'Paused';
       metricStatusPill.textContent = 'Transfers halted';
@@ -75,21 +78,46 @@ window.addEventListener('DOMContentLoaded', function() {
   });
 
   sendBtn.addEventListener('click', () => {
-    const to = (document.getElementById('send-to').value || '0xƒ?İ').trim();
-    const amount = document.getElementById('send-amount').value || '?';
-    addLog('Send', `Queued send of ${amount} tokens to ${to}.`);
+    const to = (document.getElementById('send-to').value || '').trim();
+    const amount = document.getElementById('send-amount').value || '';
+    const memo = document.getElementById('send-memo').value || '';
+    
+    if (!to || !amount) {
+      addLog('Error', 'Please provide recipient address and amount.');
+      return;
+    }
+    
+    addLog('Send', `Sending ${amount} tokens to ${to}...`);
+    sendToHost('send-tokens', { to, amount, memo });
   });
 
   freezeBtn.addEventListener('click', () => {
-    const addr = (document.getElementById('freeze-address').value || '0xƒ?İ').trim();
-    const action = document.getElementById('freeze-action').value === 'freeze' ? 'Freeze' : 'Unfreeze';
-    addLog('Freeze', `${action} rule requested for ${addr}.`);
+    const addr = (document.getElementById('freeze-address').value || '').trim();
+    const action = document.getElementById('freeze-action').value;
+    const reason = document.getElementById('freeze-reason').value || '';
+    
+    if (!addr) {
+      addLog('Error', 'Please provide an address to freeze/unfreeze.');
+      return;
+    }
+    
+    const isFreezing = action === 'freeze';
+    addLog('Freeze', `${isFreezing ? 'Freezing' : 'Unfreezing'} ${addr}...`);
+    sendToHost('freeze-address', { address: addr, freeze: isFreezing, reason });
   });
 
   retrieveBtn.addEventListener('click', () => {
-    const from = (document.getElementById('retrieve-from').value || '0xƒ?İ').trim();
-    const amount = document.getElementById('retrieve-amount').value || 'full';
-    addLog('Retrieve', `Requested retrieval of ${amount} tokens from ${from} to treasury.`);
+    const from = (document.getElementById('retrieve-from').value || '').trim();
+    const amount = document.getElementById('retrieve-amount').value || '';
+    const reason = document.getElementById('retrieve-memo').value || '';
+    
+    if (!from) {
+      addLog('Error', 'Please provide a source address.');
+      return;
+    }
+    
+    addLog('Retrieve', `Retrieving ${amount || 'full balance'} from ${from}...`);
+    sendToHost('retrieve-tokens', { from, amount, reason });
   });
 
   emergencyFreezeAllBtn.addEventListener('click', () => {
@@ -118,7 +146,8 @@ window.addEventListener('DOMContentLoaded', function() {
       if (retrieveToInput) retrieveToInput.value = payload.treasuryAddress;
     }
     if (payload.contractAddress) {
-      addLog('Contract', `Active contract: ${payload.contractAddress}`);
+      window.contractAddress = payload.contractAddress;
+      addLog('Contract', `Active contract: ${payload.contractAddress.substring(0, 16)}...`);
     }
   }
 
@@ -132,10 +161,25 @@ window.addEventListener('DOMContentLoaded', function() {
       case 'vault-status':
         applyVaultStatus(payload);
         break;
+      case 'operation-result':
+        handleOperationResult(payload);
+        break;
       default:
         break;
     }
   };
+
+  function handleOperationResult(payload) {
+    if (!payload) return;
+    
+    const { operation, success, transactionHash, errorMessage } = payload;
+    
+    if (success) {
+      addLog(operation || 'Operation', `Success! TX: ${transactionHash?.substring(0, 16)}...`);
+    } else {
+      addLog('Error', `${operation || 'Operation'} failed: ${errorMessage || 'Unknown error'}`);
+    }
+  }
 
   sendToHost('bridge-ready', { ready: true });
   logToHost('Bridge initialized');

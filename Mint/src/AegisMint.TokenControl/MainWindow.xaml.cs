@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
+using AegisMint.Core.Models;
 using AegisMint.Core.Services;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
@@ -16,11 +17,14 @@ public partial class MainWindow : Window
     private readonly ContractArtifactLoader _artifactLoader = new();
     private ContractArtifacts? _tokenArtifacts;
     private readonly VaultManager _vaultManager = new();
+    private readonly TokenControlService _tokenControlService;
     private string _currentNetwork = "sepolia";
+    private string? _currentContractAddress;
 
     public MainWindow()
     {
         InitializeComponent();
+        _tokenControlService = new TokenControlService(_vaultManager);
         Loaded += OnLoaded;
         PreviewKeyDown += OnPreviewKeyDown;
         Title = "Aegis Token Control";
@@ -40,6 +44,14 @@ public partial class MainWindow : Window
         {
             _currentNetwork = lastNetwork.Trim().ToLowerInvariant();
         }
+        
+        // Initialize TokenControlService with current network
+        var rpcUrl = GetRpcUrlForNetwork(_currentNetwork);
+        _tokenControlService.SetNetwork(_currentNetwork, rpcUrl);
+        
+        // Get current contract address
+        _currentContractAddress = _vaultManager.GetDeployedContractAddress(_currentNetwork);
+        
         Title = $"Aegis Token Control - {_currentNetwork.ToUpperInvariant()}";
     }
 
@@ -149,7 +161,19 @@ public partial class MainWindow : Window
                     HandleLog(message.payload);
                     break;
                 case "network-changed":
-                    HandleNetworkChange(message.payload);
+                    await HandleNetworkChangeAsync(message.payload);
+                    break;
+                case "send-tokens":
+                    await HandleSendTokensAsync(message.payload);
+                    break;
+                case "freeze-address":
+                    await HandleFreezeAddressAsync(message.payload);
+                    break;
+                case "retrieve-tokens":
+                    await HandleRetrieveTokensAsync(message.payload);
+                    break;
+                case "set-paused":
+                    await HandleSetPausedAsync(message.payload);
                     break;
                 default:
                     Logger.Debug($"Unhandled web message type: {message.type}");
@@ -169,10 +193,241 @@ public partial class MainWindow : Window
             if (payload.HasValue && payload.Value.TryGetProperty("network", out var netProp))
             {
                 var network = netProp.GetString() ?? "sepolia";
-                _currentNetwork = network.Trim().ToLowerInvariant();
-                _vaultManager.SaveLastNetwork(_currentNetwork);
-                Title = $"Aegis Token Control - {_currentNetwork.ToUpperInvariant()}";
-                await SendVaultStatusAsync();
+                await UpdateNetworkAsync(network);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("Failed to process network change", ex);
+        }
+    }
+
+    private async Task UpdateNetworkAsync(string network)
+    {
+        _currentNetwork = network.Trim().ToLowerInvariant();
+        _vaultManager.SaveLastNetwork(_currentNetwork);
+        Title = $"Aegis Token Control - {_currentNetwork.ToUpperInvariant()}";
+        
+        // Update TokenControlService with network and RPC URL
+        var rpcUrl = GetRpcUrlForNetwork(_currentNetwork);
+        _tokenControlService.SetNetwork(_currentNetwork, rpcUrl);
+        
+        // Get current contract address
+        _currentContractAddress = _vaultManager.GetDeployedContractAddress(_currentNetwork);
+        
+        await SendVaultStatusAsync();
+    }
+
+    private string GetRpcUrlForNetwork(string network)
+    {
+        return network.ToLowerInvariant() switch
+        {
+            "localhost" => "http://127.0.0.1:8545",
+            "mainnet" => "https://mainnet.infura.io/v3/YOUR_INFURA_KEY",
+            "sepolia" => "https://sepolia.infura.io/v3/YOUR_INFURA_KEY",
+            _ => "http://127.0.0.1:8545"
+        };
+    }
+
+    private async Task HandleSendTokensAsync(JsonElement? payload)
+    {
+        try
+        {
+            if (!payload.HasValue)
+            {
+                Logger.Warning("Send tokens payload is missing");
+                return;
+            }
+
+            var to = payload.Value.TryGetProperty("to", out var toProp) ? toProp.GetString() : null;
+            var amountStr = payload.Value.TryGetProperty("amount", out var amountProp) ? amountProp.GetString() : null;
+            var memo = payload.Value.TryGetProperty("memo", out var memoProp) ? memoProp.GetString() : null;
+
+            if (string.IsNullOrWhiteSpace(to) || string.IsNullOrWhiteSpace(amountStr))
+            {
+                await SendOperationResultAsync("Send", false, null, "Invalid recipient or amount");
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(_currentContractAddress))
+            {
+                await SendOperationResultAsync("Send", false, null, "No contract deployed on this network");
+                return;
+            }
+
+            if (!decimal.TryParse(amountStr, out var amount))
+            {
+                await SendOperationResultAsync("Send", false, null, "Invalid amount format");
+                return;
+            }
+
+            Logger.Info($"Initiating token transfer: {amount} tokens to {to}");
+
+            var result = await _tokenControlService.TransferTokensAsync(
+                _currentContractAddress,
+                to,
+                amount,
+                memo);
+
+            await SendOperationResultAsync("Send", result.Success, result.TransactionHash, result.ErrorMessage);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("Error handling send tokens", ex);
+            await SendOperationResultAsync("Send", false, null, ex.Message);
+        }
+    }
+
+    private async Task HandleFreezeAddressAsync(JsonElement? payload)
+    {
+        try
+        {
+            if (!payload.HasValue)
+            {
+                Logger.Warning("Freeze address payload is missing");
+                return;
+            }
+
+            var address = payload.Value.TryGetProperty("address", out var addrProp) ? addrProp.GetString() : null;
+            var freeze = payload.Value.TryGetProperty("freeze", out var freezeProp) && freezeProp.GetBoolean();
+            var reason = payload.Value.TryGetProperty("reason", out var reasonProp) ? reasonProp.GetString() : null;
+
+            if (string.IsNullOrWhiteSpace(address))
+            {
+                await SendOperationResultAsync("Freeze", false, null, "Invalid address");
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(_currentContractAddress))
+            {
+                await SendOperationResultAsync("Freeze", false, null, "No contract deployed on this network");
+                return;
+            }
+
+            Logger.Info($"{(freeze ? "Freezing" : "Unfreezing")} address: {address}");
+
+            var result = await _tokenControlService.FreezeAddressAsync(
+                _currentContractAddress,
+                address,
+                freeze,
+                reason);
+
+            await SendOperationResultAsync("Freeze", result.Success, result.TransactionHash, result.ErrorMessage);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("Error handling freeze address", ex);
+            await SendOperationResultAsync("Freeze", false, null, ex.Message);
+        }
+    }
+
+    private async Task HandleRetrieveTokensAsync(JsonElement? payload)
+    {
+        try
+        {
+            if (!payload.HasValue)
+            {
+                Logger.Warning("Retrieve tokens payload is missing");
+                return;
+            }
+
+            var from = payload.Value.TryGetProperty("from", out var fromProp) ? fromProp.GetString() : null;
+            var amountStr = payload.Value.TryGetProperty("amount", out var amountProp) ? amountProp.GetString() : null;
+            var reason = payload.Value.TryGetProperty("reason", out var reasonProp) ? reasonProp.GetString() : null;
+
+            if (string.IsNullOrWhiteSpace(from))
+            {
+                await SendOperationResultAsync("Retrieve", false, null, "Invalid source address");
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(_currentContractAddress))
+            {
+                await SendOperationResultAsync("Retrieve", false, null, "No contract deployed on this network");
+                return;
+            }
+
+            var treasuryAddress = _vaultManager.GetTreasuryAddress();
+            if (string.IsNullOrWhiteSpace(treasuryAddress))
+            {
+                await SendOperationResultAsync("Retrieve", false, null, "Treasury address not found");
+                return;
+            }
+
+            decimal? amount = null;
+            if (!string.IsNullOrWhiteSpace(amountStr) && decimal.TryParse(amountStr, out var parsedAmount))
+            {
+                amount = parsedAmount;
+            }
+
+            Logger.Info($"Retrieving {(amount.HasValue ? $"{amount} tokens" : "full balance")} from {from}");
+
+            var result = await _tokenControlService.RetrieveTokensAsync(
+                _currentContractAddress,
+                from,
+                treasuryAddress,
+                amount,
+                reason);
+
+            await SendOperationResultAsync("Retrieve", result.Success, result.TransactionHash, result.ErrorMessage);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("Error handling retrieve tokens", ex);
+            await SendOperationResultAsync("Retrieve", false, null, ex.Message);
+        }
+    }
+
+    private async Task HandleSetPausedAsync(JsonElement? payload)
+    {
+        try
+        {
+            if (!payload.HasValue)
+            {
+                Logger.Warning("Set paused payload is missing");
+                return;
+            }
+
+            var paused = payload.Value.TryGetProperty("paused", out var pausedProp) && pausedProp.GetBoolean();
+
+            if (string.IsNullOrWhiteSpace(_currentContractAddress))
+            {
+                await SendOperationResultAsync("Pause", false, null, "No contract deployed on this network");
+                return;
+            }
+
+            Logger.Info($"{(paused ? "Pausing" : "Unpausing")} token contract");
+
+            var result = await _tokenControlService.SetPausedAsync(_currentContractAddress, paused);
+
+            await SendOperationResultAsync("Pause", result.Success, result.TransactionHash, result.ErrorMessage);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("Error handling set paused", ex);
+            await SendOperationResultAsync("Pause", false, null, ex.Message);
+        }
+    }
+
+    private async Task SendOperationResultAsync(string operation, bool success, string? transactionHash, string? errorMessage)
+    {
+        await SendToWebAsync("operation-result", new
+        {
+            operation,
+            success,
+            transactionHash,
+            errorMessage
+        });
+    }
+
+    private async Task HandleNetworkChangeAsync(JsonElement? payload)
+    {
+        try
+        {
+            if (payload.HasValue && payload.Value.TryGetProperty("network", out var netProp))
+            {
+                var network = netProp.GetString() ?? "sepolia";
+                await UpdateNetworkAsync(network);
             }
         }
         catch (Exception ex)
