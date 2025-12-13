@@ -6,6 +6,9 @@ window.addEventListener('DOMContentLoaded', function() {
   const metricStatusPill = document.getElementById('metric-status-pill');
   const resetBtn = document.getElementById('reset-form');
   const networkSelect = document.getElementById('network-select');
+  const contractPill = document.getElementById('contract-pill');
+  const contractPillValue = document.getElementById('contract-pill-value');
+  const contractPillDot = document.getElementById('contract-pill-dot');
 
   const sendBtn = document.getElementById('send-btn');
   const freezeBtn = document.getElementById('freeze-btn');
@@ -24,6 +27,53 @@ window.addEventListener('DOMContentLoaded', function() {
   const logToHost = (message, level = 'info') => {
     sendToHost('log', { message, level });
   };
+
+  function setContractAddress(addr) {
+    if (!addr || !contractPillValue) return;
+    const short = addr.length > 16 ? `${addr.substring(0, 8)}...${addr.substring(addr.length - 6)}` : addr;
+    contractPillValue.textContent = short;
+    contractPillValue.title = addr;
+    if (contractPill) {
+      contractPill.title = `Copy contract address (${addr})`;
+    }
+    window.contractAddress = addr;
+  }
+
+  async function copyContractAddress() {
+    if (!window.contractAddress) return;
+    try {
+      await navigator.clipboard.writeText(window.contractAddress);
+      addLog('Copy', 'Contract address copied to clipboard.');
+    } catch (err) {
+      addLog('Error', 'Failed to copy contract address.');
+    }
+  }
+
+  if (contractPill) {
+    contractPill.addEventListener('click', () => copyContractAddress());
+  }
+
+  function setPauseUI(paused, options = {}) {
+    if (pauseSwitch) {
+      pauseSwitch.setAttribute('data-on', paused ? 'true' : 'false');
+    }
+    if (metricStatus) {
+      metricStatus.textContent = paused ? 'Paused' : 'Active';
+    }
+    if (metricStatusPill) {
+      metricStatusPill.textContent = paused ? 'Transfers halted' : 'Transfers enabled';
+    }
+    if (contractPillDot) {
+      if (paused) {
+        contractPillDot.classList.add('paused');
+      } else {
+        contractPillDot.classList.remove('paused');
+      }
+    }
+    if (options.logChange) {
+      addLog('Pause', `System pause ${paused ? 'ON' : 'OFF'}${options.reason ? ` (${options.reason})` : ''}`);
+    }
+  }
 
   function addLog(tag, text) {
     const item = document.createElement('div');
@@ -48,26 +98,16 @@ window.addEventListener('DOMContentLoaded', function() {
   pauseSwitch.addEventListener('click', () => {
     const isOn = pauseSwitch.getAttribute('data-on') === 'true';
     const next = !isOn;
-    pauseSwitch.setAttribute('data-on', next ? 'true' : 'false');
+    setPauseUI(next);
     
     sendToHost('set-paused', { paused: next });
     
-    if (next) {
-      metricStatus.textContent = 'Paused';
-      metricStatusPill.textContent = 'Transfers halted';
-      addLog('Pause', 'System pause toggled ON.');
-    } else {
-      metricStatus.textContent = 'Active';
-      metricStatusPill.textContent = 'Transfers enabled';
-      addLog('Pause', 'System pause toggled OFF.');
-    }
+    addLog('Pause', `System pause toggled ${next ? 'ON' : 'OFF'}.`);
   });
 
   resetBtn.addEventListener('click', () => {
     form.reset();
-    pauseSwitch.setAttribute('data-on', 'false');
-    metricStatus.textContent = 'Active';
-    metricStatusPill.textContent = 'Transfers enabled';
+    setPauseUI(false);
     addLog('System', 'Local form state reset.');
   });
 
@@ -146,8 +186,44 @@ window.addEventListener('DOMContentLoaded', function() {
       if (retrieveToInput) retrieveToInput.value = payload.treasuryAddress;
     }
     if (payload.contractAddress) {
-      window.contractAddress = payload.contractAddress;
+      setContractAddress(payload.contractAddress);
       addLog('Contract', `Active contract: ${payload.contractAddress.substring(0, 16)}...`);
+    }
+  }
+
+  function applyBalanceStats(payload) {
+    if (!payload) return;
+    
+    const statTokenBalance = document.getElementById('stat-token-balance');
+    const statEthBalance = document.getElementById('stat-eth-balance');
+    const statContractAddress = document.getElementById('stat-contract-address');
+    const statTotalSupply = document.getElementById('stat-total-supply');
+    
+    if (statTokenBalance && payload.tokenBalance !== undefined) {
+      statTokenBalance.textContent = `${payload.tokenBalance} TOK`;
+    }
+    if (statEthBalance && payload.ethBalance !== undefined) {
+      statEthBalance.textContent = `${payload.ethBalance} ETH`;
+    }
+    if (statContractAddress && payload.contractAddress) {
+      const addr = payload.contractAddress;
+      const short = addr.length > 16 ? `${addr.substring(0, 8)}...${addr.substring(addr.length - 6)}` : addr;
+      statContractAddress.textContent = short;
+      statContractAddress.title = addr;
+      setContractAddress(addr);
+    }
+    if (statTotalSupply && payload.totalSupply !== undefined) {
+      statTotalSupply.textContent = `${payload.totalSupply} TOK`;
+    }
+  }
+
+  function applyPauseStatus(payload) {
+    if (!payload) return;
+    const paused = !!payload.paused;
+    const current = pauseSwitch?.getAttribute('data-on') === 'true';
+    setPauseUI(paused);
+    if (current !== paused) {
+      addLog('Pause', `System pause ${paused ? 'ON' : 'OFF'} (synced from network)`);
     }
   }
 
@@ -160,6 +236,12 @@ window.addEventListener('DOMContentLoaded', function() {
         break;
       case 'vault-status':
         applyVaultStatus(payload);
+        break;
+      case 'balance-stats':
+        applyBalanceStats(payload);
+        break;
+      case 'pause-status':
+        applyPauseStatus(payload);
         break;
       case 'operation-result':
         handleOperationResult(payload);

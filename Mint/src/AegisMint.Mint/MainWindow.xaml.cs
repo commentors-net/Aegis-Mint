@@ -50,9 +50,9 @@ public partial class MainWindow : Window
         var rpcUrl = network switch
         {
             "localhost" => "http://127.0.0.1:8545",
-            "mainnet" => "https://eth.llamarpc.com",
-            "sepolia" => "https://ethereum-sepolia-rpc.publicnode.com",
-            _ => "https://ethereum-sepolia-rpc.publicnode.com"
+            "mainnet" => "https://mainnet.infura.io/v3/YOUR_INFURA_API_KEY",
+            "sepolia" => "https://sepolia.infura.io/v3/fc6598ddab264c89a508cdb97d5398ea",
+            _ => "https://sepolia.infura.io/v3/fc6598ddab264c89a508cdb97d5398ea"
         };
         
         _ethereumService = new EthereumService(rpcUrl);

@@ -117,6 +117,8 @@ public partial class MainWindow : Window
             Overlay.Visibility = Visibility.Collapsed;
             await SendToWebAsync("host-info", new { host = "Aegis Token Control WPF", version = "1.0", network = _currentNetwork });
             await SendVaultStatusAsync();
+            await UpdateBalanceStatsAsync();
+            await UpdatePauseStatusAsync();
         }
         else
         {
@@ -216,6 +218,8 @@ public partial class MainWindow : Window
         _currentContractAddress = _vaultManager.GetDeployedContractAddress(_currentNetwork);
         
         await SendVaultStatusAsync();
+        await UpdateBalanceStatsAsync();
+        await UpdatePauseStatusAsync();
     }
 
     private string GetRpcUrlForNetwork(string network)
@@ -223,8 +227,8 @@ public partial class MainWindow : Window
         return network.ToLowerInvariant() switch
         {
             "localhost" => "http://127.0.0.1:8545",
-            "mainnet" => "https://mainnet.infura.io/v3/YOUR_INFURA_KEY",
-            "sepolia" => "https://sepolia.infura.io/v3/YOUR_INFURA_KEY",
+            "mainnet" => "https://mainnet.infura.io/v3/YOUR_INFURA_API_KEY",
+            "sepolia" => "https://sepolia.infura.io/v3/fc6598ddab264c89a508cdb97d5398ea",
             _ => "http://127.0.0.1:8545"
         };
     }
@@ -270,6 +274,10 @@ public partial class MainWindow : Window
                 memo);
 
             await SendOperationResultAsync("Send", result.Success, result.TransactionHash, result.ErrorMessage);
+            if (result.Success)
+            {
+                await UpdateBalanceStatsAsync();
+            }
         }
         catch (Exception ex)
         {
@@ -313,6 +321,10 @@ public partial class MainWindow : Window
                 reason);
 
             await SendOperationResultAsync("Freeze", result.Success, result.TransactionHash, result.ErrorMessage);
+            if (result.Success)
+            {
+                await UpdateBalanceStatsAsync();
+            }
         }
         catch (Exception ex)
         {
@@ -370,6 +382,10 @@ public partial class MainWindow : Window
                 reason);
 
             await SendOperationResultAsync("Retrieve", result.Success, result.TransactionHash, result.ErrorMessage);
+            if (result.Success)
+            {
+                await UpdateBalanceStatsAsync();
+            }
         }
         catch (Exception ex)
         {
@@ -401,6 +417,11 @@ public partial class MainWindow : Window
             var result = await _tokenControlService.SetPausedAsync(_currentContractAddress, paused);
 
             await SendOperationResultAsync("Pause", result.Success, result.TransactionHash, result.ErrorMessage);
+            if (result.Success)
+            {
+                await UpdateBalanceStatsAsync();
+                await UpdatePauseStatusAsync();
+            }
         }
         catch (Exception ex)
         {
@@ -616,6 +637,104 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             Logger.Error("Failed to send vault status", ex);
+        }
+    }
+
+    private async Task UpdateBalanceStatsAsync()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(_currentContractAddress))
+            {
+                await SendToWebAsync("balance-stats", new
+                {
+                    tokenBalance = "N/A",
+                    ethBalance = "N/A",
+                    contractAddress = "Not deployed",
+                    totalSupply = "N/A"
+                });
+                return;
+            }
+
+            var treasuryAddress = _vaultManager.GetTreasuryAddress();
+            if (string.IsNullOrWhiteSpace(treasuryAddress))
+            {
+                await SendToWebAsync("balance-stats", new
+                {
+                    tokenBalance = "N/A",
+                    ethBalance = "N/A",
+                    contractAddress = _currentContractAddress,
+                    totalSupply = "N/A"
+                });
+                return;
+            }
+
+            // Fetch balances and supply
+            var tokenBalance = await _tokenControlService.GetTokenBalanceAsync(_currentContractAddress, treasuryAddress);
+            var ethBalance = await _tokenControlService.GetEthBalanceAsync(treasuryAddress);
+            var totalSupply = await _tokenControlService.GetTotalSupplyAsync(_currentContractAddress);
+
+            await SendToWebAsync("balance-stats", new
+            {
+                tokenBalance = tokenBalance?.ToString("N6") ?? "0.00",
+                ethBalance = ethBalance?.ToString("N6") ?? "0.00",
+                contractAddress = _currentContractAddress,
+                totalSupply = totalSupply?.ToString("N0") ?? "0"
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("Failed to update balance stats", ex);
+            await SendToWebAsync("balance-stats", new
+            {
+                tokenBalance = "Error",
+                ethBalance = "Error",
+                contractAddress = _currentContractAddress ?? "N/A",
+                totalSupply = "Error"
+            });
+        }
+    }
+
+    private async Task UpdatePauseStatusAsync()
+    {
+        if (MainWebView.CoreWebView2 is null)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_currentContractAddress))
+        {
+            await SendToWebAsync("pause-status", new
+            {
+                contractDeployed = false,
+                paused = false,
+                contractAddress = "N/A"
+            });
+            return;
+        }
+
+        try
+        {
+            var paused = await _tokenControlService.GetPausedStatusAsync(_currentContractAddress);
+            await SendToWebAsync("pause-status", new
+            {
+                contractDeployed = true,
+                contractAddress = _currentContractAddress,
+                paused = paused ?? false,
+                pauseStatusUnknown = paused == null
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("Failed to update pause status", ex);
+            await SendToWebAsync("pause-status", new
+            {
+                contractDeployed = true,
+                contractAddress = _currentContractAddress,
+                paused = false,
+                pauseStatusUnknown = true,
+                error = ex.Message
+            });
         }
     }
 }

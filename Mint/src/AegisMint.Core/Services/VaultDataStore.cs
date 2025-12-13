@@ -439,14 +439,16 @@ internal sealed class VaultDataStore
         return result != null ? Convert.ToInt64(result) : 0;
     }
 
-    public void UpdateTokenRetrievalStatus(long id, string status, string? txHash = null, string? errorMessage = null)
+    public void UpdateTokenRetrievalStatus(long id, string status, string? wipeTxHash = null, string? reclaimTxHash = null, string? errorMessage = null)
     {
         using var connection = OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = """
             UPDATE token_retrievals
             SET status = $status,
-                transaction_hash = COALESCE($transaction_hash, transaction_hash),
+                wipe_transaction_hash = COALESCE($wipe_transaction_hash, wipe_transaction_hash),
+                reclaim_transaction_hash = COALESCE($reclaim_transaction_hash, reclaim_transaction_hash),
+                transaction_hash = COALESCE($wipe_transaction_hash, wipe_transaction_hash),
                 error_message = $error_message,
                 completed_at_utc = $completed_at_utc
             WHERE id = $id;
@@ -454,7 +456,8 @@ internal sealed class VaultDataStore
 
         command.Parameters.AddWithValue("$id", id);
         command.Parameters.AddWithValue("$status", status);
-        command.Parameters.AddWithValue("$transaction_hash", (object?)txHash ?? DBNull.Value);
+        command.Parameters.AddWithValue("$wipe_transaction_hash", (object?)wipeTxHash ?? DBNull.Value);
+        command.Parameters.AddWithValue("$reclaim_transaction_hash", (object?)reclaimTxHash ?? DBNull.Value);
         command.Parameters.AddWithValue("$error_message", (object?)errorMessage ?? DBNull.Value);
         command.Parameters.AddWithValue("$completed_at_utc", DateTimeOffset.UtcNow.ToString("o"));
 
@@ -658,6 +661,8 @@ internal sealed class VaultDataStore
                 amount TEXT NOT NULL,
                 reason TEXT,
                 transaction_hash TEXT,
+                wipe_transaction_hash TEXT,
+                reclaim_transaction_hash TEXT,
                 status TEXT NOT NULL DEFAULT 'pending',
                 error_message TEXT,
                 created_at_utc TEXT NOT NULL,
@@ -694,6 +699,11 @@ internal sealed class VaultDataStore
         ExecuteNonQuery(connection, """
             CREATE INDEX IF NOT EXISTS idx_pause_operations_network ON pause_operations(network);
             """);
+
+        EnsureColumnExists(connection, "token_retrievals", "wipe_transaction_hash",
+            "ALTER TABLE token_retrievals ADD COLUMN wipe_transaction_hash TEXT;");
+        EnsureColumnExists(connection, "token_retrievals", "reclaim_transaction_hash",
+            "ALTER TABLE token_retrievals ADD COLUMN reclaim_transaction_hash TEXT;");
     }
 
     private static void ExecuteNonQuery(SqliteConnection connection, string sql)
@@ -701,5 +711,22 @@ internal sealed class VaultDataStore
         using var command = connection.CreateCommand();
         command.CommandText = sql;
         command.ExecuteNonQuery();
+    }
+
+    private static void EnsureColumnExists(SqliteConnection connection, string table, string column, string alterSql)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = $"PRAGMA table_info({table});";
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            var name = reader.GetString(1);
+            if (string.Equals(name, column, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+        }
+
+        ExecuteNonQuery(connection, alterSql);
     }
 }
