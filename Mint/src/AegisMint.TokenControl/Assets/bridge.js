@@ -12,6 +12,8 @@ window.addEventListener('DOMContentLoaded', function() {
   const retrieveBtn = document.getElementById('retrieve-btn');
   const emergencyFreezeAllBtn = document.getElementById('emergency-freeze-all');
   const emergencyClearBtn = document.getElementById('emergency-clear');
+  const sendFromInput = document.getElementById('send-from');
+  const retrieveToInput = document.getElementById('retrieve-to');
 
   const sendToHost = (type, payload) => {
     if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage) {
@@ -97,6 +99,43 @@ window.addEventListener('DOMContentLoaded', function() {
   emergencyClearBtn.addEventListener('click', () => {
     addLog('Emergency', 'Clear emergency state requested.');
   });
+
+  function applyNetworkFromHost(network) {
+    if (!networkSelect || !network) return;
+    const option = Array.from(networkSelect.options).find(opt => opt.value === network);
+    if (option) {
+      networkSelect.value = network;
+    }
+  }
+
+  function applyVaultStatus(payload) {
+    if (!payload) return;
+    if (payload.currentNetwork) {
+      applyNetworkFromHost(payload.currentNetwork);
+    }
+    if (payload.treasuryAddress) {
+      if (sendFromInput) sendFromInput.value = payload.treasuryAddress;
+      if (retrieveToInput) retrieveToInput.value = payload.treasuryAddress;
+    }
+    if (payload.contractAddress) {
+      addLog('Contract', `Active contract: ${payload.contractAddress}`);
+    }
+  }
+
+  window.receiveHostMessage = function(message) {
+    const { type, payload } = message || {};
+    switch (type) {
+      case 'host-info':
+        applyNetworkFromHost(payload?.network);
+        logToHost('Host connected');
+        break;
+      case 'vault-status':
+        applyVaultStatus(payload);
+        break;
+      default:
+        break;
+    }
+  };
 
   sendToHost('bridge-ready', { ready: true });
   logToHost('Bridge initialized');

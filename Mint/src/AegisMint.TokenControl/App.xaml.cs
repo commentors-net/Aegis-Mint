@@ -3,7 +3,7 @@ using System.Windows;
 using System.Windows.Threading;
 using AegisMint.Core.Services;
 
-namespace AegisMint.MintControl;
+namespace AegisMint.TokenControl;
 
 public partial class App : System.Windows.Application
 {
@@ -15,7 +15,7 @@ public partial class App : System.Windows.Application
 
     private void OnStartup(object sender, StartupEventArgs e)
     {
-        Logger.Info("MintControl application starting...");
+        Logger.Info("TokenControl application starting...");
 
         try
         {

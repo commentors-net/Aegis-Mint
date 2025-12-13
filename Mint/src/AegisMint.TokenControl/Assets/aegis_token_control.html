@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -554,7 +554,7 @@
           </div>
           <div class="pill">
             <span class="pill-label">Controller</span>
-            <span class="pill-value">0x1234ƒ?İABCD</span>
+            <span class="pill-value">0x1234...ABCD</span>
             <span class="pill-dot"></span>
           </div>
           <div class="pill pill-key">
@@ -590,14 +590,14 @@
                       <span class="main">From</span>
                       <span class="hint">Treasury / controller</span>
                     </label>
-                    <input id="send-from" class="input" type="text" value="0x0000ƒ?İTREASURY" readonly />
+                    <input id="send-from" class="input" type="text" value="0x0000...TREASURY" readonly />
                   </div>
                   <div class="field-group">
                     <label class="label" for="send-to">
                       <span class="main">To</span>
                       <span class="hint">Recipient address</span>
                     </label>
-                    <input id="send-to" class="input" type="text" placeholder="0xƒ?İ recipient" />
+                    <input id="send-to" class="input" type="text" placeholder="0x... recipient" />
                   </div>
                 </div>
                 <div class="field-row">
@@ -619,7 +619,7 @@
                 <div class="hint-inline">No key entry needed. Aegis reconstructs and signs in the vault only.</div>
                 <div style="margin-top: 8px; display:flex; justify-content:flex-end;">
                   <button type="button" class="btn btn-primary" id="send-btn">
-                    <span class="btn-icon">ƒz</span> Send
+                    <span class="btn-icon">🚀</span> Send
                   </button>
                 </div>
               </div>
@@ -634,7 +634,7 @@
                 </label>
                 <div class="field-row">
                   <div class="field-group">
-                    <input id="freeze-address" class="input" type="text" placeholder="0xƒ?İ address" />
+                    <input id="freeze-address" class="input" type="text" placeholder="0x... address" />
                     <div class="hint-inline">Frozen addresses cannot send or receive this token.</div>
                   </div>
                   <div class="field-group">
@@ -647,7 +647,7 @@
                 <textarea id="freeze-reason" class="textarea" placeholder="Internal reason / case reference (off-chain)"></textarea>
                 <div style="margin-top: 8px; display:flex; justify-content:flex-end;">
                   <button type="button" class="btn btn-outline" id="freeze-btn">
-                    <span class="btn-icon">ƒ>"</span> Apply rule
+                    <span class="btn-icon">🧊</span> Apply rule
                   </button>
                 </div>
               </div>
@@ -666,14 +666,14 @@
                       <span class="main">From</span>
                       <span class="hint">Source address</span>
                     </label>
-                    <input id="retrieve-from" class="input" type="text" placeholder="0xƒ?İ source" />
+                    <input id="retrieve-from" class="input" type="text" placeholder="0x... source" />
                   </div>
                   <div class="field-group">
                     <label class="label" for="retrieve-to">
                       <span class="main">To</span>
                       <span class="hint">Treasury</span>
                     </label>
-                    <input id="retrieve-to" class="input" type="text" value="0x0000ƒ?İTREASURY" readonly />
+                    <input id="retrieve-to" class="input" type="text" value="0x0000...TREASURY" readonly />
                   </div>
                 </div>
                 <div class="field-row">
@@ -694,7 +694,7 @@
                 </div>
                 <div style="margin-top: 8px; display:flex; justify-content:flex-end;">
                   <button type="button" class="btn btn-outline" id="retrieve-btn">
-                    <span class="btn-icon">ƒYı</span> Retrieve
+                    <span class="btn-icon">📥</span> Retrieve
                   </button>
                 </div>
               </div>
@@ -744,21 +744,21 @@
                   <span class="hint">Wire into your incident playbook</span>
                 </label>
                 <div class="field-row">
+
                   <button type="button" class="btn btn-danger" id="emergency-freeze-all">
-                    <span class="btn-icon">dY>`</span> Freeze all
+                    <span class="btn-icon">❄️</span> Freeze all
                   </button>
                   <button type="button" class="btn btn-ghost" id="emergency-clear">
-                    <span class="btn-icon">ƒ+§</span> Clear emergency
+                    <span class="btn-icon">🧹</span> Clear emergency
                   </button>
                 </div>
               </div>
-
               <hr class="section-divider" />
 
               <div class="field-group">
                 <label class="label">
                   <span class="main">Recent control actions</span>
-                  <span class="hint">Local view ƒ?" back-end should persist real audit log</span>
+                  <span class="hint">Local view - back-end should persist real audit log</span>
                 </label>
                 <div id="log-list" class="log-list">
                   <div class="log-item">

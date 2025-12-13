@@ -11,7 +11,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AegisMint.Mint", "src\Aegis
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AegisMint.Developer", "src\AegisMint.Developer\AegisMint.Developer.csproj", "{B2EDEE81-68C4-4926-AC5C-6F3B5C91F5A9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AegisMint.MintControl", "src\AegisMint.MintControl\AegisMint.MintControl.csproj", "{FD70CFEF-D34A-494D-A91B-C5E8772549DC}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AegisMint.TokenControl", "src\AegisMint.TokenControl\AegisMint.TokenControl.csproj", "{FD70CFEF-D34A-494D-A91B-C5E8772549DC}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

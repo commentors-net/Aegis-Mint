@@ -8,13 +8,14 @@ using AegisMint.Core.Services;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 
-namespace AegisMint.MintControl;
+namespace AegisMint.TokenControl;
 
 public partial class MainWindow : Window
 {
     private string? _htmlPath;
     private readonly ContractArtifactLoader _artifactLoader = new();
     private ContractArtifacts? _tokenArtifacts;
+    private readonly VaultManager _vaultManager = new();
     private string _currentNetwork = "sepolia";
 
     public MainWindow()
@@ -27,8 +28,19 @@ public partial class MainWindow : Window
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
+        LoadInitialState();
         LoadContractArtifacts();
         await InitializeWebViewAsync();
+    }
+
+    private void LoadInitialState()
+    {
+        var lastNetwork = _vaultManager.GetLastNetwork();
+        if (!string.IsNullOrWhiteSpace(lastNetwork))
+        {
+            _currentNetwork = lastNetwork.Trim().ToLowerInvariant();
+        }
+        Title = $"Aegis Token Control - {_currentNetwork.ToUpperInvariant()}";
     }
 
     private void OnPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
@@ -44,7 +56,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            Logger.Info("Initializing WebView (MintControl)");
+            Logger.Info("Initializing WebView (TokenControl)");
             OverlayStatus.Text = "Loading UI...";
             MainWebView.CreationProperties = BuildWebViewProperties();
             _htmlPath = Path.Combine(AppContext.BaseDirectory, "Assets", "aegis_token_control.html");
@@ -91,7 +103,8 @@ public partial class MainWindow : Window
         if (e.IsSuccess)
         {
             Overlay.Visibility = Visibility.Collapsed;
-            await SendToWebAsync("host-info", new { host = "Aegis Mint Control WPF", version = "1.0", network = _currentNetwork });
+            await SendToWebAsync("host-info", new { host = "Aegis Token Control WPF", version = "1.0", network = _currentNetwork });
+            await SendVaultStatusAsync();
         }
         else
         {
@@ -135,6 +148,9 @@ public partial class MainWindow : Window
                 case "log":
                     HandleLog(message.payload);
                     break;
+                case "network-changed":
+                    HandleNetworkChange(message.payload);
+                    break;
                 default:
                     Logger.Debug($"Unhandled web message type: {message.type}");
                     break;
@@ -143,6 +159,25 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             Logger.Error("Failed to handle web message", ex);
+        }
+    }
+
+    private async void HandleNetworkChange(JsonElement? payload)
+    {
+        try
+        {
+            if (payload.HasValue && payload.Value.TryGetProperty("network", out var netProp))
+            {
+                var network = netProp.GetString() ?? "sepolia";
+                _currentNetwork = network.Trim().ToLowerInvariant();
+                _vaultManager.SaveLastNetwork(_currentNetwork);
+                Title = $"Aegis Token Control - {_currentNetwork.ToUpperInvariant()}";
+                await SendVaultStatusAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("Failed to process network change", ex);
         }
     }
 
@@ -198,7 +233,7 @@ public partial class MainWindow : Window
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "AegisMint",
             "WebView2",
-            "MintControl");
+            "TokenControl");
 
         Directory.CreateDirectory(userData);
 
@@ -280,4 +315,52 @@ public partial class MainWindow : Window
     }
 
     private record BridgeMessage(string? type, JsonElement? payload);
+
+    private async Task SendVaultStatusAsync()
+    {
+        if (MainWebView.CoreWebView2 is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var treasuryAddress = _vaultManager.GetTreasuryAddress();
+            var contractAddress = _vaultManager.GetDeployedContractAddress(_currentNetwork);
+            var snapshot = _vaultManager.GetDeploymentSnapshot(_currentNetwork);
+
+            object? prefill = null;
+            if (snapshot != null)
+            {
+                prefill = new
+                {
+                    network = snapshot.Network,
+                    contractAddress = snapshot.ContractAddress,
+                    tokenName = snapshot.TokenName,
+                    tokenSupply = snapshot.TokenSupply,
+                    tokenDecimals = snapshot.TokenDecimals,
+                    govShares = snapshot.GovShares,
+                    govThreshold = snapshot.GovThreshold,
+                    treasuryAddress = snapshot.TreasuryAddress,
+                    treasuryEth = snapshot.TreasuryEth,
+                    treasuryTokens = snapshot.TreasuryTokens,
+                    createdAtUtc = snapshot.CreatedAtUtc
+                };
+            }
+
+            await SendToWebAsync("vault-status", new
+            {
+                currentNetwork = _currentNetwork,
+                hasTreasury = !string.IsNullOrWhiteSpace(treasuryAddress),
+                treasuryAddress,
+                contractDeployed = !string.IsNullOrWhiteSpace(contractAddress),
+                contractAddress,
+                prefill
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("Failed to send vault status", ex);
+        }
+    }
 }
