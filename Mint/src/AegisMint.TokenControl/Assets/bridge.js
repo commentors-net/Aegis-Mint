@@ -10,6 +10,81 @@ window.addEventListener('DOMContentLoaded', function() {
   const contractPillValue = document.getElementById('contract-pill-value');
   const contractPillDot = document.getElementById('contract-pill-dot');
 
+  function ensureProgressStyles() {
+    if (document.getElementById("progress-style")) return;
+    const style = document.createElement("style");
+    style.id = "progress-style";
+    style.textContent = `
+      @keyframes token-progress-stripe {
+        0% { background-position: 0 0; }
+        100% { background-position: 200% 0; }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function showProgress(text = "Processing...") {
+    ensureProgressStyles();
+    let container = document.getElementById("token-progress");
+    if (!container) {
+      container = document.createElement("div");
+      container.id = "token-progress";
+      container.style.position = "fixed";
+      container.style.bottom = "18px";
+      container.style.left = "50%";
+      container.style.transform = "translateX(-50%)";
+      container.style.minWidth = "260px";
+      container.style.maxWidth = "520px";
+      container.style.background = "rgba(255, 255, 255, 0.95)";
+      container.style.border = "1px solid rgba(215, 38, 56, 0.6)";
+      container.style.borderRadius = "14px";
+      container.style.boxShadow = "0 12px 30px rgba(215, 38, 56, 0.25)";
+      container.style.padding = "12px 14px 16px";
+      container.style.zIndex = "1200";
+
+      const label = document.createElement("div");
+      label.id = "token-progress-label";
+      label.style.color = "#0f172a";
+      label.style.fontSize = "13px";
+      label.style.fontWeight = "600";
+      label.style.marginBottom = "8px";
+      container.appendChild(label);
+
+      const bar = document.createElement("div");
+      bar.style.width = "100%";
+      bar.style.height = "8px";
+      bar.style.borderRadius = "999px";
+      bar.style.overflow = "hidden";
+      bar.style.background = "rgba(215, 38, 56, 0.18)";
+
+      const inner = document.createElement("div");
+      inner.id = "token-progress-bar";
+      inner.style.width = "60%";
+      inner.style.height = "100%";
+      inner.style.borderRadius = "999px";
+      inner.style.background = "linear-gradient(90deg, rgba(215,38,56,0.9), rgba(239,68,68,0.9), rgba(215,38,56,0.9))";
+      inner.style.backgroundSize = "200% 100%";
+      inner.style.animation = "token-progress-stripe 1.2s linear infinite";
+
+      bar.appendChild(inner);
+      container.appendChild(bar);
+
+      document.body.appendChild(container);
+    }
+
+    const labelEl = document.getElementById("token-progress-label");
+    if (labelEl) {
+      labelEl.textContent = text;
+    }
+  }
+
+  function hideProgress() {
+    const container = document.getElementById("token-progress");
+    if (container) {
+      container.remove();
+    }
+  }
+
   const sendBtn = document.getElementById('send-btn');
   const freezeBtn = document.getElementById('freeze-btn');
   const retrieveBtn = document.getElementById('retrieve-btn');
@@ -75,7 +150,7 @@ window.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  function addLog(tag, text) {
+  function addLog(tag, text, txHash = null, address = null) {
     const item = document.createElement('div');
     item.className = 'log-item';
     const meta = document.createElement('div');
@@ -89,8 +164,66 @@ window.addEventListener('DOMContentLoaded', function() {
     meta.appendChild(timeSpan);
     const textDiv = document.createElement('div');
     textDiv.textContent = text;
+    textDiv.style.wordBreak = 'break-all';
+    textDiv.style.userSelect = 'text';
+    textDiv.style.cursor = 'text';
     item.appendChild(meta);
     item.appendChild(textDiv);
+    
+    // Add transaction hash if provided
+    if (txHash) {
+      const txDiv = document.createElement('div');
+      txDiv.style.marginTop = '4px';
+      txDiv.style.padding = '4px 6px';
+      txDiv.style.background = 'rgba(215, 38, 56, 0.08)';
+      txDiv.style.borderRadius = '6px';
+      txDiv.style.fontSize = '10px';
+      txDiv.style.fontFamily = 'monospace';
+      txDiv.style.wordBreak = 'break-all';
+      txDiv.style.userSelect = 'text';
+      txDiv.style.cursor = 'pointer';
+      txDiv.title = 'Click to copy transaction hash';
+      txDiv.textContent = `TX: ${txHash}`;
+      txDiv.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(txHash);
+          const original = txDiv.textContent;
+          txDiv.textContent = '✓ Copied!';
+          setTimeout(() => { txDiv.textContent = original; }, 1500);
+        } catch (err) {
+          console.error('Failed to copy:', err);
+        }
+      });
+      item.appendChild(txDiv);
+    }
+    
+    // Add address if provided
+    if (address) {
+      const addrDiv = document.createElement('div');
+      addrDiv.style.marginTop = '4px';
+      addrDiv.style.padding = '4px 6px';
+      addrDiv.style.background = 'rgba(52, 211, 153, 0.12)';
+      addrDiv.style.borderRadius = '6px';
+      addrDiv.style.fontSize = '10px';
+      addrDiv.style.fontFamily = 'monospace';
+      addrDiv.style.wordBreak = 'break-all';
+      addrDiv.style.userSelect = 'text';
+      addrDiv.style.cursor = 'pointer';
+      addrDiv.title = 'Click to copy address';
+      addrDiv.textContent = `Address: ${address}`;
+      addrDiv.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(address);
+          const original = addrDiv.textContent;
+          addrDiv.textContent = '✓ Copied!';
+          setTimeout(() => { addrDiv.textContent = original; }, 1500);
+        } catch (err) {
+          console.error('Failed to copy:', err);
+        }
+      });
+      item.appendChild(addrDiv);
+    }
+    
     logList.insertBefore(item, logList.firstChild);
     logToHost(text, tag.toLowerCase() === 'emergency' ? 'warn' : 'info');
   }
@@ -100,6 +233,7 @@ window.addEventListener('DOMContentLoaded', function() {
     const next = !isOn;
     setPauseUI(next);
     
+    showProgress(`${next ? 'Pausing' : 'Unpausing'} token contract...`);
     sendToHost('set-paused', { paused: next });
     
     addLog('Pause', `System pause toggled ${next ? 'ON' : 'OFF'}.`);
@@ -127,7 +261,8 @@ window.addEventListener('DOMContentLoaded', function() {
       return;
     }
     
-    addLog('Send', `Sending ${amount} tokens to ${to}...`);
+    showProgress(`Sending ${amount} tokens...`);
+    addLog('Send', `Initiating transfer: ${amount} tokens`, null, to);
     sendToHost('send-tokens', { to, amount, memo });
   });
 
@@ -142,7 +277,8 @@ window.addEventListener('DOMContentLoaded', function() {
     }
     
     const isFreezing = action === 'freeze';
-    addLog('Freeze', `${isFreezing ? 'Freezing' : 'Unfreezing'} ${addr}...`);
+    showProgress(`${isFreezing ? 'Freezing' : 'Unfreezing'} address...`);
+    addLog('Freeze', `${isFreezing ? 'Freezing' : 'Unfreezing'} address`, null, addr);
     sendToHost('freeze-address', { address: addr, freeze: isFreezing, reason });
   });
 
@@ -156,7 +292,8 @@ window.addEventListener('DOMContentLoaded', function() {
       return;
     }
     
-    addLog('Retrieve', `Retrieving ${amount || 'full balance'} from ${from}...`);
+    showProgress(`Retrieving tokens from frozen address...`);
+    addLog('Retrieve', `Retrieving ${amount || 'full balance'} from address`, null, from);
     sendToHost('retrieve-tokens', { from, amount, reason });
   });
 
@@ -246,20 +383,31 @@ window.addEventListener('DOMContentLoaded', function() {
       case 'operation-result':
         handleOperationResult(payload);
         break;
+      case 'host-error':
+        hideProgress();
+        addLog('Error', payload?.message || 'Host error occurred');
+        break;
+      case 'operation-progress':
+        if (payload?.message) {
+          showProgress(payload.message);
+        }
+        break;
       default:
         break;
     }
   };
 
   function handleOperationResult(payload) {
+    hideProgress();
+    
     if (!payload) return;
     
     const { operation, success, transactionHash, errorMessage } = payload;
     
     if (success) {
-      addLog(operation || 'Operation', `Success! TX: ${transactionHash?.substring(0, 16)}...`);
+      addLog(operation || 'Operation', `✓ ${operation} completed successfully`, transactionHash);
     } else {
-      addLog('Error', `${operation || 'Operation'} failed: ${errorMessage || 'Unknown error'}`);
+      addLog('Error', `${operation || 'Operation'} failed: ${errorMessage || 'Unknown error'}`, transactionHash);
     }
   }
 

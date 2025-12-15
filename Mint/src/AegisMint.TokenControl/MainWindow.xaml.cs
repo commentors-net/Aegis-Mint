@@ -267,6 +267,9 @@ public partial class MainWindow : Window
 
             Logger.Info($"Initiating token transfer: {amount} tokens to {to}");
 
+            await SendProgressAsync("Validating balances...");
+            await Task.Delay(100); // Give UI time to update
+
             var result = await _tokenControlService.TransferTokensAsync(
                 _currentContractAddress,
                 to,
@@ -313,6 +316,9 @@ public partial class MainWindow : Window
             }
 
             Logger.Info($"{(freeze ? "Freezing" : "Unfreezing")} address: {address}");
+
+            await SendProgressAsync($"{(freeze ? "Freezing" : "Unfreezing")} address on blockchain...");
+            await Task.Delay(100); // Give UI time to update
 
             var result = await _tokenControlService.FreezeAddressAsync(
                 _currentContractAddress,
@@ -374,6 +380,9 @@ public partial class MainWindow : Window
 
             Logger.Info($"Retrieving {(amount.HasValue ? $"{amount} tokens" : "full balance")} from {from}");
 
+            await SendProgressAsync("Wiping frozen address...");
+            await Task.Delay(100); // Give UI time to update
+
             var result = await _tokenControlService.RetrieveTokensAsync(
                 _currentContractAddress,
                 from,
@@ -414,6 +423,9 @@ public partial class MainWindow : Window
 
             Logger.Info($"{(paused ? "Pausing" : "Unpausing")} token contract");
 
+            await SendProgressAsync($"{(paused ? "Pausing" : "Unpausing")} contract on blockchain...");
+            await Task.Delay(100); // Give UI time to update
+
             var result = await _tokenControlService.SetPausedAsync(_currentContractAddress, paused);
 
             await SendOperationResultAsync("Pause", result.Success, result.TransactionHash, result.ErrorMessage);
@@ -438,6 +450,14 @@ public partial class MainWindow : Window
             success,
             transactionHash,
             errorMessage
+        });
+    }
+
+    private async Task SendProgressAsync(string message)
+    {
+        await SendToWebAsync("operation-progress", new
+        {
+            message
         });
     }
 
