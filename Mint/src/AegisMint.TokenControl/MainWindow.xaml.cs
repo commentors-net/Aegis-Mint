@@ -1,13 +1,22 @@
 using System;
 using System.IO;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
+using System.Collections.Generic;
+using System.Linq;
+using System.Numerics;
 using AegisMint.Core.Models;
 using AegisMint.Core.Services;
+using AegisMint.Core.Security;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
+using Microsoft.Win32;
+using Nethereum.RLP;
+using Nethereum.Util;
+using Nethereum.Web3;
 
 namespace AegisMint.TokenControl;
 
@@ -177,6 +186,12 @@ public partial class MainWindow : Window
                 case "set-paused":
                     await HandleSetPausedAsync(message.payload);
                     break;
+                case "refresh-balances":
+                    await UpdateBalanceStatsAsync();
+                    break;
+                case "recover-from-shares":
+                    await HandleRecoverFromSharesAsync();
+                    break;
                 default:
                     Logger.Debug($"Unhandled web message type: {message.type}");
                     break;
@@ -227,7 +242,7 @@ public partial class MainWindow : Window
         return network.ToLowerInvariant() switch
         {
             "localhost" => "http://127.0.0.1:8545",
-            "mainnet" => "https://mainnet.infura.io/v3/YOUR_INFURA_API_KEY",
+            "mainnet" => "https://mainnet.infura.io/v3/fc5bd40a3f054a4f9842f53d0d711e0e",
             "sepolia" => "https://sepolia.infura.io/v3/fc6598ddab264c89a508cdb97d5398ea",
             _ => "http://127.0.0.1:8545"
         };
@@ -249,19 +264,19 @@ public partial class MainWindow : Window
 
             if (string.IsNullOrWhiteSpace(to) || string.IsNullOrWhiteSpace(amountStr))
             {
-                await SendOperationResultAsync("Send", false, null, "Invalid recipient or amount");
+                await SendOperationResultAsync("Send", false, null, "Invalid recipient or amount", to);
                 return;
             }
 
             if (string.IsNullOrWhiteSpace(_currentContractAddress))
             {
-                await SendOperationResultAsync("Send", false, null, "No contract deployed on this network");
+                await SendOperationResultAsync("Send", false, null, "No contract deployed on this network", to);
                 return;
             }
 
             if (!decimal.TryParse(amountStr, out var amount))
             {
-                await SendOperationResultAsync("Send", false, null, "Invalid amount format");
+                await SendOperationResultAsync("Send", false, null, "Invalid amount format", to);
                 return;
             }
 
@@ -276,7 +291,7 @@ public partial class MainWindow : Window
                 amount,
                 memo);
 
-            await SendOperationResultAsync("Send", result.Success, result.TransactionHash, result.ErrorMessage);
+            await SendOperationResultAsync("Send", result.Success, result.TransactionHash, result.ErrorMessage, to);
             if (result.Success)
             {
                 await UpdateBalanceStatsAsync();
@@ -285,7 +300,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             Logger.Error("Error handling send tokens", ex);
-            await SendOperationResultAsync("Send", false, null, ex.Message);
+            await SendOperationResultAsync("Send", false, null, ex.Message, null);
         }
     }
 
@@ -305,13 +320,13 @@ public partial class MainWindow : Window
 
             if (string.IsNullOrWhiteSpace(address))
             {
-                await SendOperationResultAsync("Freeze", false, null, "Invalid address");
+                await SendOperationResultAsync("Freeze", false, null, "Invalid address", address);
                 return;
             }
 
             if (string.IsNullOrWhiteSpace(_currentContractAddress))
             {
-                await SendOperationResultAsync("Freeze", false, null, "No contract deployed on this network");
+                await SendOperationResultAsync("Freeze", false, null, "No contract deployed on this network", address);
                 return;
             }
 
@@ -326,7 +341,7 @@ public partial class MainWindow : Window
                 freeze,
                 reason);
 
-            await SendOperationResultAsync("Freeze", result.Success, result.TransactionHash, result.ErrorMessage);
+            await SendOperationResultAsync("Freeze", result.Success, result.TransactionHash, result.ErrorMessage, address);
             if (result.Success)
             {
                 await UpdateBalanceStatsAsync();
@@ -335,7 +350,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             Logger.Error("Error handling freeze address", ex);
-            await SendOperationResultAsync("Freeze", false, null, ex.Message);
+            await SendOperationResultAsync("Freeze", false, null, ex.Message, null);
         }
     }
 
@@ -355,20 +370,20 @@ public partial class MainWindow : Window
 
             if (string.IsNullOrWhiteSpace(from))
             {
-                await SendOperationResultAsync("Retrieve", false, null, "Invalid source address");
+                await SendOperationResultAsync("Retrieve", false, null, "Invalid source address", from);
                 return;
             }
 
             if (string.IsNullOrWhiteSpace(_currentContractAddress))
             {
-                await SendOperationResultAsync("Retrieve", false, null, "No contract deployed on this network");
+                await SendOperationResultAsync("Retrieve", false, null, "No contract deployed on this network", from);
                 return;
             }
 
             var treasuryAddress = _vaultManager.GetTreasuryAddress();
             if (string.IsNullOrWhiteSpace(treasuryAddress))
             {
-                await SendOperationResultAsync("Retrieve", false, null, "Treasury address not found");
+                await SendOperationResultAsync("Retrieve", false, null, "Treasury address not found", from);
                 return;
             }
 
@@ -390,7 +405,7 @@ public partial class MainWindow : Window
                 amount,
                 reason);
 
-            await SendOperationResultAsync("Retrieve", result.Success, result.TransactionHash, result.ErrorMessage);
+            await SendOperationResultAsync("Retrieve", result.Success, result.TransactionHash, result.ErrorMessage, from);
             if (result.Success)
             {
                 await UpdateBalanceStatsAsync();
@@ -399,7 +414,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             Logger.Error("Error handling retrieve tokens", ex);
-            await SendOperationResultAsync("Retrieve", false, null, ex.Message);
+            await SendOperationResultAsync("Retrieve", false, null, ex.Message, null);
         }
     }
 
@@ -417,7 +432,7 @@ public partial class MainWindow : Window
 
             if (string.IsNullOrWhiteSpace(_currentContractAddress))
             {
-                await SendOperationResultAsync("Pause", false, null, "No contract deployed on this network");
+                await SendOperationResultAsync("Pause", false, null, "No contract deployed on this network", _currentContractAddress);
                 return;
             }
 
@@ -428,7 +443,7 @@ public partial class MainWindow : Window
 
             var result = await _tokenControlService.SetPausedAsync(_currentContractAddress, paused);
 
-            await SendOperationResultAsync("Pause", result.Success, result.TransactionHash, result.ErrorMessage);
+            await SendOperationResultAsync("Pause", result.Success, result.TransactionHash, result.ErrorMessage, _currentContractAddress);
             if (result.Success)
             {
                 await UpdateBalanceStatsAsync();
@@ -438,18 +453,304 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             Logger.Error("Error handling set paused", ex);
-            await SendOperationResultAsync("Pause", false, null, ex.Message);
+            await SendOperationResultAsync("Pause", false, null, ex.Message, _currentContractAddress);
         }
     }
 
-    private async Task SendOperationResultAsync(string operation, bool success, string? transactionHash, string? errorMessage)
+    private async Task HandleRecoverFromSharesAsync()
+    {
+        try
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Select recovery share files",
+                Filter = "Share files (*.json)|*.json|All files (*.*)|*.*",
+                Multiselect = true,
+                CheckFileExists = true
+            };
+
+            var result = dialog.ShowDialog();
+            if (result != true || dialog.FileNames.Length == 0)
+            {
+                await SendToWebAsync("host-error", new { message = "Recovery cancelled. No files selected." });
+                return;
+            }
+
+            var shares = new List<ShareFilePayload>();
+            ShareSetMetadata? metadata = null;
+            var jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web)
+            {
+                PropertyNameCaseInsensitive = true,
+                ReadCommentHandling = JsonCommentHandling.Skip,
+                AllowTrailingCommas = true
+            };
+
+            foreach (var file in dialog.FileNames)
+            {
+                var payload = ParseShareFile(file, jsonOptions, out var shareLength);
+
+                if (metadata is null)
+                {
+                    metadata = new ShareSetMetadata(
+                        payload.TotalShares,
+                        payload.Threshold,
+                        payload.ClientShareCount,
+                        payload.SafekeepingShareCount,
+                        payload.Network ?? string.Empty,
+                        shareLength);
+                }
+                else if (!metadata.IsCompatibleWith(payload, shareLength))
+                {
+                    throw new InvalidOperationException($"Share file {Path.GetFileName(file)} metadata mismatch. Expected {metadata.Description}.");
+                }
+
+                shares.Add(payload);
+            }
+
+            if (metadata is null)
+            {
+                throw new InvalidOperationException("No valid shares were loaded.");
+            }
+
+            if (shares.Count < metadata.Threshold)
+            {
+                throw new InvalidOperationException($"Need at least {metadata.Threshold} shares; only {shares.Count} provided.");
+            }
+
+            var sharesToUse = shares
+                .OrderBy(s => s.ShareId)
+                .Take(metadata.Threshold)
+                .Select(s => new ShamirShare(s.ShareId, s.ShareValue ?? string.Empty))
+                .ToArray();
+
+            var shamir = new ShamirSecretSharingService();
+            var secretBytes = shamir.Combine(sharesToUse, metadata.Threshold);
+            var mnemonicRaw = Encoding.UTF8.GetString(secretBytes).Trim();
+            var mnemonic = string.Join(" ", mnemonicRaw.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+
+            _vaultManager.ImportTreasuryMnemonic(mnemonic);
+
+            if (!string.IsNullOrWhiteSpace(metadata.Network))
+            {
+                _vaultManager.SaveLastNetwork(metadata.Network);
+                await UpdateNetworkAsync(metadata.Network);
+            }
+
+            await DiscoverAndPersistContractAsync();
+            await SendVaultStatusAsync();
+            await UpdateBalanceStatsAsync();
+            await SendToWebAsync("recovery-result", new { ok = true, message = "Treasury recovered from shares." });
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("Failed to recover from shares", ex);
+            await SendToWebAsync("host-error", new { message = $"Recovery failed: {ex.Message}" });
+        }
+    }
+
+    private ShareFilePayload ParseShareFile(string path, JsonSerializerOptions options, out int shareLength)
+    {
+        var json = File.ReadAllText(path);
+        var payload = JsonSerializer.Deserialize<ShareFilePayload>(json, options)
+            ?? throw new InvalidOperationException("File did not contain a share payload.");
+
+        if (payload.ShareId <= 0)
+        {
+            throw new InvalidOperationException("ShareId must be greater than zero.");
+        }
+
+        if (payload.Threshold <= 0 || payload.TotalShares <= 0 || payload.Threshold > payload.TotalShares)
+        {
+            throw new InvalidOperationException("Invalid threshold/total share values.");
+        }
+
+        if (string.IsNullOrWhiteSpace(payload.ShareValue))
+        {
+            throw new InvalidOperationException("Missing share value.");
+        }
+
+        var shareBytes = Convert.FromBase64String(payload.ShareValue);
+        if (shareBytes.Length == 0)
+        {
+            throw new InvalidOperationException("Share payload was empty.");
+        }
+
+        shareLength = shareBytes.Length;
+        return payload;
+    }
+
+    private sealed record ShareSetMetadata(int TotalShares, int Threshold, int ClientShareCount, int SafekeepingShareCount, string Network, int ShareLength)
+    {
+        public string Description => $"{Threshold}-of-{TotalShares} ({Network})";
+
+        public bool IsCompatibleWith(ShareFilePayload payload, int shareLength)
+        {
+            return payload.TotalShares == TotalShares
+                   && payload.Threshold == Threshold
+                   && payload.ClientShareCount == ClientShareCount
+                   && payload.SafekeepingShareCount == SafekeepingShareCount
+                   && shareLength == ShareLength
+                   && string.Equals(payload.Network ?? string.Empty, Network, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    private sealed class ShareFilePayload
+    {
+        public DateTimeOffset CreatedAtUtc { get; set; }
+        public string? Network { get; set; }
+        public int TotalShares { get; set; }
+        public int Threshold { get; set; }
+        public int ClientShareCount { get; set; }
+        public int SafekeepingShareCount { get; set; }
+        public byte ShareId { get; set; }
+        public string? ShareValue { get; set; }
+    }
+
+    private async Task<bool> DiscoverAndPersistContractAsync()
+    {
+        try
+        {
+            var treasuryAddress = _vaultManager.GetTreasuryAddress();
+            if (string.IsNullOrWhiteSpace(treasuryAddress))
+            {
+                return false;
+            }
+
+            var rpcUrl = GetRpcUrlForNetwork(_currentNetwork);
+            var rpc = new JsonRpcClient(rpcUrl);
+
+            var contractAddress = await DiscoverLatestContractAsync(rpc, treasuryAddress);
+            if (string.IsNullOrWhiteSpace(contractAddress))
+            {
+                Logger.Warning("No deployed contracts discovered for treasury.");
+                return false;
+            }
+
+            _vaultManager.RecordContractDeployment(contractAddress, _currentNetwork);
+            _currentContractAddress = contractAddress;
+
+            await PopulateSnapshotFromChainAsync(contractAddress, treasuryAddress, rpcUrl);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"Failed to discover and persist contract: {ex.Message}");
+            return false;
+        }
+    }
+
+    private async Task<string?> DiscoverLatestContractAsync(JsonRpcClient rpc, string treasuryAddress)
+    {
+        try
+        {
+            var txCountHex = await rpc.GetTransactionCountAsync(treasuryAddress, "latest");
+            var txCount = HexToBigInteger(txCountHex);
+
+            var attempts = (int)Math.Min((long)txCount, 20); // scan last 20 nonces max
+            for (var i = 0; i < attempts; i++)
+            {
+                var nonce = txCount - 1 - i;
+                if (nonce < 0) break;
+
+                var candidate = ComputeContractAddress(treasuryAddress, nonce);
+                var codeElement = await rpc.SendRequestAsync("eth_getCode", candidate, "latest");
+                var code = codeElement.GetString() ?? "0x";
+                if (!string.Equals(code, "0x", StringComparison.OrdinalIgnoreCase))
+                {
+                    Logger.Info($"Discovered deployed contract at {candidate} (nonce {nonce})");
+                    return candidate;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"Contract discovery failed: {ex.Message}");
+        }
+
+        return null;
+    }
+
+    private async Task PopulateSnapshotFromChainAsync(string contractAddress, string treasuryAddress, string rpcUrl)
+    {
+        try
+        {
+            if (_tokenArtifacts == null || string.IsNullOrWhiteSpace(_tokenArtifacts.Abi))
+            {
+                Logger.Warning("Token ABI unavailable; skipping snapshot enrichment.");
+                return;
+            }
+
+            var web3 = new Web3(rpcUrl);
+            var contract = web3.Eth.GetContract(_tokenArtifacts.Abi, contractAddress);
+
+            var nameFn = contract.GetFunction("name");
+            var decimalsFn = contract.GetFunction("decimals");
+            var totalSupplyFn = contract.GetFunction("totalSupply");
+            var balanceOfFn = contract.GetFunction("balanceOf");
+
+            var name = await nameFn.CallAsync<string>();
+            var decimals = await decimalsFn.CallAsync<byte>();
+            var totalSupplyRaw = await totalSupplyFn.CallAsync<BigInteger>();
+            var balanceRaw = await balanceOfFn.CallAsync<BigInteger>(treasuryAddress);
+
+            var totalSupply = Web3.Convert.FromWei(totalSupplyRaw, decimals);
+            var treasuryTokens = Web3.Convert.FromWei(balanceRaw, decimals);
+            var treasuryEth = await _tokenControlService.GetEthBalanceAsync(treasuryAddress);
+
+            var snapshot = new DeploymentSnapshot(
+                _currentNetwork,
+                contractAddress,
+                name ?? "Recovered Token",
+                totalSupply.ToString("0.####"),
+                decimals,
+                0,
+                0,
+                treasuryAddress,
+                (treasuryEth ?? 0m).ToString("0.####"),
+                treasuryTokens.ToString("0.####"),
+                DateTimeOffset.UtcNow);
+
+            _vaultManager.RecordDeploymentSnapshot(_currentNetwork, snapshot);
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"Failed to populate snapshot from chain: {ex.Message}");
+        }
+    }
+
+    private static BigInteger HexToBigInteger(string hex)
+    {
+        if (string.IsNullOrEmpty(hex) || hex == "0x" || hex == "0x0")
+            return BigInteger.Zero;
+
+        if (hex.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+            hex = hex.Substring(2);
+
+        return BigInteger.Parse("0" + hex, System.Globalization.NumberStyles.HexNumber);
+    }
+
+    private static string ComputeContractAddress(string sender, BigInteger nonce)
+    {
+        var addressBytes = Nethereum.Hex.HexConvertors.Extensions.HexByteConvertorExtensions.HexToByteArray(sender.Replace("0x", string.Empty));
+        var nonceBytesLe = nonce.ToByteArray();
+        var nonceBytes = nonceBytesLe.Reverse().SkipWhile(b => b == 0).ToArray();
+
+        var encoded = RLP.EncodeList(RLP.EncodeElement(addressBytes), RLP.EncodeElement(nonceBytes));
+        var hash = new Sha3Keccack().CalculateHash(encoded);
+        var contractBytes = hash.Skip(hash.Length - 20).ToArray();
+        return "0x" + BitConverter.ToString(contractBytes).Replace("-", "").ToLowerInvariant();
+    }
+
+    private async Task SendOperationResultAsync(string operation, bool success, string? transactionHash, string? errorMessage, string? address = null)
     {
         await SendToWebAsync("operation-result", new
         {
             operation,
             success,
             transactionHash,
-            errorMessage
+            errorMessage,
+            address,
+            timestamp = DateTimeOffset.UtcNow
         });
     }
 
@@ -621,9 +922,11 @@ public partial class MainWindow : Window
 
         try
         {
-            var treasuryAddress = _vaultManager.GetTreasuryAddress();
+            var treasuryAddress = _vaultManager.GetKnownTreasuryAddress();
+            var hasTreasuryKey = _vaultManager.HasTreasury();
             var contractAddress = _vaultManager.GetDeployedContractAddress(_currentNetwork);
             var snapshot = _vaultManager.GetDeploymentSnapshot(_currentNetwork);
+            var bootstrapThreshold = _vaultManager.GetBootstrapThreshold();
 
             object? prefill = null;
             if (snapshot != null)
@@ -648,9 +951,11 @@ public partial class MainWindow : Window
             {
                 currentNetwork = _currentNetwork,
                 hasTreasury = !string.IsNullOrWhiteSpace(treasuryAddress),
+                hasTreasuryKey,
                 treasuryAddress,
                 contractDeployed = !string.IsNullOrWhiteSpace(contractAddress),
                 contractAddress,
+                bootstrapThreshold,
                 prefill
             });
         }
@@ -664,25 +969,31 @@ public partial class MainWindow : Window
     {
         try
         {
+            var treasuryAddress = _vaultManager.GetKnownTreasuryAddress();
+            decimal? ethBalance = null;
+            if (!string.IsNullOrWhiteSpace(treasuryAddress))
+            {
+                ethBalance = await _tokenControlService.GetEthBalanceAsync(treasuryAddress);
+            }
+
             if (string.IsNullOrWhiteSpace(_currentContractAddress))
             {
                 await SendToWebAsync("balance-stats", new
                 {
                     tokenBalance = "N/A",
-                    ethBalance = "N/A",
+                    ethBalance = ethBalance?.ToString("N6") ?? "0.00",
                     contractAddress = "Not deployed",
                     totalSupply = "N/A"
                 });
                 return;
             }
 
-            var treasuryAddress = _vaultManager.GetTreasuryAddress();
             if (string.IsNullOrWhiteSpace(treasuryAddress))
             {
                 await SendToWebAsync("balance-stats", new
                 {
                     tokenBalance = "N/A",
-                    ethBalance = "N/A",
+                    ethBalance = ethBalance?.ToString("N6") ?? "0.00",
                     contractAddress = _currentContractAddress,
                     totalSupply = "N/A"
                 });
@@ -691,7 +1002,6 @@ public partial class MainWindow : Window
 
             // Fetch balances and supply
             var tokenBalance = await _tokenControlService.GetTokenBalanceAsync(_currentContractAddress, treasuryAddress);
-            var ethBalance = await _tokenControlService.GetEthBalanceAsync(treasuryAddress);
             var totalSupply = await _tokenControlService.GetTotalSupplyAsync(_currentContractAddress);
 
             await SendToWebAsync("balance-stats", new

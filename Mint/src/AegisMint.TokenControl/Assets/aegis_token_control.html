@@ -577,11 +577,84 @@
     }
 
     .footer-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+    .input-copy-wrapper { position: relative; }
+    .copy-btn {
+      position: absolute;
+      top: 50%;
+      right: 8px;
+      transform: translateY(-50%);
+      border: 1px solid rgba(215, 38, 56, 0.35);
+      background: rgba(215, 38, 56, 0.08);
+      color: var(--text-main);
+      border-radius: 10px;
+      padding: 4px 8px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: background 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
+    }
+
+    .copy-btn:hover {
+      background: rgba(215, 38, 56, 0.16);
+      border-color: rgba(215, 38, 56, 0.7);
+      transform: translateY(-50%) scale(1.01);
+    }
+
+    .tab-row {
+      display: flex;
+      gap: 6px;
+      margin: 6px 0 8px;
+      flex-wrap: wrap;
+    }
+
+    .tab-btn {
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text-soft);
+      border-radius: 10px;
+      padding: 6px 10px;
+      font-size: 11px;
+      cursor: pointer;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .tab-btn.active {
+      border-color: rgba(215, 38, 56, 0.65);
+      color: var(--accent);
+      background: rgba(215, 38, 56, 0.08);
+    }
+
+    .lock-banner {
+      border: 1px dashed rgba(215, 38, 56, 0.4);
+      background: rgba(215, 38, 56, 0.08);
+      color: var(--text-soft);
+      padding: 10px 12px;
+      border-radius: 12px;
+      margin: 0 0 12px;
+      display: none;
+    }
+
+    .inline-actions {
+      display: inline-flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .locked-control {
+      opacity: 0.55 !important;
+      pointer-events: none !important;
+    }
   </style>
 </head>
 <body>
   <div class="app-shell">
     <div class="app-content">
+      <div id="lock-banner" class="lock-banner">
+        <strong>Page locked</strong>
+        <div id="lock-banner-text">Load or import the treasury key and fund it with ETH to enable controls.</div>
+      </div>
       <header class="app-header">
         <div class="logo-wrap">
           <div class="logo-mark">A</div>
@@ -806,10 +879,20 @@
               <hr class="section-divider" />
 
               <div class="field-group">
-                <label class="label">
-                  <span class="main">Recent control actions</span>
-                  <span class="hint">Local view - back-end should persist real audit log</span>
-                </label>
+                <div class="label" style="align-items: flex-start;">
+                  <div>
+                    <span class="main">Recent control actions</span>
+                    <span class="hint">Local view - back-end should persist real audit log</span>
+                  </div>
+                  <div class="inline-actions">
+                    <button type="button" class="btn btn-ghost" id="export-logs">Export logs</button>
+                  </div>
+                </div>
+                <div class="tab-row">
+                  <button type="button" class="tab-btn active" data-target="log-list">Logs</button>
+                  <button type="button" class="tab-btn" data-target="frozen-list">Frozen Addresses</button>
+                  <button type="button" class="tab-btn" data-target="unfrozen-list">Unfrozen Addresses</button>
+                </div>
                 <div id="log-list" class="log-list">
                   <div class="log-item">
                     <div class="log-meta">
@@ -819,6 +902,8 @@
                     <div>Token Control console opened.</div>
                   </div>
                 </div>
+                <div id="frozen-list" class="log-list" style="display:none;"></div>
+                <div id="unfrozen-list" class="log-list" style="display:none;"></div>
               </div>
             </div>
           </div>
@@ -850,8 +935,10 @@
               <div class="footer-stat-label">Total Supply</div>
               <div class="footer-stat-value" id="stat-total-supply">0 TOK</div>
             </div>
-          </div>
-          <div class="footer-right">
+        </div>
+        <div class="footer-right">
+            <button type="button" class="btn btn-outline" id="recover-btn">Recover</button>
+            <button type="button" class="btn btn-outline" id="refresh-balances">Refresh balances</button>
             <button type="button" class="btn btn-ghost" id="reset-form">Reset form</button>
           </div>
         </div>

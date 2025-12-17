@@ -514,11 +514,91 @@
       cursor: not-allowed !important;
       pointer-events: none !important;
     }
+
+    .input-copy-wrapper {
+      position: relative;
+    }
+
+    .copy-btn {
+      position: absolute;
+      top: 50%;
+      right: 8px;
+      transform: translateY(-50%);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      background: rgba(56, 189, 248, 0.12);
+      color: var(--text-main);
+      border-radius: 10px;
+      padding: 4px 8px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: background 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
+    }
+
+    .copy-btn:hover {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: rgba(56, 189, 248, 0.7);
+      transform: translateY(-50%) scale(1.01);
+    }
+
+    .label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .inline-actions {
+      display: inline-flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .chip-btn {
+      border: 1px solid rgba(56, 189, 248, 0.5);
+      background: rgba(56, 189, 248, 0.12);
+      color: var(--text-main);
+      border-radius: 10px;
+      padding: 4px 10px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: background 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
+    }
+
+    .chip-btn:hover {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: rgba(56, 189, 248, 0.8);
+    }
+
+    .chip-btn[disabled] {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .lock-banner {
+      border: 1px dashed rgba(249, 115, 115, 0.5);
+      background: rgba(249, 115, 115, 0.08);
+      color: #fecdd3;
+      padding: 10px 12px;
+      border-radius: 12px;
+      margin: 0 0 16px;
+      display: none;
+    }
+
+    .lock-banner strong {
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #fca5a5;
+    }
   </style>
 </head>
 <body>
   <div class="app-shell">
     <div class="app-content">
+      <div id="lock-banner" class="lock-banner">
+        <strong>Locked</strong>
+        <div id="lock-banner-text">Generate a treasury key and fund it with ETH to continue.</div>
+      </div>
       <header class="app-header">
         <div class="logo-wrap">
           <div class="logo-mark">A</div>
@@ -712,8 +792,8 @@
                   <span class="main">Treasury Address</span>
                   <span class="hint">Buried account / genesis</span>
                 </label>
-                <div class="field-row">
-                  <div class="field-group">
+                
+                  
                     <input
                       id="treasury-address"
                       name="treasuryAddress"
@@ -725,11 +805,11 @@
                     <div class="hint-inline">
                       This single account is the engine, genesis, and treasury. It must hold ETH to deploy and will receive the minted tokens.
                     </div>
-                  </div>
+                  
                   <div class="field-group">
                     <div class="hint-inline" id="treasury-status">Fill Steps 1 & 2, then generate Treasury.</div>
                   </div>
-                </div>
+                
               </div>
 
               <div class="field-row">
@@ -738,16 +818,25 @@
                     <span class="main">Treasury ETH</span>
                     <span class="hint">Step 3 · Add gas (simulated)</span>
                   </label>
-                  <input
-                    id="treasury-eth"
-                    name="treasuryEth"
-                    class="input"
-                    type="number"
-                    min="0"
-                    step="0.0001"
-                    placeholder="0.00"
-                    disabled
-                  />
+                  <div class="label-row">
+                    <div class="inline-actions">
+                      <button type="button" class="chip-btn" id="refresh-treasury-eth">Refresh</button>
+                      <button type="button" class="chip-btn" id="sepolia-faucet" data-network="sepolia">Get Sepolia ETH</button>
+                    </div>
+                  </div>
+                  <div class="input-copy-wrapper">
+                    <input
+                      id="treasury-eth"
+                      name="treasuryEth"
+                      class="input"
+                      type="number"
+                      min="0"
+                      step="0.0001"
+                      placeholder="0.00"
+                      readonly
+                      data-force-disabled="true"
+                    />
+                  </div>
                   <div class="hint-inline">
                     Represents how much ETH is available to pay gas for deployment and control ops.
                   </div>

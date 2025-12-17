@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
@@ -50,7 +51,7 @@ public partial class MainWindow : Window
         var rpcUrl = network switch
         {
             "localhost" => "http://127.0.0.1:8545",
-            "mainnet" => "https://mainnet.infura.io/v3/YOUR_INFURA_API_KEY",
+            "mainnet" => "https://mainnet.infura.io/v3/fc5bd40a3f054a4f9842f53d0d711e0e",
             "sepolia" => "https://sepolia.infura.io/v3/fc6598ddab264c89a508cdb97d5398ea",
             _ => "https://sepolia.infura.io/v3/fc6598ddab264c89a508cdb97d5398ea"
         };
@@ -179,6 +180,12 @@ public partial class MainWindow : Window
                     break;
                 case "generate-treasury":
                     await HandleGenerateTreasury();
+                    break;
+                case "refresh-treasury-eth":
+                    await HandleRefreshTreasuryEthAsync(message.payload);
+                    break;
+                case "open-faucet":
+                    HandleOpenFaucet(message.payload);
                     break;
                 case "mint-submit":
                     await HandleMintSubmit(message.payload);
@@ -409,6 +416,70 @@ public partial class MainWindow : Window
             { 
                 message = $"Failed to generate Treasury: {ex.Message}" 
             });
+        }
+    }
+
+    private async Task HandleRefreshTreasuryEthAsync(JsonElement? payload)
+    {
+        try
+        {
+            if (_ethereumService == null)
+            {
+                await SendToWebAsync("host-error", new { message = "Ethereum service is not initialized." });
+                return;
+            }
+
+            string? address = null;
+            if (payload.HasValue && payload.Value.TryGetProperty("address", out var addrProp))
+            {
+                address = addrProp.GetString();
+            }
+
+            if (string.IsNullOrWhiteSpace(address))
+            {
+                address = _vaultManager.GetTreasuryAddress();
+            }
+
+            if (string.IsNullOrWhiteSpace(address))
+            {
+                await SendToWebAsync("host-error", new { message = "Treasury address not found." });
+                return;
+            }
+
+            var balance = await _ethereumService.GetBalanceAsync(address);
+            await SendToWebAsync("treasury-eth-updated", new { eth = balance });
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("Failed to refresh treasury ETH", ex);
+            await SendToWebAsync("host-error", new { message = $"Failed to refresh treasury ETH: {ex.Message}" });
+        }
+    }
+
+    private void HandleOpenFaucet(JsonElement? payload)
+    {
+        try
+        {
+            var network = payload.HasValue && payload.Value.TryGetProperty("network", out var netProp)
+                ? netProp.GetString()
+                : _currentNetwork;
+
+            if (!string.Equals(network, "sepolia", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            //var url = "https://faucet.quicknode.com/ethereum/sepolia";
+            var url = "https://cloud.google.com/application/web3/faucet/ethereum/sepolia";
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = url,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"Failed to open faucet link: {ex.Message}");
         }
     }
 

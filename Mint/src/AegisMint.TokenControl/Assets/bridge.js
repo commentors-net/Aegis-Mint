@@ -92,6 +92,14 @@ window.addEventListener('DOMContentLoaded', function() {
   const emergencyClearBtn = document.getElementById('emergency-clear');
   const sendFromInput = document.getElementById('send-from');
   const retrieveToInput = document.getElementById('retrieve-to');
+  const lockBanner = document.getElementById('lock-banner');
+  const lockBannerText = document.getElementById('lock-banner-text');
+  const exportLogsBtn = document.getElementById('export-logs');
+  const refreshBalancesBtn = document.getElementById('refresh-balances');
+  const recoverBtn = document.getElementById('recover-btn');
+  const tabButtons = document.querySelectorAll('.tab-btn');
+  const frozenList = document.getElementById('frozen-list');
+  const unfrozenList = document.getElementById('unfrozen-list');
 
   const sendToHost = (type, payload) => {
     if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage) {
@@ -128,6 +136,257 @@ window.addEventListener('DOMContentLoaded', function() {
     contractPill.addEventListener('click', () => copyContractAddress());
   }
 
+  let pageEnabled = false;
+  let ethPollTimer = null;
+  let hasTreasuryKey = false;
+  let treasuryAddressKnown = false;
+  let lastEthBalance = 0;
+  let lastFreezeContext = null;
+  const logHistory = [];
+  const frozenAddresses = new Set();
+  const unfrozenAddresses = new Set();
+  const frozenEntries = [];
+  const unfrozenEntries = [];
+  const alwaysEnabledControls = new Set([
+    networkSelect?.id,
+    refreshBalancesBtn?.id,
+    exportLogsBtn?.id,
+    recoverBtn?.id
+  ].filter(Boolean));
+
+  function attachCopyButtons() {
+    const targets = document.querySelectorAll('input.input, textarea.input, textarea.textarea');
+    targets.forEach((el) => {
+      if (!el) return;
+      let wrapper = el.closest('.input-copy-wrapper');
+      if (!wrapper) {
+        wrapper = document.createElement('div');
+        wrapper.className = 'input-copy-wrapper';
+        el.parentNode.insertBefore(wrapper, el);
+        wrapper.appendChild(el);
+      } else if (wrapper.querySelector('.copy-btn')) {
+        return;
+      }
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'copy-btn';
+      btn.textContent = '⧉';
+      btn.addEventListener('click', async () => {
+        const value = (el.value || '').toString().trim();
+        if (!value) {
+          showToast('Nothing to copy', true, 3000);
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(value);
+          showToast('Copied', false, 3000);
+        } catch (err) {
+          console.error('Copy failed', err);
+          showToast('Copy failed', true, 4000);
+        }
+      });
+      wrapper.appendChild(btn);
+    });
+  }
+
+  function showToast(text, isError = false, durationMs = 7000) {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'toast-container';
+      container.style.position = 'fixed';
+      container.style.bottom = '18px';
+      container.style.left = '18px';
+      container.style.display = 'flex';
+      container.style.flexDirection = 'column';
+      container.style.alignItems = 'flex-start';
+      container.style.gap = '8px';
+      container.style.zIndex = '1000';
+      document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+    toast.textContent = text;
+    toast.style.padding = '10px 14px';
+    toast.style.borderRadius = '12px';
+    toast.style.background = isError ? 'rgba(215, 38, 56, 0.9)' : 'rgba(16, 185, 129, 0.9)';
+    toast.style.color = '#0f172a';
+    toast.style.boxShadow = '0 10px 24px rgba(0,0,0,0.2)';
+    toast.style.maxWidth = '320px';
+    toast.style.wordBreak = 'break-word';
+    container.prepend(toast);
+
+    setTimeout(() => {
+      toast.remove();
+      if (container.childElementCount === 0) {
+        container.remove();
+      }
+    }, durationMs);
+  }
+
+  function setPageEnabled(enabled, reason) {
+    pageEnabled = enabled;
+    const controls = document.querySelectorAll('input, select, textarea, button');
+    controls.forEach((el) => {
+      if (!el) return;
+      if (el.classList.contains('copy-btn')) return;
+      if (alwaysEnabledControls.has(el.id)) return;
+      if (!enabled) {
+        el.disabled = true;
+        el.classList.add('locked-control');
+      } else {
+        el.disabled = false;
+        el.classList.remove('locked-control');
+      }
+    });
+
+    if (lockBanner && lockBannerText) {
+      if (enabled) {
+        lockBanner.style.display = 'none';
+      } else {
+        lockBanner.style.display = 'block';
+        lockBannerText.textContent = reason || 'Load or import the treasury key and fund it with ETH to continue.';
+      }
+    }
+  }
+
+  function startEthPolling() {
+    if (ethPollTimer || !treasuryAddressKnown) return;
+    sendToHost('refresh-balances', {});
+    ethPollTimer = setInterval(() => {
+      sendToHost('refresh-balances', {});
+    }, 12000);
+  }
+
+  function stopEthPolling() {
+    if (ethPollTimer) {
+      clearInterval(ethPollTimer);
+      ethPollTimer = null;
+    }
+  }
+
+  function evaluateLockState() {
+    const hasEth = treasuryAddressKnown && lastEthBalance > 0;
+
+    if (!treasuryAddressKnown) {
+      stopEthPolling();
+      setPageEnabled(false, 'Add or import a treasury address to continue.');
+      return;
+    }
+
+    if (!hasTreasuryKey) {
+      startEthPolling();
+      setPageEnabled(false, 'Treasury key not found. Install Mint or import the key.');
+      return;
+    }
+
+    if (!hasEth) {
+      setPageEnabled(false, 'Treasury has 0 ETH. Fund then refresh.');
+      startEthPolling();
+      return;
+    }
+
+    stopEthPolling();
+    setPageEnabled(true);
+  }
+
+  function activateTab(targetId) {
+    if (!tabButtons || !tabButtons.length) return;
+    tabButtons.forEach((btn) => {
+      const isActive = btn.dataset.target === targetId;
+      btn.classList.toggle('active', isActive);
+    });
+
+    if (logList) logList.style.display = targetId === 'log-list' ? 'flex' : 'none';
+    if (frozenList) frozenList.style.display = targetId === 'frozen-list' ? 'flex' : 'none';
+    if (unfrozenList) unfrozenList.style.display = targetId === 'unfrozen-list' ? 'flex' : 'none';
+  }
+
+  function formatTimestamp(dateLike) {
+    const date = dateLike instanceof Date ? dateLike : new Date(dateLike);
+    return date.toLocaleString();
+  }
+
+  function recordFreezeChange(address, frozen) {
+    if (!address) return;
+    if (frozen) {
+      frozenAddresses.add(address);
+      unfrozenAddresses.delete(address);
+      frozenEntries.unshift({ address, at: new Date() });
+    } else {
+      unfrozenAddresses.add(address);
+      frozenAddresses.delete(address);
+      unfrozenEntries.unshift({ address, at: new Date() });
+    }
+    renderAddressLists();
+  }
+
+  function renderAddressLists() {
+    if (frozenList) {
+      frozenList.innerHTML = '';
+      frozenEntries.slice(0, 50).forEach((entry) => {
+        const item = document.createElement('div');
+        item.className = 'log-item';
+        item.innerHTML = `<div class="log-meta"><span class="log-tag">Frozen</span><span>${formatTimestamp(entry.at)}</span></div><div>${entry.address}</div>`;
+        frozenList.appendChild(item);
+      });
+      if (frozenEntries.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'log-item';
+        empty.textContent = 'No frozen addresses yet.';
+        frozenList.appendChild(empty);
+      }
+    }
+
+    if (unfrozenList) {
+      unfrozenList.innerHTML = '';
+      unfrozenEntries.slice(0, 50).forEach((entry) => {
+        const item = document.createElement('div');
+        item.className = 'log-item';
+        item.innerHTML = `<div class="log-meta"><span class="log-tag">Unfrozen</span><span>${formatTimestamp(entry.at)}</span></div><div>${entry.address}</div>`;
+        unfrozenList.appendChild(item);
+      });
+      if (unfrozenEntries.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'log-item';
+        empty.textContent = 'No unfrozen addresses yet.';
+        unfrozenList.appendChild(empty);
+      }
+    }
+  }
+
+  function exportLogs() {
+    if (!logHistory.length) {
+      showToast('No logs to export yet.', true, 4000);
+      return;
+    }
+
+    const header = ['Timestamp', 'Tag', 'Message', 'TransactionHash', 'Address'];
+    const lines = [header.join(',')];
+    logHistory.forEach((entry) => {
+      const safe = (value) => `"${(value || '').toString().replace(/\"/g, '""')}"`;
+      lines.push([
+        safe(entry.timestamp),
+        safe(entry.tag),
+        safe(entry.text),
+        safe(entry.txHash || ''),
+        safe(entry.address || '')
+      ].join(','));
+    });
+
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `aegis-token-control-logs-${Date.now()}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    showToast('Logs exported', false, 4000);
+  }
+
   function setPauseUI(paused, options = {}) {
     if (pauseSwitch) {
       pauseSwitch.setAttribute('data-on', paused ? 'true' : 'false');
@@ -150,7 +409,8 @@ window.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  function addLog(tag, text, txHash = null, address = null) {
+      function addLog(tag, text, txHash = null, address = null, timestamp = new Date()) {
+    const ts = timestamp instanceof Date ? timestamp : new Date(timestamp);
     const item = document.createElement('div');
     item.className = 'log-item';
     const meta = document.createElement('div');
@@ -159,7 +419,7 @@ window.addEventListener('DOMContentLoaded', function() {
     tagSpan.className = 'log-tag';
     tagSpan.textContent = tag;
     const timeSpan = document.createElement('span');
-    timeSpan.textContent = 'Now';
+    timeSpan.textContent = formatTimestamp(ts);
     meta.appendChild(tagSpan);
     meta.appendChild(timeSpan);
     const textDiv = document.createElement('div');
@@ -170,7 +430,6 @@ window.addEventListener('DOMContentLoaded', function() {
     item.appendChild(meta);
     item.appendChild(textDiv);
     
-    // Add transaction hash if provided
     if (txHash) {
       const txDiv = document.createElement('div');
       txDiv.style.marginTop = '4px';
@@ -188,7 +447,7 @@ window.addEventListener('DOMContentLoaded', function() {
         try {
           await navigator.clipboard.writeText(txHash);
           const original = txDiv.textContent;
-          txDiv.textContent = '✓ Copied!';
+          txDiv.textContent = 'Copied!';
           setTimeout(() => { txDiv.textContent = original; }, 1500);
         } catch (err) {
           console.error('Failed to copy:', err);
@@ -197,7 +456,6 @@ window.addEventListener('DOMContentLoaded', function() {
       item.appendChild(txDiv);
     }
     
-    // Add address if provided
     if (address) {
       const addrDiv = document.createElement('div');
       addrDiv.style.marginTop = '4px';
@@ -215,7 +473,7 @@ window.addEventListener('DOMContentLoaded', function() {
         try {
           await navigator.clipboard.writeText(address);
           const original = addrDiv.textContent;
-          addrDiv.textContent = '✓ Copied!';
+          addrDiv.textContent = 'Copied!';
           setTimeout(() => { addrDiv.textContent = original; }, 1500);
         } catch (err) {
           console.error('Failed to copy:', err);
@@ -224,7 +482,21 @@ window.addEventListener('DOMContentLoaded', function() {
       item.appendChild(addrDiv);
     }
     
-    logList.insertBefore(item, logList.firstChild);
+    if (logList) {
+      logList.insertBefore(item, logList.firstChild);
+    }
+
+    logHistory.unshift({
+      tag,
+      text,
+      txHash,
+      address,
+      timestamp: ts.toISOString()
+    });
+    if (logHistory.length > 300) {
+      logHistory.pop();
+    }
+
     logToHost(text, tag.toLowerCase() === 'emergency' ? 'warn' : 'info');
   }
 
@@ -249,6 +521,8 @@ window.addEventListener('DOMContentLoaded', function() {
     const selectedNetwork = networkSelect.value;
     addLog('Network', `Network switched to ${selectedNetwork}`);
     sendToHost('network-changed', { network: selectedNetwork });
+    lastEthBalance = 0;
+    evaluateLockState();
   });
 
   sendBtn.addEventListener('click', () => {
@@ -279,6 +553,7 @@ window.addEventListener('DOMContentLoaded', function() {
     const isFreezing = action === 'freeze';
     showProgress(`${isFreezing ? 'Freezing' : 'Unfreezing'} address...`);
     addLog('Freeze', `${isFreezing ? 'Freezing' : 'Unfreezing'} address`, null, addr);
+    lastFreezeContext = { address: addr, freeze: isFreezing };
     sendToHost('freeze-address', { address: addr, freeze: isFreezing, reason });
   });
 
@@ -305,6 +580,33 @@ window.addEventListener('DOMContentLoaded', function() {
     addLog('Emergency', 'Clear emergency state requested.');
   });
 
+  refreshBalancesBtn?.addEventListener('click', () => {
+    showProgress('Refreshing balances...');
+    sendToHost('refresh-balances', {});
+  });
+
+  recoverBtn?.addEventListener('click', () => {
+    showProgress('Recovering treasury from shares...');
+    sendToHost('recover-from-shares', {});
+  });
+
+  exportLogsBtn?.addEventListener('click', exportLogs);
+
+  if (tabButtons && tabButtons.length) {
+    tabButtons.forEach((btn) => {
+      btn.addEventListener('click', () => activateTab(btn.dataset.target));
+    });
+  }
+
+  if (logList) {
+    logList.innerHTML = '';
+  }
+  activateTab('log-list');
+  renderAddressLists();
+  attachCopyButtons();
+  addLog('System', 'Token Control console opened.', null, null, new Date());
+  evaluateLockState();
+
   function applyNetworkFromHost(network) {
     if (!networkSelect || !network) return;
     const option = Array.from(networkSelect.options).find(opt => opt.value === network);
@@ -315,21 +617,38 @@ window.addEventListener('DOMContentLoaded', function() {
 
   function applyVaultStatus(payload) {
     if (!payload) return;
+    hasTreasuryKey = payload.hasTreasuryKey !== undefined ? !!payload.hasTreasuryKey : !!payload.hasTreasury;
+    treasuryAddressKnown = !!payload.treasuryAddress;
+    if (recoverBtn) {
+      if (hasTreasuryKey) {
+        recoverBtn.style.display = 'none';
+        recoverBtn.disabled = true;
+      } else {
+        recoverBtn.style.display = 'inline-flex';
+        recoverBtn.disabled = false;
+      }
+    }
     if (payload.currentNetwork) {
       applyNetworkFromHost(payload.currentNetwork);
     }
     if (payload.treasuryAddress) {
       if (sendFromInput) sendFromInput.value = payload.treasuryAddress;
       if (retrieveToInput) retrieveToInput.value = payload.treasuryAddress;
+    } else {
+      treasuryAddressKnown = false;
+      if (sendFromInput) sendFromInput.value = '';
+      if (retrieveToInput) retrieveToInput.value = '';
     }
     if (payload.contractAddress) {
       setContractAddress(payload.contractAddress);
       addLog('Contract', `Active contract: ${payload.contractAddress.substring(0, 16)}...`);
     }
+    evaluateLockState();
   }
 
   function applyBalanceStats(payload) {
     if (!payload) return;
+    hideProgress();
     
     const statTokenBalance = document.getElementById('stat-token-balance');
     const statEthBalance = document.getElementById('stat-eth-balance');
@@ -342,6 +661,11 @@ window.addEventListener('DOMContentLoaded', function() {
     if (statEthBalance && payload.ethBalance !== undefined) {
       statEthBalance.textContent = `${payload.ethBalance} ETH`;
     }
+    if (payload.ethBalance !== undefined) {
+      const raw = payload.ethBalance.toString().replace(/,/g, '').replace(/ ETH/i, '');
+      const ethVal = Number(raw);
+      lastEthBalance = Number.isFinite(ethVal) ? ethVal : 0;
+    }
     if (statContractAddress && payload.contractAddress) {
       const addr = payload.contractAddress;
       const short = addr.length > 16 ? `${addr.substring(0, 8)}...${addr.substring(addr.length - 6)}` : addr;
@@ -352,6 +676,8 @@ window.addEventListener('DOMContentLoaded', function() {
     if (statTotalSupply && payload.totalSupply !== undefined) {
       statTotalSupply.textContent = `${payload.totalSupply} TOK`;
     }
+
+    evaluateLockState();
   }
 
   function applyPauseStatus(payload) {
@@ -374,6 +700,17 @@ window.addEventListener('DOMContentLoaded', function() {
       case 'vault-status':
         applyVaultStatus(payload);
         break;
+      case 'treasury-eth-updated':
+        if (payload?.eth !== undefined) {
+          const value = Number(payload.eth);
+          const statEthBalance = document.getElementById('stat-eth-balance');
+          if (statEthBalance) {
+            statEthBalance.textContent = `${Number.isNaN(value) ? payload.eth : value.toFixed(6)} ETH`;
+          }
+          lastEthBalance = Number.isFinite(value) ? value : lastEthBalance;
+          evaluateLockState();
+        }
+        break;
       case 'balance-stats':
         applyBalanceStats(payload);
         break;
@@ -382,6 +719,15 @@ window.addEventListener('DOMContentLoaded', function() {
         break;
       case 'operation-result':
         handleOperationResult(payload);
+        break;
+      case 'recovery-result':
+        if (payload?.message) {
+          showToast(payload.message, false, 6000);
+        }
+        if (recoverBtn) {
+          recoverBtn.style.display = 'none';
+          recoverBtn.disabled = true;
+        }
         break;
       case 'host-error':
         hideProgress();
@@ -402,12 +748,25 @@ window.addEventListener('DOMContentLoaded', function() {
     
     if (!payload) return;
     
-    const { operation, success, transactionHash, errorMessage } = payload;
-    
+    const { operation, success, transactionHash, errorMessage, address, timestamp } = payload;
+    const opName = operation || 'Operation';
+    const ts = timestamp || new Date().toISOString();
+    const addressForLog = address || (opName === 'Freeze' && lastFreezeContext?.address ? lastFreezeContext.address : null);
+
     if (success) {
-      addLog(operation || 'Operation', `✓ ${operation} completed successfully`, transactionHash);
+      addLog(opName, `${opName} completed successfully`, transactionHash, addressForLog, ts);
+      showToast(`${opName} completed`, false, 5000);
+      if (opName === 'Freeze' && lastFreezeContext?.address) {
+        recordFreezeChange(lastFreezeContext.address, !!lastFreezeContext.freeze);
+      }
+      sendToHost('refresh-balances', {});
     } else {
-      addLog('Error', `${operation || 'Operation'} failed: ${errorMessage || 'Unknown error'}`, transactionHash);
+      addLog('Error', `${opName} failed: ${errorMessage || 'Unknown error'}`, transactionHash, addressForLog, ts);
+      showToast(errorMessage || `${opName} failed`, true, 7000);
+    }
+
+    if (opName === 'Freeze') {
+      lastFreezeContext = null;
     }
   }
 

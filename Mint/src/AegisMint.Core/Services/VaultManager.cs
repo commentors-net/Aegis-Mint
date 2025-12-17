@@ -17,6 +17,8 @@ public class VaultManager
     private readonly VaultDataStore _store = new();
     private const string TreasuryMnemonicKey = "TreasuryMnemonic";
     private const string LastNetworkKey = "LastNetwork";
+    private const string ExternalTreasuryAddressKey = "ExternalTreasuryAddress";
+    private const string BootstrapThresholdKey = "BootstrapThreshold";
     private bool _legacyMigrationAttempted;
 
     public VaultManager()
@@ -215,6 +217,43 @@ public class VaultManager
         {
             return string.Empty;
         }
+    }
+
+    /// <summary>
+    /// Returns a known treasury address. Falls back to a user-provided address if the mnemonic is missing.
+    /// </summary>
+    public string? GetKnownTreasuryAddress()
+    {
+        return GetTreasuryAddress() ?? _store.GetSetting(ExternalTreasuryAddressKey);
+    }
+
+    /// <summary>
+    /// Saves an externally provided treasury address for display/use when no mnemonic is present.
+    /// </summary>
+    public void SaveExternalTreasuryAddress(string address)
+    {
+        if (string.IsNullOrWhiteSpace(address))
+        {
+            return;
+        }
+
+        _store.SaveSetting(ExternalTreasuryAddressKey, address.Trim());
+    }
+
+    public void SaveBootstrapThreshold(int threshold)
+    {
+        if (threshold <= 0)
+        {
+            return;
+        }
+
+        _store.SaveSetting(BootstrapThresholdKey, threshold.ToString());
+    }
+
+    public int? GetBootstrapThreshold()
+    {
+        var value = _store.GetSetting(BootstrapThresholdKey);
+        return int.TryParse(value, out var parsed) ? parsed : null;
     }
 
     private static string NormalizeNetwork(string network)
