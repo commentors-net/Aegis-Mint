@@ -87,8 +87,6 @@ window.addEventListener('DOMContentLoaded', function() {
   const sendBtn = document.getElementById('send-btn');
   const freezeBtn = document.getElementById('freeze-btn');
   const retrieveBtn = document.getElementById('retrieve-btn');
-  const emergencyFreezeAllBtn = document.getElementById('emergency-freeze-all');
-  const emergencyClearBtn = document.getElementById('emergency-clear');
   const sendFromInput = document.getElementById('send-from');
   const retrieveToInput = document.getElementById('retrieve-to');
   const lockBanner = document.getElementById('lock-banner');
@@ -355,6 +353,30 @@ window.addEventListener('DOMContentLoaded', function() {
     }
   }
 
+  function applyFreezeHistory(payload) {
+    const frozen = Array.isArray(payload?.frozen) ? payload.frozen : [];
+    const unfrozen = Array.isArray(payload?.unfrozen) ? payload.unfrozen : [];
+
+    frozenEntries.length = 0;
+    unfrozenEntries.length = 0;
+    frozenAddresses.clear();
+    unfrozenAddresses.clear();
+
+    frozen.forEach((entry) => {
+      if (!entry?.address) return;
+      frozenAddresses.add(entry.address);
+      frozenEntries.push({ address: entry.address, at: entry.timestamp || entry.at || entry.createdAt });
+    });
+
+    unfrozen.forEach((entry) => {
+      if (!entry?.address) return;
+      unfrozenAddresses.add(entry.address);
+      unfrozenEntries.push({ address: entry.address, at: entry.timestamp || entry.at || entry.createdAt });
+    });
+
+    renderAddressLists();
+  }
+
   function exportLogs() {
     if (!logHistory.length) {
       showToast('No logs to export yet.', true, 4000);
@@ -566,14 +588,8 @@ window.addEventListener('DOMContentLoaded', function() {
     sendToHost('retrieve-tokens', { from, amount, reason });
   });
 
-  emergencyFreezeAllBtn.addEventListener('click', () => {
-    addLog('Emergency', 'Emergency freeze-all requested.');
-  });
 
-  emergencyClearBtn.addEventListener('click', () => {
-    addLog('Emergency', 'Clear emergency state requested.');
-  });
-
+  
   refreshBalancesBtn?.addEventListener('click', () => {
     showProgress('Refreshing balances...');
     sendToHost('refresh-balances', {});
@@ -731,6 +747,9 @@ window.addEventListener('DOMContentLoaded', function() {
         if (payload?.message) {
           showProgress(payload.message);
         }
+        break;
+      case 'freeze-history':
+        applyFreezeHistory(payload);
         break;
       default:
         break;

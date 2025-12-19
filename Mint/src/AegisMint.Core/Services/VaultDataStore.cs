@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
 using Microsoft.Data.Sqlite;
 using SQLitePCL;
+using AegisMint.Core.Models;
 
 namespace AegisMint.Core.Services;
 
@@ -400,6 +402,44 @@ internal sealed class VaultDataStore
         command.Parameters.AddWithValue("$completed_at_utc", DateTimeOffset.UtcNow.ToString("o"));
 
         command.ExecuteNonQuery();
+    }
+
+    public IReadOnlyList<FreezeOperation> GetFreezeOperations(string network, int limit = 100)
+    {
+        var list = new List<FreezeOperation>();
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT id, network, contract_address, target_address, is_frozen, reason,
+                   transaction_hash, status, error_message, created_at_utc, completed_at_utc
+            FROM freeze_operations
+            WHERE network = $network
+            ORDER BY datetime(created_at_utc) DESC
+            LIMIT $limit;
+            """;
+        command.Parameters.AddWithValue("$network", network);
+        command.Parameters.AddWithValue("$limit", limit);
+
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            list.Add(new FreezeOperation
+            {
+                Id = reader.GetInt64(0),
+                Network = reader.GetString(1),
+                ContractAddress = reader.GetString(2),
+                TargetAddress = reader.GetString(3),
+                IsFrozen = reader.GetInt64(4) == 1,
+                Reason = reader.IsDBNull(5) ? null : reader.GetString(5),
+                TransactionHash = reader.IsDBNull(6) ? null : reader.GetString(6),
+                Status = reader.GetString(7),
+                ErrorMessage = reader.IsDBNull(8) ? null : reader.GetString(8),
+                CreatedAtUtc = DateTimeOffset.Parse(reader.GetString(9)),
+                CompletedAtUtc = reader.IsDBNull(10) ? null : DateTimeOffset.Parse(reader.GetString(10))
+            });
+        }
+
+        return list;
     }
 
     // Token Retrieval Operations

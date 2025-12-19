@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using NBitcoin;
 using Nethereum.Util;
 using Microsoft.Win32;
+using AegisMint.Core.Models;
 
 namespace AegisMint.Core.Services;
 
@@ -217,6 +219,11 @@ public class VaultManager
         {
             return string.Empty;
         }
+    }
+
+    public IReadOnlyList<FreezeOperation> GetFreezeOperations(string network, int limit = 100)
+    {
+        return _store.GetFreezeOperations(NormalizeNetwork(network), limit);
     }
 
     /// <summary>

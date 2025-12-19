@@ -128,6 +128,7 @@ public partial class MainWindow : Window
             await SendVaultStatusAsync();
             await UpdateBalanceStatsAsync();
             await UpdatePauseStatusAsync();
+            await SendFreezeHistoryAsync();
         }
         else
         {
@@ -235,6 +236,7 @@ public partial class MainWindow : Window
         await SendVaultStatusAsync();
         await UpdateBalanceStatsAsync();
         await UpdatePauseStatusAsync();
+        await SendFreezeHistoryAsync();
     }
 
     private string GetRpcUrlForNetwork(string network)
@@ -767,6 +769,41 @@ public partial class MainWindow : Window
         {
             message
         });
+    }
+
+    private async Task SendFreezeHistoryAsync()
+    {
+        try
+        {
+            var history = _vaultManager.GetFreezeOperations(_currentNetwork, 100);
+            var frozen = history
+                .Where(h => h.IsFrozen)
+                .Select(h => new
+                {
+                    address = h.TargetAddress,
+                    timestamp = h.CompletedAtUtc ?? h.CreatedAtUtc
+                })
+                .ToList();
+
+            var unfrozen = history
+                .Where(h => !h.IsFrozen)
+                .Select(h => new
+                {
+                    address = h.TargetAddress,
+                    timestamp = h.CompletedAtUtc ?? h.CreatedAtUtc
+                })
+                .ToList();
+
+            await SendToWebAsync("freeze-history", new
+            {
+                frozen,
+                unfrozen
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"Failed to send freeze history: {ex.Message}");
+        }
     }
 
     private async Task HandleNetworkChangeAsync(JsonElement? payload)
