@@ -4,7 +4,6 @@ window.addEventListener('DOMContentLoaded', function() {
   const pauseSwitch = document.getElementById('pause-switch');
   const metricStatus = document.getElementById('metric-status');
   const metricStatusPill = document.getElementById('metric-status-pill');
-  const resetBtn = document.getElementById('reset-form');
   const networkSelect = document.getElementById('network-select');
   const contractPill = document.getElementById('contract-pill');
   const contractPillValue = document.getElementById('contract-pill-value');
@@ -126,9 +125,9 @@ window.addEventListener('DOMContentLoaded', function() {
     if (!window.contractAddress) return;
     try {
       await navigator.clipboard.writeText(window.contractAddress);
-      addLog('Copy', 'Contract address copied to clipboard.');
+      //addLog('Copy', 'Contract address copied to clipboard.');
     } catch (err) {
-      addLog('Error', 'Failed to copy contract address.');
+      //addLog('Error', 'Failed to copy contract address.');
     }
   }
 
@@ -175,15 +174,15 @@ window.addEventListener('DOMContentLoaded', function() {
       btn.addEventListener('click', async () => {
         const value = (el.value || '').toString().trim();
         if (!value) {
-          showToast('Nothing to copy', true, 3000);
+          //showToast('Nothing to copy', true, 3000);
           return;
         }
         try {
           await navigator.clipboard.writeText(value);
-          showToast('Copied', false, 3000);
+          //showToast('Copied', false, 3000);
         } catch (err) {
           console.error('Copy failed', err);
-          showToast('Copy failed', true, 4000);
+          //showToast('Copy failed', true, 4000);
         }
       });
       wrapper.appendChild(btn);
@@ -511,12 +510,7 @@ window.addEventListener('DOMContentLoaded', function() {
     addLog('Pause', `System pause toggled ${next ? 'ON' : 'OFF'}.`);
   });
 
-  resetBtn.addEventListener('click', () => {
-    form.reset();
-    setPauseUI(false);
-    addLog('System', 'Local form state reset.');
-  });
-
+  
   networkSelect.addEventListener('change', () => {
     const selectedNetwork = networkSelect.value;
     addLog('Network', `Network switched to ${selectedNetwork}`);

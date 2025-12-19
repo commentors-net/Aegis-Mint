@@ -17,6 +17,33 @@ public class JsonRpcClient
     private readonly string _rpcUrl;
     private int _requestId = 1;
 
+    public sealed class JsonRpcException : Exception
+    {
+        public int Code { get; }
+        public string? RpcMessage { get; }
+        public string? DataJson { get; }
+        public string? RevertReason { get; }
+
+        public JsonRpcException(int code, string message, string? dataJson = null, string? revertReason = null)
+            : base(FormatMessage(code, message, revertReason))
+        {
+            Code = code;
+            RpcMessage = message;
+            DataJson = dataJson;
+            RevertReason = revertReason;
+        }
+
+        private static string FormatMessage(int code, string message, string? revertReason)
+        {
+            if (string.IsNullOrWhiteSpace(revertReason))
+            {
+                return $"RPC Error {code}: {message}";
+            }
+
+            return $"RPC Error {code}: {message} (revert: {revertReason})";
+        }
+    }
+
     public JsonRpcClient(string rpcUrl)
     {
         _rpcUrl = rpcUrl;
@@ -67,9 +94,17 @@ public class JsonRpcClient
 
             if (rpcResponse?.Error != null)
             {
+                var dataJson = rpcResponse.Error.Data.HasValue ? rpcResponse.Error.Data.Value.GetRawText() : null;
+                var revertReason = EvmRevertReason.TryDecodeFromJsonRpcErrorData(rpcResponse.Error.Data, rpcResponse.Error.Message);
+
                 var errorMessage = $"RPC Error {rpcResponse.Error.Code}: {rpcResponse.Error.Message}";
+                if (!string.IsNullOrWhiteSpace(revertReason))
+                {
+                    errorMessage += $" (revert: {revertReason})";
+                }
+
                 Logger.Error(errorMessage);
-                throw new Exception(errorMessage);
+                throw new JsonRpcException(rpcResponse.Error.Code, rpcResponse.Error.Message, dataJson, revertReason);
             }
 
             if (rpcResponse?.Result == null)

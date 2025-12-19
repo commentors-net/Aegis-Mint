@@ -641,6 +641,23 @@ public class TokenControlService
         {
             Logger.Info($"{(freeze ? "Freezing" : "Unfreezing")} address {targetAddress} on contract {contractAddress}");
 
+            var addressUtil = new Nethereum.Util.AddressUtil();
+            if (!addressUtil.IsValidEthereumAddressHexFormat(contractAddress))
+            {
+                var errorMsg = $"Invalid contract address: {contractAddress}";
+                Logger.Error(errorMsg);
+                _dataStore.UpdateFreezeOperationStatus(freezeId, "failed", null, errorMsg);
+                return new OperationResult { Success = false, ErrorMessage = errorMsg };
+            }
+
+            if (!addressUtil.IsValidEthereumAddressHexFormat(targetAddress))
+            {
+                var errorMsg = $"Invalid target address: {targetAddress}";
+                Logger.Error(errorMsg);
+                _dataStore.UpdateFreezeOperationStatus(freezeId, "failed", null, errorMsg);
+                return new OperationResult { Success = false, ErrorMessage = errorMsg };
+            }
+
             // Get treasury private key for signing
             var privateKey = _vaultManager.GetTreasuryPrivateKey();
             if (string.IsNullOrWhiteSpace(privateKey))
@@ -668,28 +685,6 @@ public class TokenControlService
                 };
             }
 
-            // Check ETH balance for gas
-            var ethBalanceHex = await _rpcClient.GetBalanceAsync(fromAddress);
-            var ethBalance = HexToBigInteger(ethBalanceHex);
-            var gasPriceHex = await _rpcClient.GetGasPriceAsync();
-            var gasPrice = HexToBigInteger(gasPriceHex);
-            var estimatedGasLimit = BigInteger.Parse("50000"); // Estimated gas for freeze/unfreeze
-            var estimatedGasCost = gasPrice * estimatedGasLimit;
-
-            if (ethBalance < estimatedGasCost)
-            {
-                var errorMsg = $"Insufficient ETH for gas. Balance: {FormatWei(ethBalance)} ETH, Required: ~{FormatWei(estimatedGasCost)} ETH";
-                Logger.Error(errorMsg);
-                _dataStore.UpdateFreezeOperationStatus(freezeId, "failed", null, errorMsg);
-                return new OperationResult
-                {
-                    Success = false,
-                    ErrorMessage = errorMsg
-                };
-            }
-
-            Logger.Info($"ETH balance check passed. Balance: {FormatWei(ethBalance)} ETH");
-
             // Load contract ABI
             var artifactLoader = new ContractArtifactLoader();
             var artifacts = artifactLoader.LoadTokenImplementation();
@@ -708,6 +703,62 @@ public class TokenControlService
             var functionName = freeze ? "freeze" : "unfreeze";
             var encodedData = EncodeFunctionCall(artifacts.Abi ?? string.Empty, functionName, new object[] { targetAddress });
 
+            // Preflight: estimate gas (also surfaces revert reasons without burning ETH)
+            BigInteger gasLimit;
+            try
+            {
+                var estimateTransaction = new
+                {
+                    from = fromAddress,
+                    to = contractAddress,
+                    data = encodedData
+                };
+
+                var gasEstimateHex = await _rpcClient.EstimateGasAsync(estimateTransaction);
+                var gasEstimate = HexToBigInteger(gasEstimateHex);
+                if (gasEstimate <= 0)
+                {
+                    gasEstimate = BigInteger.Parse("50000");
+                }
+
+                // Add buffer to reduce risk of underestimation.
+                gasLimit = (gasEstimate * 12) / 10 + BigInteger.Parse("5000");
+            }
+            catch (JsonRpcClient.JsonRpcException ex)
+            {
+                var errorMsg = !string.IsNullOrWhiteSpace(ex.RevertReason)
+                    ? $"Freeze reverted: {ex.RevertReason}"
+                    : $"Freeze failed during gas estimation: {ex.Message}";
+
+                Logger.Error(errorMsg, ex);
+                _dataStore.UpdateFreezeOperationStatus(freezeId, "failed", null, errorMsg);
+                return new OperationResult { Success = false, ErrorMessage = errorMsg };
+            }
+            catch (Exception ex)
+            {
+                var errorMsg = $"Freeze failed during gas estimation: {ex.Message}";
+                Logger.Error(errorMsg, ex);
+                _dataStore.UpdateFreezeOperationStatus(freezeId, "failed", null, errorMsg);
+                return new OperationResult { Success = false, ErrorMessage = errorMsg };
+            }
+
+            // Check ETH balance for gas using estimated gas limit
+            var ethBalanceHex = await _rpcClient.GetBalanceAsync(fromAddress);
+            var ethBalance = HexToBigInteger(ethBalanceHex);
+            var gasPriceHex = await _rpcClient.GetGasPriceAsync();
+            var gasPrice = HexToBigInteger(gasPriceHex);
+            var estimatedGasCost = gasPrice * gasLimit;
+
+            if (ethBalance < estimatedGasCost)
+            {
+                var errorMsg = $"Insufficient ETH for gas. Balance: {FormatWei(ethBalance)} ETH, Required: ~{FormatWei(estimatedGasCost)} ETH";
+                Logger.Error(errorMsg);
+                _dataStore.UpdateFreezeOperationStatus(freezeId, "failed", null, errorMsg);
+                return new OperationResult { Success = false, ErrorMessage = errorMsg };
+            }
+
+            Logger.Info($"ETH balance check passed. Balance: {FormatWei(ethBalance)} ETH");
+
             // Get chain ID
             var chainIdHex = await _rpcClient.GetChainIdAsync();
             var chainId = HexToBigInteger(chainIdHex);
@@ -723,7 +774,7 @@ public class TokenControlService
             var signedTx = signer.SignContractCallTransaction(
                 nonce,
                 gasPrice,
-                estimatedGasLimit,
+                gasLimit,
                 contractAddress,
                 encodedData,
                 chainId);
@@ -768,7 +819,7 @@ public class TokenControlService
 
             if (success)
             {
-                Logger.Info($"✓ Address {(freeze ? "frozen" : "unfrozen")} successfully");
+                Logger.Info($"Address {(freeze ? "frozen" : "unfrozen")} successfully");
                 _dataStore.UpdateFreezeOperationStatus(freezeId, "confirmed", txHash, null);
                 
                 return new OperationResult
@@ -779,7 +830,33 @@ public class TokenControlService
             }
             else
             {
-                var errorMsg = "Transaction failed on blockchain";
+                string? revertReason = null;
+
+                // Attempt to retrieve revert reason by simulating the call at the mined block.
+                if (receipt.Value.TryGetProperty("blockNumber", out var blockNumberProp))
+                {
+                    var blockTag = blockNumberProp.GetString();
+                    if (!string.IsNullOrWhiteSpace(blockTag))
+                    {
+                        try
+                        {
+                            var callTx = new { from = fromAddress, to = contractAddress, data = encodedData };
+                            await _rpcClient.CallAsync(callTx, blockTag);
+                        }
+                        catch (JsonRpcClient.JsonRpcException ex)
+                        {
+                            revertReason = ex.RevertReason ?? ex.RpcMessage;
+                        }
+                        catch
+                        {
+                            // best-effort only
+                        }
+                    }
+                }
+
+                var errorMsg = !string.IsNullOrWhiteSpace(revertReason)
+                    ? $"Transaction failed on blockchain: {revertReason}"
+                    : "Transaction failed on blockchain";
                 Logger.Error($"{errorMsg}: {txHash}");
                 _dataStore.UpdateFreezeOperationStatus(freezeId, "failed", txHash, errorMsg);
                 

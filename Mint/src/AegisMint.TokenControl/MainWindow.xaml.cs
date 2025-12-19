@@ -330,6 +330,13 @@ public partial class MainWindow : Window
                 return;
             }
 
+            var addressUtil = new AddressUtil();
+            if (!addressUtil.IsValidEthereumAddressHexFormat(address))
+            {
+                await SendOperationResultAsync("Freeze", false, null, "Invalid address format", address);
+                return;
+            }
+
             Logger.Info($"{(freeze ? "Freezing" : "Unfreezing")} address: {address}");
 
             await SendProgressAsync($"{(freeze ? "Freezing" : "Unfreezing")} address on blockchain...");

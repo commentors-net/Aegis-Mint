@@ -1,5 +1,6 @@
 ﻿<!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <title>Aegis Token Control</title>
@@ -20,7 +21,9 @@
       --shadow-subtle: 0 1px 0 rgba(15, 23, 42, 0.05);
     }
 
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+    }
 
     body {
       margin: 0;
@@ -58,7 +61,10 @@
       z-index: 0;
     }
 
-    .app-content { position: relative; z-index: 1; }
+    .app-content {
+      position: relative;
+      z-index: 1;
+    }
 
     .app-header {
       display: flex;
@@ -70,7 +76,11 @@
       margin-bottom: 20px;
     }
 
-    .logo-wrap { display: flex; align-items: center; gap: 12px; }
+    .logo-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
 
     .logo-mark {
       width: 34px;
@@ -138,7 +148,9 @@
       cursor: default;
     }
 
-    .pill.clickable { cursor: pointer; }
+    .pill.clickable {
+      cursor: pointer;
+    }
 
     .pill-label {
       color: var(--text-muted);
@@ -147,7 +159,9 @@
       letter-spacing: 0.12em;
     }
 
-    .pill-value { font-weight: 500; }
+    .pill-value {
+      font-weight: 500;
+    }
 
     .pill-dot {
       width: 8px;
@@ -199,7 +213,9 @@
     }
 
     @media (max-width: 880px) {
-      .main-grid { grid-template-columns: minmax(0, 1fr); }
+      .main-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
     }
 
     .panel {
@@ -212,7 +228,10 @@
       overflow: hidden;
     }
 
-    .panel-inner { position: relative; z-index: 1; }
+    .panel-inner {
+      position: relative;
+      z-index: 1;
+    }
 
     .panel-header {
       display: flex;
@@ -261,7 +280,9 @@
     }
 
     @media (max-width: 640px) {
-      .field-row { grid-template-columns: minmax(0, 1fr); }
+      .field-row {
+        grid-template-columns: minmax(0, 1fr);
+      }
     }
 
     .label {
@@ -299,7 +320,11 @@
       transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, transform 0.05s ease;
     }
 
-    .textarea { resize: vertical; min-height: 46px; max-height: 120px; }
+    .textarea {
+      resize: vertical;
+      min-height: 46px;
+      max-height: 120px;
+    }
 
     .input:focus,
     .select:focus,
@@ -310,9 +335,14 @@
     }
 
     .input::placeholder,
-    .textarea::placeholder { color: #4b5563; }
+    .textarea::placeholder {
+      color: #4b5563;
+    }
 
-    .input[readonly] { opacity: 0.85; cursor: default; }
+    .input[readonly] {
+      opacity: 0.85;
+      cursor: default;
+    }
 
     .hint-inline {
       font-size: 11px;
@@ -369,7 +399,10 @@
       border: 1px solid rgba(220, 38, 38, 0.6);
     }
 
-    .btn-icon { font-size: 13px; opacity: 0.9; }
+    .btn-icon {
+      font-size: 13px;
+      opacity: 0.9;
+    }
 
     .section-divider {
       border: none;
@@ -392,7 +425,10 @@
       color: var(--text-soft);
     }
 
-    .switch-label-hint { font-size: 11px; color: var(--text-muted); }
+    .switch-label-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
 
     .switch {
       width: 42px;
@@ -451,7 +487,10 @@
       color: var(--text-muted);
     }
 
-    .metric-value { font-size: 13px; font-weight: 500; }
+    .metric-value {
+      font-size: 13px;
+      font-weight: 500;
+    }
 
     .metric-pill {
       font-size: 10px;
@@ -465,7 +504,7 @@
       flex-direction: column;
       gap: 6px;
       margin-top: 6px;
-      max-height: 425px;
+      max-height: 300px;
       overflow-y: auto;
       padding-right: 3px;
     }
@@ -507,7 +546,13 @@
       flex-wrap: wrap;
     }
 
-    .footer-left { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+    .footer-left {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+      flex: 1;
+    }
 
     .footer-status {
       font-size: 11px;
@@ -576,9 +621,17 @@
       text-overflow: ellipsis;
     }
 
-    .footer-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .footer-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
 
-    .input-copy-wrapper { position: relative; }
+    .input-copy-wrapper {
+      position: relative;
+    }
+
     .copy-btn {
       position: absolute;
       top: 50%;
@@ -648,6 +701,7 @@
     }
   </style>
 </head>
+
 <body>
   <div class="app-shell">
     <div class="app-content">
@@ -767,7 +821,8 @@
                     </select>
                   </div>
                 </div>
-                <textarea id="freeze-reason" class="textarea" placeholder="Internal reason / case reference (off-chain)"></textarea>
+                <textarea id="freeze-reason" class="textarea"
+                  placeholder="Internal reason / case reference (off-chain)"></textarea>
                 <div style="margin-top: 8px; display:flex; justify-content:flex-end;">
                   <button type="button" class="btn btn-outline" id="freeze-btn">
                     <span class="btn-icon">🧊</span> Apply rule
@@ -801,25 +856,22 @@
                 </div>
                 <div class="field-row">
                   <div class="field-group">
-                    <label class="label" for="retrieve-amount">
-                      <span class="main">Amount</span>
-                      <span class="hint">Blank = full balance</span>
-                    </label>
-                    <input id="retrieve-amount" class="input" type="number" min="0" step="0.000001" placeholder="Full" />
-                  </div>
-                  <div class="field-group">
                     <label class="label" for="retrieve-memo">
                       <span class="main">Reason</span>
                       <span class="hint">Shown in control log</span>
                     </label>
                     <input id="retrieve-memo" class="input" type="text" placeholder="Compliance, recovery, etc." />
                   </div>
+                  <div class="field-group">
+
+                    <div style="margin-top: 8px; display:flex; justify-content:flex-end;">
+                      <button type="button" class="btn btn-outline" id="retrieve-btn">
+                        <span class="btn-icon">📥</span> Retrieve
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <div style="margin-top: 8px; display:flex; justify-content:flex-end;">
-                  <button type="button" class="btn btn-outline" id="retrieve-btn">
-                    <span class="btn-icon">📥</span> Retrieve
-                  </button>
-                </div>
+
               </div>
             </div>
           </div>
@@ -890,8 +942,8 @@
                 </div>
                 <div class="tab-row">
                   <button type="button" class="tab-btn active" data-target="log-list">Logs</button>
-                  <button type="button" class="tab-btn" data-target="frozen-list">Frozen Addresses</button>
-                  <button type="button" class="tab-btn" data-target="unfrozen-list">Unfrozen Addresses</button>
+                  <button type="button" class="tab-btn" data-target="frozen-list">Frozen</button>
+                  <button type="button" class="tab-btn" data-target="unfrozen-list">Unfrozen</button>
                 </div>
                 <div id="log-list" class="log-list">
                   <div class="log-item">
@@ -935,11 +987,10 @@
               <div class="footer-stat-label">Total Supply</div>
               <div class="footer-stat-value" id="stat-total-supply">0 TOK</div>
             </div>
-        </div>
-        <div class="footer-right">
+          </div>
+          <div class="footer-right">
             <button type="button" class="btn btn-outline" id="recover-btn">Recover</button>
             <button type="button" class="btn btn-outline" id="refresh-balances">Refresh balances</button>
-            <button type="button" class="btn btn-ghost" id="reset-form">Reset form</button>
           </div>
         </div>
 
@@ -949,4 +1000,5 @@
 
   <script src="bridge.js"></script>
 </body>
+
 </html>

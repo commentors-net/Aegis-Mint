@@ -76,15 +76,15 @@
       btn.addEventListener("click", async () => {
         const value = (el.value || "").toString().trim();
         if (!value) {
-          showToast("Nothing to copy", true, 3000);
+          //showToast("Nothing to copy", true, 3000);
           return;
         }
         try {
           await navigator.clipboard.writeText(value);
-          showToast("Copied to clipboard", false, 3000);
+          //showToast("Copied to clipboard", false, 3000);
         } catch (err) {
           console.error("Copy failed", err);
-          showToast("Copy failed", true, 4000);
+          //showToast("Copy failed", true, 4000);
         }
       });
       wrapper.appendChild(btn);
