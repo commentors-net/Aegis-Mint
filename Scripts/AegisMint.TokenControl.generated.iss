@@ -1,18 +1,18 @@
-﻿#define AppVersion "1.0.11"
-#define AdminSourceDir "D:\Jobs\workspace\DiG\Aegis-Mint\Scripts\publish\mint"
+﻿#define AppVersion "1.0.4"
+#define AdminSourceDir "D:\Jobs\workspace\DiG\Aegis-Mint\Scripts\publish\tokencontrol"
 #define OutputDir "D:\Jobs\workspace\DiG\Aegis-Mint\Scripts\dist"
 #define ServiceName "AegisMintService"
 
 [Setup]
-AppName=AegisMint
+AppName=AegisMint Token Control
 AppVersion={#AppVersion}
-DefaultDirName={pf}\AegisMint\Mint
+DefaultDirName={pf}\AegisMint\TokenControl
 DefaultGroupName=AegisMint
 DisableProgramGroupPage=yes
-OutputBaseFilename=AegisMint-Mint-Setup-1.0.11
+OutputBaseFilename=AegisMint-TokenControl-Setup-1.0.4
 OutputDir={#OutputDir}
-UninstallDisplayIcon={app}\AegisMint.Mint.exe
-UninstallDisplayName=AegisMint
+UninstallDisplayIcon={app}\AegisMint.TokenControl.exe
+UninstallDisplayName=AegisMint Token Control
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 PrivilegesRequired=admin
@@ -23,14 +23,14 @@ SolidCompression=yes
 Source: "{#AdminSourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
 
 [Icons]
-Name: "{group}\Aegis Mint"; Filename: "{app}\AegisMint.Mint.exe"; WorkingDir: "{app}"
-Name: "{commondesktop}\Aegis Mint"; Filename: "{app}\AegisMint.Mint.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{group}\Aegis Mint Token Control"; Filename: "{app}\AegisMint.TokenControl.exe"; WorkingDir: "{app}"
+Name: "{commondesktop}\Aegis Mint Token Control"; Filename: "{app}\AegisMint.TokenControl.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Tasks]
-Name: "desktopicon"; Description: "Create a desktop icon for Aegis Mint"
+Name: "desktopicon"; Description: "Create a desktop icon for Aegis Mint Token Control"
 
 [Run]
-Filename: "{app}\AegisMint.Mint.exe"; Description: "Launch Aegis Mint"; WorkingDir: "{app}"; Flags: postinstall nowait skipifsilent
+Filename: "{app}\AegisMint.TokenControl.exe"; Description: "Launch Aegis Mint Token Control"; WorkingDir: "{app}"; Flags: postinstall nowait skipifsilent
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"

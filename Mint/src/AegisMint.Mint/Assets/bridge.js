@@ -19,6 +19,10 @@
   const genTreasuryBtn = document.getElementById("gen-treasury");
   const mintBtn = document.getElementById("mint-button");
   const networkSelect = document.getElementById("network-select");
+  const refreshEthBtn = document.getElementById("refresh-treasury-eth");
+  const faucetBtn = document.getElementById("sepolia-faucet");
+  const lockBanner = document.getElementById("lock-banner");
+  const lockBannerText = document.getElementById("lock-banner-text");
   
   if (!genTreasuryBtn) {
     console.error("Generate Treasury button not found!");
@@ -32,6 +36,14 @@
   let treasuryGenerated = false;
   let selectedNetwork = "sepolia"; // default
   let contractDeploymentLocked = false;
+  let pageEnabled = false;
+  let ethPollTimer = null;
+  const alwaysEnabledControls = new Set([
+    networkSelect?.id,
+    refreshEthBtn?.id,
+    faucetBtn?.id,
+    "gen-treasury"
+  ].filter(Boolean));
 
   const sendToHost = (type, payload) => {
     if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage) {
@@ -43,14 +55,137 @@
     sendToHost("log", { message, level });
   };
 
-  function resetForNetworkChange() {
-    contractDeploymentLocked = false;
+  function attachCopyButtons() {
+    const targets = document.querySelectorAll('input.input, textarea.input, textarea.textarea');
+    targets.forEach((el) => {
+      if (!el) return;
+      let wrapper = el.closest(".input-copy-wrapper");
+      if (!wrapper) {
+        wrapper = document.createElement("div");
+        wrapper.className = "input-copy-wrapper";
+        el.parentNode.insertBefore(wrapper, el);
+        wrapper.appendChild(el);
+      } else if (wrapper.querySelector(".copy-btn")) {
+        return;
+      }
+
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "copy-btn";
+      btn.textContent = "⧉";
+      btn.addEventListener("click", async () => {
+        const value = (el.value || "").toString().trim();
+        if (!value) {
+          //showToast("Nothing to copy", true, 3000);
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(value);
+          //showToast("Copied to clipboard", false, 3000);
+        } catch (err) {
+          console.error("Copy failed", err);
+          //showToast("Copy failed", true, 4000);
+        }
+      });
+      wrapper.appendChild(btn);
+    });
+  }
+
+  function setPageEnabled(enabled, reason) {
+    pageEnabled = enabled;
     const controls = document.querySelectorAll("input, select, button, textarea");
     controls.forEach((el) => {
-      if (el === networkSelect) return;
-      el.disabled = false;
-      el.classList.remove("locked-control");
+      if (!el) return;
+      if (el.classList.contains("copy-btn")) return;
+      if (alwaysEnabledControls.has(el.id)) return;
+      const forceDisabled = el.dataset.forceDisabled === "true";
+      if (!enabled) {
+        el.disabled = true;
+        el.classList.add("locked-control");
+      } else {
+        el.disabled = forceDisabled;
+        el.classList.toggle("locked-control", forceDisabled);
+      }
     });
+
+    if (lockBanner && lockBannerText) {
+      if (enabled) {
+        lockBanner.style.display = "none";
+      } else {
+        lockBanner.style.display = "block";
+        lockBannerText.textContent =
+          reason || "Generate a treasury key and fund it with ETH to continue.";
+      }
+    }
+  }
+
+  function startEthPolling() {
+    if (ethPollTimer || !treasuryAddressInput.value) return;
+    sendToHost("refresh-treasury-eth", {
+      address: treasuryAddressInput.value,
+      network: selectedNetwork
+    });
+    ethPollTimer = setInterval(() => {
+      if (!treasuryAddressInput.value) return;
+      sendToHost("refresh-treasury-eth", {
+        address: treasuryAddressInput.value,
+        network: selectedNetwork
+      });
+    }, 12000);
+  }
+
+  function stopEthPolling() {
+    if (ethPollTimer) {
+      clearInterval(ethPollTimer);
+      ethPollTimer = null;
+    }
+  }
+
+  function evaluateLockState() {
+    const eth = parseFloat(treasuryEthInput.value || "0");
+    const hasEth = treasuryGenerated && !Number.isNaN(eth) && eth > 0;
+
+    if (contractDeploymentLocked) {
+      stopEthPolling();
+      setPageEnabled(false, "Contract already deployed. Minting disabled.");
+      updateGenerateState();
+      return;
+    }
+
+    if (!treasuryGenerated) {
+      setPageEnabled(false, "Generate the treasury before continuing.");
+      stopEthPolling();
+      updateGenerateState();
+      return;
+    }
+
+    if (!hasEth) {
+      setPageEnabled(false, "Treasury has 0 ETH. Fund it, refresh, or use faucet.");
+      startEthPolling();
+      treasuryEthInput.classList.add("eth-alert");
+      treasuryStatus.textContent = "Waiting for ETH on treasury...";
+      updateGenerateState();
+      return;
+    } else {
+      stopEthPolling();
+      setPageEnabled(true);
+      treasuryEthInput.classList.remove("eth-alert");
+      treasuryStatus.textContent = "Treasury ready";
+    }
+
+    updateGenerateState();
+    updateMintState();
+    updateResetState();
+  }
+
+  function updateFaucetVisibility() {
+    if (!faucetBtn) return;
+    faucetBtn.style.display = selectedNetwork === "sepolia" ? "inline-flex" : "none";
+  }
+
+  function resetForNetworkChange() {
+    contractDeploymentLocked = false;
+    stopEthPolling();
 
     tokenNameInput.value = "";
     tokenSupplyInput.value = "";
@@ -58,20 +193,23 @@
     sharesInput.value = "";
     thresholdInput.value = "";
     contractAddressInput.value = "";
+    treasuryEthInput.value = "";
+    treasuryTokensInput.value = "";
+    treasuryEthInput.classList.remove("eth-alert");
+    treasuryStatus.textContent = treasuryGenerated
+      ? "Checking treasury on selected network..."
+      : "Fill Steps 1 & 2, then generate Treasury.";
+
     if (!treasuryGenerated) {
-      treasuryEthInput.value = "";
-      treasuryTokensInput.value = "";
       treasuryAddressInput.value = "";
-      treasuryEthInput.classList.remove("eth-alert");
-      treasuryEthInput.disabled = true;
-      treasuryStatus.textContent = "Fill Steps 1 & 2, then generate Treasury.";
+      treasuryGenerated = false;
+      genTreasuryBtn.disabled = false;
     }
     clearPermanentToast();
 
+    setPageEnabled(false, "Switching network...");
     updateHeaderTreasury();
-    updateGenerateState();
-    updateMintState();
-    updateResetState();
+    evaluateLockState();
   }
 
   function ensureProgressStyles() {
@@ -168,6 +306,19 @@
         showToast("Mint request received by host");
         hideProgress();
         break;
+      case "treasury-eth-updated":
+        if (payload?.eth !== undefined) {
+          const bal = Number(payload.eth);
+          treasuryEthInput.value = Number.isNaN(bal) ? payload.eth : bal.toFixed(4);
+          treasuryEthInput.classList.toggle("eth-alert", Number.isNaN(bal) ? false : bal <= 0);
+        }
+        if (payload?.tokens !== undefined && payload.tokens !== null && payload.tokens !== "") {
+          treasuryTokensInput.value = payload.tokens;
+        }
+        updateHeaderTreasury();
+        evaluateLockState();
+        hideProgress();
+        break;
       case "contract-deployed":
         applyPrefill(payload?.prefill || payload);
         lockUiForDeployedContract(payload);
@@ -212,7 +363,7 @@
     headerTreasurySummary.textContent = `ETH: ${safeEth} Tokens: ${tokens}`;
   }
 
-  function showToast(text, isError = false) {
+  function showToast(text, isError = false, durationMs = 7000) {
     let container = document.getElementById("toast-container");
     if (!container) {
       container = document.createElement("div");
@@ -221,7 +372,8 @@
       container.style.bottom = "18px";
       container.style.left = "18px";
       container.style.display = "flex";
-      container.style.flexDirection = "column-reverse";
+      container.style.flexDirection = "column";
+      container.style.alignItems = "flex-start";
       container.style.gap = "8px";
       container.style.zIndex = "1000";
       document.body.appendChild(container);
@@ -236,14 +388,14 @@
     toast.style.boxShadow = "0 10px 24px rgba(0,0,0,0.35)";
     toast.style.maxWidth = "320px";
     toast.style.wordBreak = "break-word";
-    container.appendChild(toast);
+    container.prepend(toast);
 
     setTimeout(() => {
       toast.remove();
       if (container.childElementCount === 0) {
         container.remove();
       }
-    }, 5000);
+    }, durationMs);
   }
 
   function clearPermanentToast() {
@@ -281,16 +433,8 @@
 
   function unlockUi() {
     contractDeploymentLocked = false;
-    const controls = document.querySelectorAll("input, select, button, textarea");
-    controls.forEach((el) => {
-      if (el === networkSelect) return;
-      el.disabled = false;
-      el.classList.remove("locked-control");
-    });
     clearPermanentToast();
-    updateGenerateState();
-    updateMintState();
-    updateResetState();
+    evaluateLockState();
   }
 
   function applyPrefill(prefill) {
@@ -317,9 +461,7 @@
       treasuryStatus.textContent = "Treasury loaded from vault";
     }
     updateHeaderTreasury();
-    updateGenerateState();
-    updateMintState();
-    updateResetState();
+    evaluateLockState();
   }
 
   function applyNetworkFromHost(network) {
@@ -331,17 +473,13 @@
       selectedNetwork = network;
       logToHost(`Network set by host: ${network}`);
     }
+    updateFaucetVisibility();
   }
 
   function lockUiForDeployedContract(data) {
     const address = data?.contractAddress || data?.address || data;
 
-    const controls = document.querySelectorAll("input, select, button, textarea");
-    controls.forEach((el) => {
-      if (el === networkSelect) return; // allow network change even after deployment
-      el.disabled = true;
-      el.classList.add("locked-control");
-    });
+    setPageEnabled(false, "Contract already deployed. Deployment disabled.");
 
     if (contractAddressInput && address) {
       contractAddressInput.value = address;
@@ -371,7 +509,7 @@
   function updateMintState() {
     const eth = parseFloat(treasuryEthInput.value || "0");
     const hasEth = !Number.isNaN(eth) && eth > 0;
-    const shouldDisable = contractDeploymentLocked || !(treasuryGenerated && hasEth);
+    const shouldDisable = !pageEnabled || contractDeploymentLocked || !(treasuryGenerated && hasEth);
     
     logToHost(`updateMintState: locked=${contractDeploymentLocked}, treasuryGen=${treasuryGenerated}, eth=${eth}, hasEth=${hasEth}, disable=${shouldDisable}`);
     
@@ -379,7 +517,7 @@
   }
 
   function updateResetState() {
-    resetBtn.disabled = contractDeploymentLocked;
+    resetBtn.disabled = !pageEnabled || contractDeploymentLocked;
   }
 
   function collectForm() {
@@ -404,13 +542,11 @@
       treasuryAddressInput.value = addr;
       treasuryGenerated = true;
       treasuryStatus.textContent = status;
-      treasuryEthInput.disabled = false;
-      treasuryEthInput.classList.add("eth-alert");
       headerTreasuryAddress.textContent = addr;
       genTreasuryBtn.disabled = true;
     }
     updateHeaderTreasury();
-    updateMintState();
+    evaluateLockState();
   }
 
   function applyVault(payload) {
@@ -422,9 +558,14 @@
       treasuryAddressInput.value = payload.treasuryAddress;
       treasuryGenerated = true;
       treasuryStatus.textContent = "Treasury loaded from vault";
-      treasuryEthInput.disabled = false;
       headerTreasuryAddress.textContent = payload.treasuryAddress;
       genTreasuryBtn.disabled = true;
+    } else {
+      treasuryGenerated = false;
+      genTreasuryBtn.disabled = false;
+      treasuryAddressInput.value = "";
+      headerTreasuryAddress.textContent = "Not set";
+      treasuryStatus.textContent = "Fill Steps 1 & 2, then generate Treasury.";
     }
     if (payload?.balance !== undefined && payload.balance !== null) {
       const bal = Number(payload.balance);
@@ -453,27 +594,11 @@
       // Contract not deployed on current network - unlock UI
       contractDeploymentLocked = false;
       clearPermanentToast();
-      
-      // Unlock all controls except those that should remain disabled
-      const controls = document.querySelectorAll("input, select, button, textarea");
-      controls.forEach((el) => {
-        if (el === networkSelect) return;
-        el.disabled = false;
-        el.classList.remove("locked-control");
-      });
-      
-      // Re-enable treasury ETH input if treasury was generated
-      if (treasuryGenerated) {
-        treasuryEthInput.disabled = false;
-      }
-      
       treasuryTokensInput.value = "";
       contractAddressInput.value = "";
     }
-    updateMintState();
     updateHeaderTreasury();
-    updateGenerateState();
-    updateResetState();
+    evaluateLockState();
   }
 
   thresholdInput.addEventListener("input", () => { validateThreshold(false); updateGenerateState(); });
@@ -497,7 +622,7 @@
       treasuryEthInput.classList.toggle("eth-alert", !hasEth);
     }
     updateHeaderTreasury();
-    updateMintState();
+    evaluateLockState();
   });
 
   treasuryAddressInput.addEventListener("input", updateHeaderTreasury);
@@ -519,12 +644,10 @@
       treasuryAddressInput.value = preserveTreasury.addr;
       treasuryEthInput.value = preserveTreasury.eth;
       treasuryTokensInput.value = preserveTreasury.tokens || "0";
-      treasuryEthInput.disabled = false;
       treasuryStatus.textContent = "Treasury loaded from vault";
     } else {
       treasuryTokensInput.value = "0";
       treasuryEthInput.classList.remove("eth-alert");
-      treasuryEthInput.disabled = true;
       treasuryGenerated = false;
       treasuryStatus.textContent = "Fill Steps 1 & 2, then generate Treasury.";
       treasuryAddressInput.value = "";
@@ -532,17 +655,34 @@
     }
 
     updateHeaderTreasury();
-    updateMintState();
-    updateGenerateState();
-    updateResetState();
+    evaluateLockState();
     sendToHost("reset", {});
   });
 
   networkSelect.addEventListener("change", () => {
     selectedNetwork = networkSelect.value;
     resetForNetworkChange();
+    updateFaucetVisibility();
     sendToHost("network-changed", { network: selectedNetwork });
     logToHost(`Network changed to: ${selectedNetwork}`);
+  });
+
+  refreshEthBtn?.addEventListener("click", () => {
+    if (!treasuryAddressInput.value) {
+      showToast("Generate the treasury first.", true, 4000);
+      return;
+    }
+    showProgress("Checking ETH balance...");
+    sendToHost("refresh-treasury-eth", { address: treasuryAddressInput.value, network: selectedNetwork });
+  });
+
+  faucetBtn?.addEventListener("click", () => {
+    if (selectedNetwork !== "sepolia") {
+      showToast("Faucet available only on Sepolia.", true, 4000);
+      return;
+    }
+    sendToHost("open-faucet", { network: selectedNetwork });
+    showToast("Opening Sepolia faucet...", false, 4000);
   });
 
   genTreasuryBtn.addEventListener("click", () => {
@@ -574,11 +714,11 @@
 
   // Initialize network selection
   selectedNetwork = networkSelect.value;
+  updateFaucetVisibility();
+  attachCopyButtons();
   
   sendToHost("bridge-ready", { ready: true });
   logToHost("Bridge initialized");
   updateHeaderTreasury();
-  updateMintState();
-  updateGenerateState();
-  updateResetState();
+  evaluateLockState();
 });
