@@ -5,6 +5,7 @@ from .session import ApprovalSession, SessionStatus
 from .approval import Approval
 from .audit import AuditLog
 from .setting import SystemSetting
+from .login_challenge import LoginChallenge
 
 __all__ = [
     "User",
@@ -17,4 +18,5 @@ __all__ = [
     "Approval",
     "AuditLog",
     "SystemSetting",
+    "LoginChallenge",
 ]

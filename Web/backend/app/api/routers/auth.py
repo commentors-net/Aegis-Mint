@@ -11,16 +11,14 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/login", response_model=LoginResponse)
 def login(body: LoginRequest, db: Session = Depends(get_db)):
-    challenge_id = auth_service.create_login_challenge(db, body.email, body.password)
-    payload = auth_service.login_challenges.get(challenge_id, {})
+    challenge_id, temp_secret = auth_service.create_login_challenge(db, body.email, body.password)
     otpauth_url = None
     mfa_qr_base64 = None
-    mfa_secret = payload.get("mfa_secret")
-    if mfa_secret:
-        otpauth_url, mfa_qr_base64 = auth_service.build_otpauth_and_qr(body.email, mfa_secret)
+    if temp_secret:
+        otpauth_url, mfa_qr_base64 = auth_service.build_otpauth_and_qr(body.email, temp_secret)
     return LoginResponse(
         challenge_id=challenge_id,
-        mfa_secret_base32=mfa_secret,
+        mfa_secret_base32=temp_secret,
         otpauth_url=otpauth_url,
         mfa_qr_base64=mfa_qr_base64,
     )

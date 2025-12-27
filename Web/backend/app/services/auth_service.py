@@ -8,47 +8,72 @@ import qrcode
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_current_user
 from app.core import security
 from app.core.config import get_settings
 from app.core.mfa import verify_otp
 from app.core.time import utcnow
-from app.models import User, UserRole
-from app.api.deps import get_current_user
-
-login_challenges: dict[str, dict] = {}
+from app.models import LoginChallenge, User, UserRole
 
 
-def create_login_challenge(db: Session, email: str, password: str) -> str:
+def _cleanup_old_challenges(db: Session, user_id: str) -> None:
+    """Remove expired challenges and any existing ones for this user to avoid collisions."""
+    now = utcnow()
+    db.query(LoginChallenge).filter(
+        (LoginChallenge.expires_at_utc < now) | (LoginChallenge.user_id == user_id)
+    ).delete(synchronize_session=False)
+    db.commit()
+
+
+def create_login_challenge(db: Session, email: str, password: str) -> tuple[str, str | None]:
     user = db.query(User).filter(User.email == email, User.is_active.is_(True)).first()
     if not user or not security.verify_password(password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
-    temp_secret = None if user.mfa_secret else pyotp.random_base32()
     settings = get_settings()
+    temp_secret = None if user.mfa_secret else pyotp.random_base32()
     challenge_id = str(uuid.uuid4())
-    login_challenges[challenge_id] = {
-        "user_id": user.id,
-        "expires_at": utcnow() + timedelta(minutes=settings.auth_challenge_minutes),
-        **({"mfa_secret": temp_secret} if temp_secret else {}),
-        "email": user.email,
-    }
-    return challenge_id
+
+    _cleanup_old_challenges(db, user.id)
+
+    challenge = LoginChallenge(
+        id=challenge_id,
+        user_id=user.id,
+        expires_at_utc=utcnow() + timedelta(minutes=settings.auth_challenge_minutes),
+        temp_mfa_secret=temp_secret,
+    )
+    db.add(challenge)
+    db.commit()
+    return challenge_id, temp_secret
 
 
 def verify_otp_and_issue_tokens(db: Session, challenge_id: str, otp: str):
-    payload = login_challenges.get(challenge_id)
-    if not payload:
+    challenge = (
+        db.query(LoginChallenge)
+        .filter(LoginChallenge.id == challenge_id)
+        .first()
+    )
+    if not challenge:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Challenge expired or invalid")
-    if payload["expires_at"] < utcnow():
-        login_challenges.pop(challenge_id, None)
+    exp = challenge.expires_at_utc
+    now = utcnow()
+    if exp and exp.tzinfo is None:
+        exp = exp.replace(tzinfo=now.tzinfo)
+    if exp < now:
+        db.delete(challenge)
+        db.commit()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Challenge expired")
 
-    user = db.query(User).filter(User.id == payload["user_id"], User.is_active.is_(True)).first()
+    user = db.query(User).filter(User.id == challenge.user_id, User.is_active.is_(True)).first()
     if not user:
+        db.delete(challenge)
+        db.commit()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
-    secret = payload.get("mfa_secret") or user.mfa_secret
+    secret = challenge.temp_mfa_secret or user.mfa_secret
     if not secret:
+        db.delete(challenge)
+        db.commit()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="MFA not initialized")
     if not verify_otp(secret, otp):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid OTP")
@@ -61,7 +86,9 @@ def verify_otp_and_issue_tokens(db: Session, challenge_id: str, otp: str):
 
     access = security.create_access_token(user.id, user.role.value)
     refresh = security.create_refresh_token(user.id, user.role.value)
-    login_challenges.pop(challenge_id, None)
+
+    db.delete(challenge)
+    db.commit()
 
     return {
         "access_token": access,
