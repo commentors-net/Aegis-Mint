@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     required_approvals_default: int = 2
 
     cors_origins_raw: str = "http://localhost:5173"
+    enable_docs: bool = True
 
     @property
     def cors_origins(self) -> List[str]:

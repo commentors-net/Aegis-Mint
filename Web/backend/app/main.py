@@ -7,12 +7,17 @@ from app.db.base import Base
 from app.db.session import engine
 from app.services.auth_service import ensure_super_admin_exists
 from app.db.init_db import seed_data
+from app.api.routers import debug
 
 import pyotp
 
 settings = get_settings()
 
-app = FastAPI(title=settings.app_name, version="0.1.0")
+docs_url = "/docs" if settings.enable_docs else None
+redoc_url = "/redoc" if settings.enable_docs else None
+openapi_url = "/openapi.json" if settings.enable_docs else None
+
+app = FastAPI(title=settings.app_name, version="0.1.0", docs_url=docs_url, redoc_url=redoc_url, openapi_url=openapi_url)
 
 app.add_middleware(
     CORSMiddleware,
@@ -26,6 +31,8 @@ app.include_router(auth.router)
 app.include_router(desktop.router)
 app.include_router(governance.router)
 app.include_router(admin.router)
+if settings.enable_docs:
+    app.include_router(debug.router)
 
 
 @app.on_event("startup")
