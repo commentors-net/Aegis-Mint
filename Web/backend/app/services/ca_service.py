@@ -123,7 +123,12 @@ class CAService:
         # Determine validity period
         if validity_days is None:
             # Match CA expiration
-            expires_at = ca_cert.not_valid_after
+            # Handle both old and new cryptography versions
+            if hasattr(ca_cert, 'not_valid_after_utc'):
+                expires_at = ca_cert.not_valid_after_utc
+            else:
+                from datetime import timezone
+                expires_at = ca_cert.not_valid_after.replace(tzinfo=timezone.utc)
             created_at = utcnow()
         else:
             created_at = utcnow()
@@ -186,13 +191,27 @@ class CAService:
         """Extract information from CA certificate"""
         cert = x509.load_pem_x509_certificate(ca_cert_pem, default_backend())
         
+        # Handle both old and new cryptography versions
+        # Newer versions (42.0.0+) have not_valid_before_utc/not_valid_after_utc
+        # Older versions only have not_valid_before/not_valid_after (naive datetime)
+        if hasattr(cert, 'not_valid_before_utc'):
+            not_valid_before = cert.not_valid_before_utc
+            not_valid_after = cert.not_valid_after_utc
+        else:
+            # Older version - convert naive to UTC-aware
+            from datetime import timezone
+            not_valid_before = cert.not_valid_before.replace(tzinfo=timezone.utc)
+            not_valid_after = cert.not_valid_after.replace(tzinfo=timezone.utc)
+        
+        now_utc = utcnow()
+        
         return {
             "subject": cert.subject.rfc4514_string(),
             "issuer": cert.issuer.rfc4514_string(),
             "serial_number": str(cert.serial_number),
-            "not_valid_before": cert.not_valid_before,
-            "not_valid_after": cert.not_valid_after,
-            "is_expired": utcnow() > cert.not_valid_after,
-            "is_expiring_soon": CAService.is_ca_expiring_soon(cert.not_valid_after),
-            "days_until_expiry": (cert.not_valid_after - utcnow()).days,
+            "not_valid_before": not_valid_before,
+            "not_valid_after": not_valid_after,
+            "is_expired": now_utc > not_valid_after,
+            "is_expiring_soon": CAService.is_ca_expiring_soon(not_valid_after),
+            "days_until_expiry": (not_valid_after - now_utc).days,
         }

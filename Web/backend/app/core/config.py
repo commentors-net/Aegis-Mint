@@ -35,6 +35,7 @@ class Settings(BaseSettings):
 
     cors_origins_raw: str = "http://localhost:5173"
     enable_docs: bool = True
+    root_path: str = ""  # For reverse proxy deployments (e.g., "/govern")
 
     @property
     def cors_origins(self) -> List[str]:

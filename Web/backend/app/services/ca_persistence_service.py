@@ -139,8 +139,8 @@ class CAPersistenceService:
             "ca_certificate": cert_setting.value,
             "created_at": created_at,
             "expires_at": expires_at,
-            "expiring_soon": cert_info['expiring_soon'],
-            "expired": cert_info['expired'],
+            "expiring_soon": cert_info['is_expiring_soon'],
+            "expired": cert_info['is_expired'],
             "days_until_expiry": cert_info['days_until_expiry'],
             "subject": cert_info['subject'],
             "issuer": cert_info['issuer']

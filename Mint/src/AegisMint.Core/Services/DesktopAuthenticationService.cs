@@ -167,6 +167,9 @@ public class DesktopAuthenticationService
         var message = HmacSignature.CreateSignatureMessage(_desktopAppId, timestamp, "");
         var signature = HmacSignature.ComputeSignature(message, _secretKey);
 
+        Logger.Debug($"Full URL: {url}");
+        Logger.Debug($"Base URL: {_apiBaseUrl}, Endpoint: {endpoint}");
+
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Add("X-Desktop-Id", _desktopAppId);
         request.Headers.Add("X-Desktop-Timestamp", timestamp.ToString());
@@ -175,8 +178,11 @@ public class DesktopAuthenticationService
         var response = await _httpClient.SendAsync(request);
         var content = await response.Content.ReadAsStringAsync();
 
+        Logger.Debug($"Response: {response.StatusCode}");
+
         if (!response.IsSuccessStatusCode)
         {
+            Logger.Error($"API call failed to {url}: {response.StatusCode} - {content}");
             throw new HttpRequestException($"API request failed: {response.StatusCode} - {content}");
         }
 
@@ -221,14 +227,20 @@ public class DesktopAuthenticationService
         var url = _apiBaseUrl.TrimEnd('/') + endpoint;
         var bodyJson = JsonSerializer.Serialize(body);
 
+        Logger.Debug($"POST Full URL: {url}");
+        Logger.Debug($"POST Base URL: {_apiBaseUrl}, Endpoint: {endpoint}");
+
         using var request = new HttpRequestMessage(HttpMethod.Post, url);
         request.Content = new StringContent(bodyJson, Encoding.UTF8, "application/json");
 
         var response = await _httpClient.SendAsync(request);
         var content = await response.Content.ReadAsStringAsync();
 
+        Logger.Debug($"POST Response: {response.StatusCode}");
+
         if (!response.IsSuccessStatusCode)
         {
+            Logger.Error($"POST API call failed to {url}: {response.StatusCode} - {content}");
             throw new HttpRequestException($"API request failed: {response.StatusCode} - {content}");
         }
 

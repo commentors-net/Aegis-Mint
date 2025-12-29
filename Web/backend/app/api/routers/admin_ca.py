@@ -12,7 +12,7 @@ from app.services.ca_persistence_service import CAPersistenceService
 from app.services.desktop_service import DesktopService
 
 
-router = APIRouter()
+router = APIRouter(prefix="/admin/ca")
 
 
 class CAInfoResponse(BaseModel):
