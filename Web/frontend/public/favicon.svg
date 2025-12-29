@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="AegisMint">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5eead4"/>
+      <stop offset="100%" stop-color="#2563eb"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="12" fill="#0f172a"/>
+  <path fill="url(#g)" d="M32 10 16 18v10c0 10.3 6.8 19.8 16 24 9.2-4.2 16-13.7 16-24V18L32 10Zm0 6.5 9 4.5v7.5c0 7-4.3 13.6-9 15.9-4.7-2.3-9-8.9-9-15.9V21l9-4.5Z"/>
+  <circle cx="32" cy="32" r="6" fill="#e0f2fe"/>
+</svg>

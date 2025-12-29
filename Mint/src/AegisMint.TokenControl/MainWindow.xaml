@@ -115,6 +115,73 @@
                                TextAlignment="Center" />
                 </StackPanel>
             </StackPanel>
+
+            <!-- Lock Overlay (for authentication/access control) -->
+            <Grid x:Name="LockOverlay"
+                  Background="#E6020617"
+                  HorizontalAlignment="Stretch"
+                  VerticalAlignment="Stretch"
+                  Visibility="Collapsed">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="500">
+                    <Border Background="#0f1724"
+                            BorderBrush="#1e293b"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="32">
+                        <StackPanel>
+                            <TextBlock Text="🔒"
+                                       FontSize="48"
+                                       TextAlignment="Center"
+                                       Margin="0,0,0,16" />
+                            <TextBlock x:Name="LockTitle"
+                                       Text="Access Restricted"
+                                       Foreground="White"
+                                       FontSize="24"
+                                       FontWeight="Bold"
+                                       TextAlignment="Center"
+                                       Margin="0,0,0,12" />
+                            <TextBlock x:Name="LockMessage"
+                                       Text="Checking authorization..."
+                                       Foreground="#9ca3af"
+                                       FontSize="14"
+                                       TextAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       Margin="0,0,0,24" />
+                            <Button x:Name="RetryButton"
+                                    Content="Retry Connection"
+                                    Foreground="White"
+                                    Background="#3b82f6"
+                                    BorderBrush="Transparent"
+                                    FontSize="14"
+                                    FontWeight="SemiBold"
+                                    Padding="16,10"
+                                    Cursor="Hand"
+                                    HorizontalAlignment="Center"
+                                    Visibility="Collapsed"
+                                    Click="OnRetryClick">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="border"
+                                                Background="{TemplateBinding Background}"
+                                                CornerRadius="6"
+                                                Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="border" Property="Background" Value="#2563eb" />
+                                            </Trigger>
+                                            <Trigger Property="IsPressed" Value="True">
+                                                <Setter TargetName="border" Property="Background" Value="#1d4ed8" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
         </Grid>
     </Grid>
 </Window>

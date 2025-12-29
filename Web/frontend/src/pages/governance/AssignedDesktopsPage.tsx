@@ -1,0 +1,164 @@
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+
+import * as govApi from "../../api/governance";
+import { useAuth } from "../../auth/useAuth";
+import Badge from "../../components/Badge";
+import Button from "../../components/Button";
+import { Table, Td, Th } from "../../components/Table";
+
+export default function AssignedDesktopsPage() {
+  const navigate = useNavigate();
+  const { token } = useAuth();
+  const [rows, setRows] = useState<govApi.AssignedDesktop[]>([]);
+  const [search, setSearch] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [, setTick] = useState(0); // trigger re-render for countdown
+  const [fetchedAt, setFetchedAt] = useState(Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setTick((v) => v + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const refresh = async () => {
+    if (!token) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await govApi.getAssignedDesktops(token);
+      setRows(data);
+      setFetchedAt(Date.now());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load assigned desktops");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refresh();
+  }, [token]);
+
+  const filtered = useMemo(() => {
+    if (!search) return rows;
+    const q = search.toLowerCase();
+    return rows.filter((r) => (r.nameLabel || "").toLowerCase().includes(q) || r.desktopAppId.toLowerCase().includes(q));
+  }, [rows, search]);
+
+  const formatLocal = (value?: string) => {
+    if (!value) return "N/A";
+    const normalized = value.match(/[zZ]|[+-]\d{2}:\d{2}$/) ? value : `${value}Z`;
+    const d = new Date(normalized);
+    if (isNaN(d.getTime())) return value;
+    return d.toLocaleString();
+  };
+
+  const remainingSeconds = (row: govApi.AssignedDesktop) => {
+    const base = row.remainingSeconds ?? 0;
+    const elapsed = Math.floor((Date.now() - fetchedAt) / 1000);
+    let remaining = Math.max(0, base - elapsed);
+    if (remaining === 0 && row.unlockedUntilUtc) {
+      const diff = new Date(row.unlockedUntilUtc).getTime() - Date.now();
+      remaining = Math.max(0, Math.floor(diff / 1000));
+    }
+    return remaining;
+  };
+
+  const handleApprove = async (desktopAppId: string) => {
+    if (!token) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await govApi.approveDesktop(desktopAppId, token);
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Approval failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="stack">
+      <div className="row">
+        <input className="input" placeholder="Search by name / DesktopAppId" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <div className="spacer" />
+        <Button size="sm" variant="ghost" onClick={refresh} disabled={loading}>
+          Refresh
+        </Button>
+      </div>
+      {error && <div className="status" style={{ background: "#fee2e2", borderColor: "#fecdd3", color: "#991b1b" }}>{error}</div>}
+      <Table>
+        <thead>
+          <tr>
+            <Th>Desktop</Th>
+            <Th>DesktopAppId</Th>
+            <Th>Approvals</Th>
+            <Th>Status</Th>
+            <Th>Action</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {filtered.map((d) => {
+            const remaining = remainingSeconds(d);
+            const disableApprove = (d.alreadyApproved && remaining > 0) || d.status !== "Active";
+            const sessionLabel =
+              d.sessionStatus === "Unlocked"
+                ? remaining > 0
+                  ? `Unlocked (${Math.floor(remaining / 60)}m ${remaining % 60}s left)`
+                  : "Expired"
+                : d.sessionStatus === "Pending"
+                  ? "Session: Pending"
+                  : d.sessionStatus;
+            return (
+              <tr key={d.desktopAppId} onClick={() => navigate(`/gov/desktops/${d.desktopAppId}`)} style={{ cursor: "pointer" }}>
+                <Td>
+                  <div className="strong">{d.nameLabel || "Unlabeled"}</div>
+                  <div className="muted small">Last seen: {formatLocal(d.lastSeenAtUtc)}</div>
+                </Td>
+                <Td className="mono">{d.desktopAppId}</Td>
+                <Td>
+                  <b>
+                    {d.approvalsSoFar} / {d.requiredApprovalsN}
+                  </b>
+                  <div className="muted small">{sessionLabel}</div>
+                </Td>
+                <Td>
+                  <Badge
+                    tone={
+                      d.sessionStatus === "Unlocked" && remaining > 0
+                        ? "good"
+                        : d.status === "Active"
+                          ? "warn"
+                          : "bad"
+                    }
+                  >
+                    {d.sessionStatus === "Unlocked" ? (remaining > 0 ? "Unlocked" : "Expired") : d.status}
+                  </Badge>
+                </Td>
+                <Td>
+                  <Button
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleApprove(d.desktopAppId);
+                    }}
+                    disabled={disableApprove || loading}
+                  >
+                    {disableApprove ? (remaining > 0 ? "Unlocked" : "Approved") : "Approve"}
+                  </Button>
+                </Td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </Table>
+      <p className="muted">
+        Governance can approve only once per desktop per active approval session. Approve disables until unlock window
+        expires.
+      </p>
+    </div>
+  );
+}

@@ -89,6 +89,38 @@ dotnet publish $tokenControlProject `
     -p:IncludeNativeLibrariesForSelfExtract=true `
     -o $tokenControlPublishDir
 
+# Ask if this is a production build
+Write-Host ""
+Write-Host "Configuration Setup" -ForegroundColor Yellow
+Write-Host "==================" -ForegroundColor Yellow
+$isProduction = Read-Host "Is this a PRODUCTION build? (yes/no)"
+
+if ($isProduction -match "^(y|yes)$") {
+    Write-Host "Using PRODUCTION configuration (https://apkserve.com/govern/)" -ForegroundColor Green
+    
+    # Look for production config in source directory (since PublishSingleFile might not include it)
+    $sourceProjectDir = Split-Path -Parent $tokenControlProject
+    $sourceProdConfig = Join-Path $sourceProjectDir "appsettings.json.production"
+    $targetConfig = Join-Path $tokenControlPublishDir "appsettings.json"
+    
+    if (Test-Path $sourceProdConfig) {
+        Copy-Item $sourceProdConfig $targetConfig -Force
+        Write-Host "Production config applied successfully from source" -ForegroundColor Green
+    } else {
+        # Fallback: try in publish directory
+        $prodConfig = Join-Path $tokenControlPublishDir "appsettings.json.production"
+        if (Test-Path $prodConfig) {
+            Copy-Item $prodConfig $targetConfig -Force
+            Write-Host "Production config applied successfully from publish dir" -ForegroundColor Green
+        } else {
+            Write-Warning "Production config file not found at $sourceProdConfig or $prodConfig"
+            Write-Warning "The application will use development settings (localhost)!"
+        }
+    }
+} else {
+    Write-Host "Using DEVELOPMENT configuration (http://localhost:8000)" -ForegroundColor Cyan
+}
+
 if (-not (Test-Path $OutputDir)) { New-Item -ItemType Directory -Path $OutputDir | Out-Null }
 
 $innoCandidates = @(
