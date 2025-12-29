@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routers import admin, auth, desktop, governance
+from app.api.routers import admin, auth, desktop, governance, admin_ca
 from app.core.config import get_settings
 from app.db.base import Base
 from app.db.session import engine
@@ -31,6 +31,7 @@ app.include_router(auth.router)
 app.include_router(desktop.router)
 app.include_router(governance.router)
 app.include_router(admin.router)
+app.include_router(admin_ca.router, prefix="/api/admin/ca", tags=["admin-ca"])
 if settings.enable_docs:
     app.include_router(debug.router)
 

@@ -10,6 +10,7 @@ import AuthoritiesPage from "../pages/admin/AuthoritiesPage";
 import DesktopsPage from "../pages/admin/DesktopsPage";
 import AuditLogsPage from "../pages/admin/AuditLogsPage";
 import SystemSettingsPage from "../pages/admin/SystemSettingsPage";
+import CertificateAuthorityPage from "../pages/admin/CertificateAuthorityPage";
 import AssignedDesktopsPage from "../pages/governance/AssignedDesktopsPage";
 import DesktopDetailPage from "../pages/governance/DesktopDetailPage";
 
@@ -36,6 +37,7 @@ export default function App() {
         <Route path="desktops" element={<DesktopsPage />} />
         <Route path="audit" element={<AuditLogsPage />} />
         <Route path="settings" element={<SystemSettingsPage />} />
+        <Route path="certificates" element={<CertificateAuthorityPage />} />
       </Route>
 
       <Route

@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { ButtonHTMLAttributes } from "react";
 
 type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "ghost" | "danger";
+  variant?: "primary" | "ghost" | "danger" | "secondary";
   size?: "sm" | "md";
 };
 

@@ -21,6 +21,9 @@ public class VaultManager
     private const string LastNetworkKey = "LastNetwork";
     private const string ExternalTreasuryAddressKey = "ExternalTreasuryAddress";
     private const string BootstrapThresholdKey = "BootstrapThreshold";
+    private const string DesktopAppIdKey = "DesktopAppId";
+    private const string DesktopSecretKeyKey = "DesktopSecretKey";
+    private const string ApiBaseUrlKey = "ApiBaseUrl";
     private bool _legacyMigrationAttempted;
 
     public VaultManager()
@@ -261,6 +264,108 @@ public class VaultManager
     {
         var value = _store.GetSetting(BootstrapThresholdKey);
         return int.TryParse(value, out var parsed) ? parsed : null;
+    }
+
+    // Desktop Registration Methods
+    public string GetDesktopAppId()
+    {
+        var existing = _store.GetSetting(DesktopAppIdKey);
+        if (!string.IsNullOrWhiteSpace(existing))
+        {
+            return existing;
+        }
+
+        // Generate new GUID
+        var newId = Guid.NewGuid().ToString();
+        _store.SaveSetting(DesktopAppIdKey, newId);
+        return newId;
+    }
+
+    public string GetDesktopSecretKey()
+    {
+        var existing = _store.GetSetting(DesktopSecretKeyKey);
+        if (!string.IsNullOrWhiteSpace(existing))
+        {
+            return existing;
+        }
+
+        // Generate new secret key
+        var newSecret = AegisMint.Core.Security.HmacSignature.GenerateSecretKey();
+        _store.SaveSetting(DesktopSecretKeyKey, newSecret);
+        return newSecret;
+    }
+
+    public void SaveDesktopSecretKey(string secretKey)
+    {
+        _store.SaveSetting(DesktopSecretKeyKey, secretKey);
+    }
+
+    public void SaveApiBaseUrl(string url)
+    {
+        _store.SaveSetting(ApiBaseUrlKey, url);
+    }
+
+    public string GetApiBaseUrl()
+    {
+        var value = _store.GetSetting(ApiBaseUrlKey);
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            return value;
+        }
+
+        // Try to read from appsettings.json
+        try
+        {
+            var appSettingsPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "appsettings.json");
+            if (System.IO.File.Exists(appSettingsPath))
+            {
+                var json = System.IO.File.ReadAllText(appSettingsPath);
+                var settings = System.Text.Json.JsonDocument.Parse(json);
+                if (settings.RootElement.TryGetProperty("ApiSettings", out var apiSettings))
+                {
+                    if (apiSettings.TryGetProperty("BaseUrl", out var baseUrl))
+                    {
+                        var url = baseUrl.GetString();
+                        if (!string.IsNullOrWhiteSpace(url))
+                        {
+                            // Save to vault for future use
+                            _store.SaveSetting(ApiBaseUrlKey, url);
+                            return url;
+                        }
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Ignore errors reading appsettings.json
+        }
+
+        // Default to localhost for development
+        var defaultUrl = "http://127.0.0.1:8000";
+        _store.SaveSetting(ApiBaseUrlKey, defaultUrl);
+        return defaultUrl;
+    }
+
+    // Certificate Storage Methods
+    public void SaveCertificate(string certificatePem)
+    {
+        _store.SaveSetting("desktop_certificate", certificatePem);
+    }
+
+    public void SavePrivateKey(string privateKeyPem)
+    {
+        _store.SaveSetting("desktop_private_key", privateKeyPem);
+    }
+
+    public string? GetCertificate()
+    {
+        return _store.GetSetting("desktop_certificate");
+    }
+
+    public string? GetPrivateKey()
+    {
+        return _store.GetSetting("desktop_private_key");
     }
 
     private static string NormalizeNetwork(string network)

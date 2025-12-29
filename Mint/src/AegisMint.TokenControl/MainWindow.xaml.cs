@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -8,6 +9,7 @@ using System.Windows.Input;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using System.Windows.Threading;
 using AegisMint.Core.Models;
 using AegisMint.Core.Services;
 using AegisMint.Core.Security;
@@ -27,6 +29,11 @@ public partial class MainWindow : Window
     private ContractArtifacts? _tokenArtifacts;
     private readonly VaultManager _vaultManager = new();
     private readonly TokenControlService _tokenControlService;
+    private DesktopAuthenticationService? _authService;
+    private DispatcherTimer? _approvalCheckTimer;
+    private DispatcherTimer? _countdownTimer;
+    private DateTime? _unlockedUntilUtc;
+    private bool _hasAuthenticationSucceeded = false;
     private string _currentNetwork = "sepolia";
     private string? _currentContractAddress;
 
@@ -41,9 +48,13 @@ public partial class MainWindow : Window
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
+        Logger.Debug("OnLoaded - START");
         LoadInitialState();
         LoadContractArtifacts();
+        await InitializeAuthenticationAsync();
+        Logger.Debug("OnLoaded - Auth completed, starting WebView init");
         await InitializeWebViewAsync();
+        Logger.Debug("OnLoaded - END");
     }
 
     private void LoadInitialState()
@@ -61,7 +72,7 @@ public partial class MainWindow : Window
         // Get current contract address
         _currentContractAddress = _vaultManager.GetDeployedContractAddress(_currentNetwork);
         
-        Title = $"Aegis Token Control - {_currentNetwork.ToUpperInvariant()}";
+        UpdateTitle();
     }
 
     private void OnPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
@@ -121,14 +132,25 @@ public partial class MainWindow : Window
 
     private async void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
+        Logger.Debug($"OnNavigationCompleted - IsSuccess={e.IsSuccess}, _hasAuthenticationSucceeded={_hasAuthenticationSucceeded}");
         if (e.IsSuccess)
         {
-            Overlay.Visibility = Visibility.Collapsed;
+            // Only hide overlay if authentication has succeeded
+            if (_hasAuthenticationSucceeded)
+            {
+                Logger.Debug("Auth succeeded - Hiding Overlay");
+                Overlay.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                Logger.Debug("Auth NOT succeeded - Keeping Overlay visible");
+            }
             await SendToWebAsync("host-info", new { host = "Aegis Token Control WPF", version = "1.0", network = _currentNetwork });
             await SendVaultStatusAsync();
             await UpdateBalanceStatsAsync();
             await UpdatePauseStatusAsync();
             await SendFreezeHistoryAsync();
+            Logger.Debug($"OnNavigationCompleted - After all async calls: LockOverlay={LockOverlay.Visibility}, Overlay={Overlay.Visibility}");
         }
         else
         {
@@ -224,7 +246,7 @@ public partial class MainWindow : Window
     {
         _currentNetwork = network.Trim().ToLowerInvariant();
         _vaultManager.SaveLastNetwork(_currentNetwork);
-        Title = $"Aegis Token Control - {_currentNetwork.ToUpperInvariant()}";
+        UpdateTitle();
         
         // Update TokenControlService with network and RPC URL
         var rpcUrl = GetRpcUrlForNetwork(_currentNetwork);
@@ -248,6 +270,265 @@ public partial class MainWindow : Window
             "sepolia" => "https://sepolia.infura.io/v3/fc6598ddab264c89a508cdb97d5398ea",
             _ => "http://127.0.0.1:8545"
         };
+    }
+
+    // Authentication and Access Control Methods
+    private async Task InitializeAuthenticationAsync()
+    {
+        try
+        {
+            Logger.Debug("InitializeAuthenticationAsync - START");
+            _authService = new DesktopAuthenticationService(_vaultManager);
+            Logger.Info($"Desktop App ID: {_authService.DesktopAppId}");
+
+            Logger.Debug("Showing lock overlay: Checking authorization...");
+            ShowLockOverlay("Checking authorization...", false);
+            await CheckAuthenticationStatusAsync();
+            Logger.Debug("InitializeAuthenticationAsync - END");
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("Authentication initialization failed", ex);
+            ShowLockOverlay($"Authentication error: {ex.Message}", true);
+        }
+    }
+
+    private async Task CheckAuthenticationStatusAsync()
+    {
+        if (_authService == null) return;
+
+        try
+        {
+            Logger.Debug("CheckAuthenticationStatusAsync - Calling API...");
+            var status = await _authService.CheckUnlockStatusAsync();
+            Logger.Debug($"CheckAuthenticationStatusAsync - Status: {status.DesktopStatus}, Unlocked: {status.IsUnlocked}");
+
+            if (status.DesktopStatus == "Pending")
+            {
+                ShowLockOverlay(
+                    "Your application registration is pending approval by an administrator. " +
+                    "The application will close now. Please restart after approval.",
+                    false);
+                await Task.Delay(5000);
+                System.Windows.Application.Current.Shutdown();
+                return;
+            }
+
+            if (status.DesktopStatus == "Disabled")
+            {
+                ShowLockOverlay("This desktop application has been disabled by an administrator.", false);
+                return;
+            }
+
+            if (status.DesktopStatus != "Active")
+            {
+                ShowLockOverlay($"Unexpected desktop status: {status.DesktopStatus}", true);
+                return;
+            }
+
+            // Desktop is Active
+            if (!status.IsUnlocked)
+            {
+                ShowLockOverlay(
+                    $"Access requires approval from {status.RequiredApprovalsN} administrator(s). " +
+                    $"Current approvals: {status.ApprovalsSoFar}. Please wait for authorization.",
+                    false);
+                
+                // Check every 30 seconds while waiting for approval
+                StartApprovalCheckTimer();
+                return;
+            }
+
+            // Unlocked - allow access
+            Logger.Debug("Authentication SUCCEEDED - Setting flag to true");
+            _hasAuthenticationSucceeded = true;
+            _unlockedUntilUtc = status.UnlockedUntilUtc?.ToLocalTime();
+            HideLockOverlay();
+
+            if (_unlockedUntilUtc.HasValue)
+            {
+                var remaining = _unlockedUntilUtc.Value - DateTime.Now;
+                Logger.Info($"Access granted until {_unlockedUntilUtc.Value:yyyy-MM-dd HH:mm:ss} (Remaining: {remaining.TotalMinutes:F1} minutes)");
+                StartCountdownTimer(_unlockedUntilUtc.Value);
+            }
+            else
+            {
+                // No expiration time, just update title
+                UpdateTitle();
+            }
+        }
+        catch (HttpRequestException ex) when (ex.Message.Contains("Desktop not found"))
+        {
+            // First time registration
+            Logger.Debug("Desktop not found - registering...");
+            await RegisterDesktopAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.Debug($"Network error caught: {ex.Message}");
+            Logger.Error("Network error during authentication check", ex);
+            ShowLockOverlay(
+                $"Network error: Unable to connect to the governance server. {ex.Message}",
+                true);
+            Logger.Debug($"Auth failed - _hasAuthenticationSucceeded={_hasAuthenticationSucceeded}");
+        }
+        catch (Exception ex)
+        {
+            Logger.Debug($"General exception caught: {ex.Message}");
+            Logger.Error("Authentication check failed", ex);
+            ShowLockOverlay($"Authentication failed: {ex.Message}", true);
+            Logger.Debug($"Auth failed - _hasAuthenticationSucceeded={_hasAuthenticationSucceeded}");
+        }
+    }
+
+    private async Task RegisterDesktopAsync()
+    {
+        if (_authService == null) return;
+
+        try
+        {
+            var machineName = Environment.MachineName;
+            var osUser = Environment.UserName;
+            var version = "1.0.0"; // TODO: Get from assembly version
+            var nameLabel = $"{machineName} - {osUser}";
+
+            var response = await _authService.RegisterAsync(machineName, version, osUser, nameLabel);
+
+            Logger.Info($"Desktop registered with status: {response.DesktopStatus}");
+
+            ShowLockOverlay(
+                "Your application has been registered and is pending approval by an administrator. " +
+                "The application will close now. Please restart after approval.",
+                false);
+
+            await Task.Delay(5000);
+            System.Windows.Application.Current.Shutdown();
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("Desktop registration failed", ex);
+            ShowLockOverlay($"Registration failed: {ex.Message}", true);
+        }
+    }
+
+    private void StartCountdownTimer(DateTime unlockUntil)
+    {
+        // Stop any existing timers
+        _countdownTimer?.Stop();
+        _approvalCheckTimer?.Stop();
+        
+        // Create countdown timer that updates every second
+        _countdownTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(1)
+        };
+
+        _countdownTimer.Tick += (s, e) =>
+        {
+            var remaining = unlockUntil - DateTime.Now;
+            
+            if (remaining.TotalSeconds <= 0)
+            {
+                // Time expired - lock the application
+                _countdownTimer?.Stop();
+                _hasAuthenticationSucceeded = false;
+                _unlockedUntilUtc = null;
+                UpdateTitle(); // Remove countdown from title
+                ShowLockOverlay(
+                    "Your access time has expired. The application cannot be used until re-approved.",
+                    false);
+                DisableApplication();
+                Logger.Info("Access time expired - application locked");
+            }
+            else
+            {
+                // Update title with remaining time
+                UpdateTitle(remaining);
+            }
+        };
+
+        _countdownTimer.Start();
+        UpdateTitle(unlockUntil - DateTime.Now); // Initial title update
+        Logger.Info($"Countdown timer started - expires at {unlockUntil:HH:mm:ss}");
+    }
+
+    private void StartApprovalCheckTimer()
+    {
+        _approvalCheckTimer?.Stop();
+        _approvalCheckTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(30)
+        };
+
+        _approvalCheckTimer.Tick += async (s, e) =>
+        {
+            await CheckAuthenticationStatusAsync();
+        };
+
+        _approvalCheckTimer.Start();
+        Logger.Debug("Started approval check timer (30s interval)");
+    }
+
+    private void UpdateTitle(TimeSpan? remaining = null)
+    {
+        var baseTitle = $"Aegis Token Control - {_currentNetwork.ToUpperInvariant()}";
+        
+        if (remaining.HasValue && remaining.Value.TotalSeconds > 0)
+        {
+            var minutes = (int)remaining.Value.TotalMinutes;
+            var seconds = remaining.Value.Seconds;
+            Title = $"{baseTitle} - {minutes}:{seconds:D2} remaining";
+        }
+        else
+        {
+            Title = baseTitle;
+        }
+    }
+
+    private void ShowLockOverlay(string message, bool showRetry)
+    {
+        Logger.Debug($"ShowLockOverlay called: message='{message}', showRetry={showRetry}");
+        Logger.Debug($"ShowLockOverlay - StackTrace: {Environment.StackTrace}");
+        Dispatcher.Invoke(() =>
+        {
+            LockMessage.Text = message;
+            RetryButton.Visibility = showRetry ? Visibility.Visible : Visibility.Collapsed;
+            LockOverlay.Visibility = Visibility.Visible;
+            // Hide the loading overlay so LockOverlay is visible
+            Overlay.Visibility = Visibility.Collapsed;
+            // Hide WebView to prevent Z-order issues (WebView2 renders on top)
+            MainWebView.Visibility = Visibility.Collapsed;
+            Logger.Debug($"ShowLockOverlay completed: LockOverlay={LockOverlay.Visibility}, Overlay={Overlay.Visibility}, WebView={MainWebView.Visibility}");
+        });
+    }
+
+    private void HideLockOverlay()
+    {
+        Logger.Debug("HideLockOverlay called");
+        Logger.Debug($"HideLockOverlay - StackTrace: {Environment.StackTrace}");
+        Dispatcher.Invoke(() =>
+        {
+            LockOverlay.Visibility = Visibility.Collapsed;
+            // Show WebView again when unlocked
+            MainWebView.Visibility = Visibility.Visible;
+            Logger.Debug($"HideLockOverlay completed: LockOverlay={LockOverlay.Visibility}, WebView={MainWebView.Visibility}");
+        });
+    }
+
+    private void DisableApplication()
+    {
+        // Disable WebView interaction
+        if (MainWebView?.CoreWebView2 != null)
+        {
+            MainWebView.IsEnabled = false;
+        }
+    }
+
+    private async void OnRetryClick(object sender, RoutedEventArgs e)
+    {
+        ShowLockOverlay("Retrying connection...", false);
+        await Task.Delay(500);
+        await CheckAuthenticationStatusAsync();
     }
 
     private async Task HandleSendTokensAsync(JsonElement? payload)

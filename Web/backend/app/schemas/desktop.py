@@ -21,6 +21,7 @@ class DesktopRegisterResponse(BaseModel):
     desktopStatus: DesktopStatus
     requiredApprovalsN: int
     unlockMinutes: int
+    secretKey: Optional[str] = None  # Returned on first registration
 
 
 class DesktopHeartbeatRequest(BaseModel):
@@ -37,6 +38,7 @@ class UnlockStatusResponse(BaseModel):
     requiredApprovalsN: int
     approvalsSoFar: int
     sessionStatus: SessionStatus
+    newSecretKey: Optional[str] = None  # Included if key was rotated
 
 
 class DesktopUpdateRequest(BaseModel):
