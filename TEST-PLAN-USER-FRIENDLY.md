@@ -89,6 +89,9 @@ Smart Contract and Generate Shares
 - Proceed with Token Control application installation
 ### Step 0.4: CompleDesktop Registration and Authorization
 
+---
+---
+
 This scenario tests the complete workflow of registering a new desktop computer and obtaining multi-party approval for operation.
 
 ### Step 1.1: Initial Desktop Registration
@@ -109,6 +112,10 @@ This scenario tests the complete workflow of registering a new desktop computer 
 - Message says: "Checking authorization..."
 - After a few seconds, message changes to: "Your application has been registered and is pending approval by an administrator. The application will close now. Please restart after approval."
 - Application aerify Pending Desktop Registration
+
+---
+
+### Step 1.2: View Approval
 
 **Purpose**: Confirm that administrators can view newly registered desktops awaiting approval.
 
@@ -132,6 +139,10 @@ This scenario tests the complete workflow of registering a new desktop computer 
   - DesktopAppId
   - Required Apdministrator Desktop Approval
 
+---
+
+### Step 1.3: Approve Desktop 
+
 **Purpose**: Verify that administrators can approve registered desktops for governance assignment.
 
 **Test Steps**:
@@ -149,6 +160,9 @@ This scenario tests the complete workflow of registering a new desktop computer 
 - A success message appears (e.g., "Desktop approved successfully")
 - Desktop now appears in the "Active Desktops" section
 Authorities
+
+---
+### Step 1.4: Assign to governance
 
 **Purpose**: Verify that administrators can assign desktops to governance users who will provide multi-party authorization.
 
