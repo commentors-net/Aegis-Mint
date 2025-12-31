@@ -5,6 +5,7 @@ import Shell from "./Shell";
 const tabs = [
   { path: "authorities", label: "Governance Authorities" },
   { path: "desktops", label: "Manage Desktops" },
+  { path: "assign-desktops", label: "Assign Desktops" },
   { path: "certificates", label: "Certificates" },
   { path: "audit", label: "Audit Logs" },
   { path: "settings", label: "System Settings" },
