@@ -632,6 +632,10 @@
       position: relative;
     }
 
+    .input-copy-wrapper .input {
+      padding-right: 40px;
+    }
+
     .copy-btn {
       position: absolute;
       top: 50%;
@@ -698,6 +702,70 @@
     .locked-control {
       opacity: 0.55 !important;
       pointer-events: none !important;
+    }
+
+    .countdown-timer {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(220, 38, 38, 0.1));
+      border: 2px solid rgba(220, 38, 38, 0.4);
+      font-size: 18px;
+      font-weight: 600;
+      color: #dc2626;
+      letter-spacing: 0.05em;
+      box-shadow: 0 4px 12px rgba(220, 38, 38, 0.2);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        box-shadow: 0 4px 12px rgba(220, 38, 38, 0.2);
+      }
+      50% {
+        box-shadow: 0 4px 16px rgba(220, 38, 38, 0.35);
+      }
+    }
+
+    .countdown-timer.warning {
+      background: linear-gradient(135deg, rgba(234, 179, 8, 0.15), rgba(202, 138, 4, 0.1));
+      border-color: rgba(202, 138, 4, 0.5);
+      color: #ca8a04;
+    }
+
+    .countdown-timer.critical {
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.25), rgba(220, 38, 38, 0.2));
+      border-color: rgba(220, 38, 38, 0.8);
+      animation: pulse-fast 0.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse-fast {
+      0%, 100% {
+        transform: scale(1);
+      }
+      50% {
+        transform: scale(1.02);
+      }
+    }
+
+    .countdown-icon {
+      font-size: 20px;
+    }
+
+    .countdown-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      opacity: 0.8;
+      margin-right: 4px;
+    }
+
+    .countdown-value {
+      font-size: 22px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
     }
   </style>
 </head>
@@ -984,6 +1052,11 @@
           </div>
           
           <div class="footer-right">
+            <div id="countdown-timer" class="countdown-timer" style="display: none;">
+              <span class="countdown-icon">⏱️</span>
+              <span class="countdown-label">Time remaining:</span>
+              <span class="countdown-value" id="countdown-value">--:--</span>
+            </div>
             <button type="button" class="btn btn-outline" id="recover-btn">Recover</button>
             <button type="button" class="btn btn-outline" id="refresh-balances">Refresh balances</button>
           </div>

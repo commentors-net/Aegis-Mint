@@ -430,6 +430,30 @@ window.addEventListener('DOMContentLoaded', function() {
     }
   }
 
+  function updateCountdownTimer(payload) {
+    const timerElement = document.getElementById('countdown-timer');
+    const valueElement = document.getElementById('countdown-value');
+    
+    if (!timerElement || !valueElement) return;
+
+    if (payload?.visible === false || !payload?.timeRemaining) {
+      timerElement.style.display = 'none';
+      return;
+    }
+
+    timerElement.style.display = 'inline-flex';
+    valueElement.textContent = payload.timeRemaining;
+
+    // Update styling based on time remaining
+    timerElement.classList.remove('warning', 'critical');
+    
+    if (payload.totalSeconds <= 60) {
+      timerElement.classList.add('critical');
+    } else if (payload.totalSeconds <= 300) {
+      timerElement.classList.add('warning');
+    }
+  }
+
       function addLog(tag, text, txHash = null, address = null, timestamp = new Date()) {
     const ts = timestamp instanceof Date ? timestamp : new Date(timestamp);
     const item = document.createElement('div');
@@ -666,10 +690,29 @@ window.addEventListener('DOMContentLoaded', function() {
     const statTotalSupply = document.getElementById('stat-total-supply');
     
     if (statTokenBalance && payload.tokenBalance !== undefined) {
-      statTokenBalance.textContent = `${payload.tokenBalance} TOK`;
+      const raw = payload.tokenBalance.toString().replace(/,/g, '').trim();
+      const tokenVal = parseFloat(raw);
+      if (Number.isFinite(tokenVal)) {
+        // Split into integer and decimal parts
+        const parts = tokenVal.toFixed(4).split('.');
+        const intPart = parseInt(parts[0]).toLocaleString('en-US');
+        const formatted = `${intPart}.${parts[1]}`;
+        statTokenBalance.textContent = `${formatted} TOK`;
+      } else {
+        statTokenBalance.textContent = `${payload.tokenBalance} TOK`;
+      }
     }
     if (statEthBalance && payload.ethBalance !== undefined) {
-      statEthBalance.textContent = `${payload.ethBalance} ETH`;
+      const raw = payload.ethBalance.toString().replace(/,/g, '').trim();
+      const ethVal = parseFloat(raw);
+      if (Number.isFinite(ethVal)) {
+        const parts = ethVal.toFixed(4).split('.');
+        const intPart = parseInt(parts[0]).toLocaleString('en-US');
+        const formatted = `${intPart}.${parts[1]}`;
+        statEthBalance.textContent = `${formatted} ETH`;
+      } else {
+        statEthBalance.textContent = `${payload.ethBalance} ETH`;
+      }
     }
     if (payload.ethBalance !== undefined) {
       const raw = payload.ethBalance.toString().replace(/,/g, '').replace(/ ETH/i, '');
@@ -706,6 +749,9 @@ window.addEventListener('DOMContentLoaded', function() {
       case 'host-info':
         applyNetworkFromHost(payload?.network);
         logToHost('Host connected');
+        break;
+      case 'countdown-update':
+        updateCountdownTimer(payload);
         break;
       case 'vault-status':
         applyVaultStatus(payload);

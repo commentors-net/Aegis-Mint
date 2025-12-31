@@ -12,8 +12,6 @@
   const treasuryEthInput = document.getElementById("treasury-eth");
   const treasuryTokensInput = document.getElementById("treasury-tokens");
   const treasuryStatus = document.getElementById("treasury-status");
-  const headerTreasuryAddress = document.getElementById("header-treasury-address");
-  const headerTreasurySummary = document.getElementById("header-treasury-summary");
 
   const resetBtn = document.getElementById("reset-form");
   const genTreasuryBtn = document.getElementById("gen-treasury");
@@ -147,7 +145,7 @@
 
     if (contractDeploymentLocked) {
       stopEthPolling();
-      setPageEnabled(false, "Contract already deployed. Minting disabled.");
+      setPageEnabled(false, "Contract deployed. Minting disabled.");
       updateGenerateState();
       return;
     }
@@ -208,7 +206,7 @@
     clearPermanentToast();
 
     setPageEnabled(false, "Switching network...");
-    updateHeaderTreasury();
+    
     evaluateLockState();
   }
 
@@ -315,7 +313,7 @@
         if (payload?.tokens !== undefined && payload.tokens !== null && payload.tokens !== "") {
           treasuryTokensInput.value = payload.tokens;
         }
-        updateHeaderTreasury();
+        
         evaluateLockState();
         hideProgress();
         break;
@@ -351,17 +349,6 @@
     return parts.join(".");
   }
 
-  function updateHeaderTreasury() {
-    const addr = treasuryAddressInput.value.trim();
-    const ethRaw = treasuryEthInput.value || "0";
-    const eth = parseFloat(ethRaw);
-    const tokens = treasuryTokensInput.value || "0";
-
-    headerTreasuryAddress.textContent = addr || "Not set";
-
-    const safeEth = Number.isNaN(eth) ? 0 : eth;
-    headerTreasurySummary.textContent = `ETH: ${safeEth} Tokens: ${tokens}`;
-  }
 
   function showToast(text, isError = false, durationMs = 7000) {
     let container = document.getElementById("toast-container");
@@ -456,11 +443,9 @@
     }
     if (prefill.treasuryAddress !== undefined) {
       treasuryAddressInput.value = prefill.treasuryAddress;
-      headerTreasuryAddress.textContent = prefill.treasuryAddress;
       treasuryGenerated = true;
       treasuryStatus.textContent = "Treasury loaded from vault";
     }
-    updateHeaderTreasury();
     evaluateLockState();
   }
 
@@ -479,15 +464,15 @@
   function lockUiForDeployedContract(data) {
     const address = data?.contractAddress || data?.address || data;
 
-    setPageEnabled(false, "Contract already deployed. Deployment disabled.");
+    setPageEnabled(false, "Contract deployed. Deployment disabled.");
 
     if (contractAddressInput && address) {
       contractAddressInput.value = address;
     }
 
     contractDeploymentLocked = true;
-    treasuryStatus.textContent = "Contract already deployed. Deployment disabled.";
-    showPermanentToast("Contract is already deployed");
+    treasuryStatus.textContent = "Contract deployed. Deployment disabled.";
+    showPermanentToast("Contract deployed");
     updateMintState();
     updateGenerateState();
     updateResetState();
@@ -542,10 +527,8 @@
       treasuryAddressInput.value = addr;
       treasuryGenerated = true;
       treasuryStatus.textContent = status;
-      headerTreasuryAddress.textContent = addr;
       genTreasuryBtn.disabled = true;
     }
-    updateHeaderTreasury();
     evaluateLockState();
   }
 
@@ -558,13 +541,11 @@
       treasuryAddressInput.value = payload.treasuryAddress;
       treasuryGenerated = true;
       treasuryStatus.textContent = "Treasury loaded from vault";
-      headerTreasuryAddress.textContent = payload.treasuryAddress;
       genTreasuryBtn.disabled = true;
     } else {
       treasuryGenerated = false;
       genTreasuryBtn.disabled = false;
       treasuryAddressInput.value = "";
-      headerTreasuryAddress.textContent = "Not set";
       treasuryStatus.textContent = "Fill Steps 1 & 2, then generate Treasury.";
     }
     if (payload?.balance !== undefined && payload.balance !== null) {
@@ -597,7 +578,6 @@
       treasuryTokensInput.value = "";
       contractAddressInput.value = "";
     }
-    updateHeaderTreasury();
     evaluateLockState();
   }
 
@@ -621,11 +601,11 @@
     if (treasuryGenerated) {
       treasuryEthInput.classList.toggle("eth-alert", !hasEth);
     }
-    updateHeaderTreasury();
+    
     evaluateLockState();
   });
 
-  treasuryAddressInput.addEventListener("input", updateHeaderTreasury);
+  
 
   resetBtn.addEventListener("click", () => {
     const preserveTreasury = treasuryGenerated
@@ -654,7 +634,7 @@
       genTreasuryBtn.disabled = false;
     }
 
-    updateHeaderTreasury();
+    
     evaluateLockState();
     sendToHost("reset", {});
   });
@@ -719,6 +699,6 @@
   
   sendToHost("bridge-ready", { ready: true });
   logToHost("Bridge initialized");
-  updateHeaderTreasury();
+  
   evaluateLockState();
 });
