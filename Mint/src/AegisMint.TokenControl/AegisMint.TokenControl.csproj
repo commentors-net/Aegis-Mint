@@ -8,7 +8,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>AegisMint.TokenControl</AssemblyName>
     <RootNamespace>AegisMint.TokenControl</RootNamespace>
-    <Version>1.1.1</Version>
+    <Version>1.1.2</Version>
     <ApplicationIcon>Assets\aegis-token-control.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>

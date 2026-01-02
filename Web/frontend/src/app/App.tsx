@@ -8,6 +8,7 @@ import AdminLayout from "../layouts/AdminLayout";
 import GovLayout from "../layouts/GovLayout";
 import AuthoritiesPage from "../pages/admin/AuthoritiesPage";
 import DesktopsPage from "../pages/admin/DesktopsPage";
+import AssignDesktopsPage from "../pages/admin/AssignDesktopsPage";
 import AuditLogsPage from "../pages/admin/AuditLogsPage";
 import SystemSettingsPage from "../pages/admin/SystemSettingsPage";
 import CertificateAuthorityPage from "../pages/admin/CertificateAuthorityPage";
@@ -35,6 +36,7 @@ export default function App() {
         <Route index element={<Navigate to="authorities" replace />} />
         <Route path="authorities" element={<AuthoritiesPage />} />
         <Route path="desktops" element={<DesktopsPage />} />
+        <Route path="assign-desktops" element={<AssignDesktopsPage />} />
         <Route path="audit" element={<AuditLogsPage />} />
         <Route path="settings" element={<SystemSettingsPage />} />
         <Route path="certificates" element={<CertificateAuthorityPage />} />

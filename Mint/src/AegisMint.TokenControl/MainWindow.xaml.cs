@@ -36,10 +36,15 @@ public partial class MainWindow : Window
     private bool _hasAuthenticationSucceeded = false;
     private string _currentNetwork = "sepolia";
     private string? _currentContractAddress;
+    private string _cachedTitle = string.Empty;
 
     public MainWindow()
     {
         InitializeComponent();
+        
+        // Enable caching to reduce flickering
+        CacheMode = new System.Windows.Media.BitmapCache { EnableClearType = true, RenderAtScale = 1.0 };
+        
         _tokenControlService = new TokenControlService(_vaultManager);
         Loaded += OnLoaded;
         PreviewKeyDown += OnPreviewKeyDown;
@@ -423,7 +428,7 @@ public partial class MainWindow : Window
             Interval = TimeSpan.FromSeconds(1)
         };
 
-        _countdownTimer.Tick += (s, e) =>
+        _countdownTimer.Tick += async (s, e) =>
         {
             var remaining = unlockUntil - DateTime.Now;
             
@@ -433,7 +438,10 @@ public partial class MainWindow : Window
                 _countdownTimer?.Stop();
                 _hasAuthenticationSucceeded = false;
                 _unlockedUntilUtc = null;
-                UpdateTitle(); // Remove countdown from title
+                
+                // Hide countdown timer in web UI
+                await SendCountdownUpdateAsync(null, false);
+                
                 ShowLockOverlay(
                     "Your access time has expired. The application cannot be used until re-approved.",
                     false);
@@ -442,13 +450,15 @@ public partial class MainWindow : Window
             }
             else
             {
-                // Update title with remaining time
-                UpdateTitle(remaining);
+                // Send countdown update to web UI
+                await SendCountdownUpdateAsync(remaining, true);
             }
         };
 
         _countdownTimer.Start();
-        UpdateTitle(unlockUntil - DateTime.Now); // Initial title update
+        // Send initial countdown update
+        var initialRemaining = unlockUntil - DateTime.Now;
+        SendCountdownUpdateAsync(initialRemaining, true).GetAwaiter().GetResult();
         Logger.Info($"Countdown timer started - expires at {unlockUntil:HH:mm:ss}");
     }
 
@@ -471,16 +481,13 @@ public partial class MainWindow : Window
 
     private void UpdateTitle(TimeSpan? remaining = null)
     {
+        // Simplified - just show network name without countdown
         var baseTitle = $"Aegis Token Control - {_currentNetwork.ToUpperInvariant()}";
         
-        if (remaining.HasValue && remaining.Value.TotalSeconds > 0)
+        // Only update if changed
+        if (baseTitle != _cachedTitle)
         {
-            var minutes = (int)remaining.Value.TotalMinutes;
-            var seconds = remaining.Value.Seconds;
-            Title = $"{baseTitle} - {minutes}:{seconds:D2} remaining";
-        }
-        else
-        {
+            _cachedTitle = baseTitle;
             Title = baseTitle;
         }
     }
@@ -1147,6 +1154,27 @@ public partial class MainWindow : Window
         var json = JsonSerializer.Serialize(new { type, payload });
         var script = $"window.receiveHostMessage && window.receiveHostMessage({json});";
         return MainWebView.CoreWebView2.ExecuteScriptAsync(script);
+    }
+
+    private Task SendCountdownUpdateAsync(TimeSpan? remaining, bool visible)
+    {
+        if (remaining.HasValue && remaining.Value.TotalSeconds > 0)
+        {
+            var minutes = (int)remaining.Value.TotalMinutes;
+            var seconds = remaining.Value.Seconds;
+            var timeRemaining = $"{minutes}:{seconds:D2}";
+            
+            return SendToWebAsync("countdown-update", new
+            {
+                visible = visible,
+                timeRemaining = timeRemaining,
+                totalSeconds = (int)remaining.Value.TotalSeconds
+            });
+        }
+        else
+        {
+            return SendToWebAsync("countdown-update", new { visible = false });
+        }
     }
 
     private CoreWebView2CreationProperties BuildWebViewProperties()

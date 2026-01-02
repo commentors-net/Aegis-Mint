@@ -386,7 +386,7 @@ public partial class MainWindow : Window
             {
                 await SendToWebAsync("host-error", new
                 {
-                    message = "Contract already deployed. Deployment disabled."
+                    message = "Contract deployed. Deployment disabled."
                 });
                 return;
             }
@@ -495,7 +495,7 @@ public partial class MainWindow : Window
                 var recorded = _vaultManager.GetDeployedContractAddress(_currentNetwork);
                 await SendToWebAsync("host-error", new
                 {
-                    message = "Contract already deployed. Deployment disabled."
+                    message = "Contract deployed. Deployment disabled."
                 });
                 await SendToWebAsync("contract-deployed", new
                 {

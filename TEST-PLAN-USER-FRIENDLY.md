@@ -26,11 +26,11 @@ This guide provides comprehensive step-by-step instructions for testing the Aegi
 
 ---
 
-## Test Scenario 0: Initial Mint Application Setup
+## Test Scenario 1: Initial Mint Application Setup
 
 This scenario covers the installation of the Mint application, creation of the genesis key, and smart contract deployment.
 
-### Step 0.1: Launch the Mint Application
+### Step 1.1: Launch the Mint Application
 
 **Purpose**: Verify the Mint application launches correctly and displays the initial interface.
 
@@ -43,7 +43,8 @@ This scenario covers the installation of the Mint application, creation of the g
 - All controls are disabled except the "Generate Treasury" button
 
 ---
- Address
+
+### Step 1.2: Generate Treasury Address
 
 **Purpose**: Create an Ethereum address that will serve as the treasury wallet for token operations across blockchain networks.
 
@@ -59,7 +60,8 @@ This scenario covers the installation of the Mint application, creation of the g
 - If it is testnet then you can get test ether from https://cloud.google.com/application/web3/faucet/ethereum/sepolia
 
 ---
-Smart Contract and Generate Shares
+
+### Step 1.3: Deploy Smart Contract and Generate Shares
 
 **Purpose**: Deploy the token smart contract to the blockchain and generate cryptographic shares for distributed key management.
 
@@ -81,20 +83,22 @@ Smart Contract and Generate Shares
 - "Contract Address" field populates with the deployed token contract address
 - When process is complete then Contract Address will have the Token Contract Address.
 
---- Token Creation Process
+---
+
+### Step 1.4: Complete Token Creation Process
 
 **Post-Deployment Actions**:
 - The Mint application can now be uninstalled or retained on the system
 - Distribute the generated shares securely to authorized stakeholders
 - Proceed with Token Control application installation
-### Step 0.4: CompleDesktop Registration and Authorization
 
 ---
----
+
+## Test Scenario 2: Desktop Registration and Authorization
 
 This scenario tests the complete workflow of registering a new desktop computer and obtaining multi-party approval for operation.
 
-### Step 1.1: Initial Desktop Registration
+### Step 2.1: Initial Desktop Registration
 
 **Purpose**: Verify the Token Control application can successfully register itself with the governance system.
 
@@ -111,11 +115,11 @@ This scenario tests the complete workflow of registering a new desktop computer 
 - A locked screen appears with a padlock icon (🔒)
 - Message says: "Checking authorization..."
 - After a few seconds, message changes to: "Your application has been registered and is pending approval by an administrator. The application will close now. Please restart after approval."
-- Application aerify Pending Desktop Registration
+- Application automatically closes
 
 ---
 
-### Step 1.2: View Approval
+### Step 2.2: Verify Pending Desktop Registration
 
 **Purpose**: Confirm that administrators can view newly registered desktops awaiting approval.
 
@@ -137,11 +141,12 @@ This scenario tests the complete workflow of registering a new desktop computer 
 - You can see:
   - Computer name & Windows username
   - DesktopAppId
-  - Required Apdministrator Desktop Approval
+  - Required Approvals: 2
+  - Unlock Duration: 15 minutes
 
 ---
 
-### Step 1.3: Approve Desktop 
+### Step 2.3: Administrator Desktop Approval 
 
 **Purpose**: Verify that administrators can approve registered desktops for governance assignment.
 
@@ -159,41 +164,58 @@ This scenario tests the complete workflow of registering a new desktop computer 
 - Status changes from "Pending" to "Active"
 - A success message appears (e.g., "Desktop approved successfully")
 - Desktop now appears in the "Active Desktops" section
-Authorities
 
 ---
-### Step 1.4: Assign to governance
+
+### Step 2.4: Assign Desktop to Governance Authorities
 
 **Purpose**: Verify that administrators can assign desktops to governance users who will provide multi-party authorization.
 
-**Test Steps**:
-1. Navigate to the "Governance Authorities" section in the Admin Portal
-2. Locate "gov@example.com" in the user list
-3. Click the "Assign" button for this user
-4. In the popup dialog, view available desktops
-5. Select the checkbox next to your newly approved desktop
-6. Click "Save Assignments"
-7. Confirm the dialog closes
+**Method 1: Using the Assign Desktops Page (Recommended)**
 
-**Repeat assignment for second governance user**:
-1. Locate "new2@example.com" in the user list
-2. Click the "Assign" button
-3. Select the checkbox for your desktop
-4. Click "Save Assignments"
+**Test Steps**:
+1. Navigate to the "Assign Desktops" tab in the Admin Portal
+2. Locate your newly approved desktop in the grid of desktop cards
+3. Click on the desktop card to open the assignment dialog
+4. In the assignment dialog:
+   - Review the list of all governance users
+   - Check the boxes next to "gov@example.com" and "new2@example.com"
+   - (Optional) Use the search box to filter users if there are many
+5. Click "Save Assignments"
+6. Verify the dialog closes
 
 **Expected Results**:
-- Assignment dialog displays all available desktops (both assigned and unassigned)
+- Desktop cards are displayed in a visual grid layout
+- Each card shows desktop icon, name, status badge, and configuration details
+- Assignment dialog opens showing all governance users with checkboxes
+- Checked boxes indicate which users are assigned
+- Search functionality helps filter users by email
 - Dialog closes automatically after saving
-- Both governance users display the desktop in their assigned desktop list
-**What You Should See**:
-- Popup shows list of desktops (assigned and unassigned)
-- After clicking "Save Assignments", popup closes
-- Both users now show your desktop in their assigned desktops
+- Both governance users now have access to the desktop
+
+**Method 2: Using the Governance Authorities Page (Alternative)**
+
+**Test Steps**:
+1. Navigate to the "Governance Authorities" tab in the Admin Portal
+2. Locate "gov@example.com" in the user list
+3. Click the "Assign" button for this user
+4. In the popup dialog, select the checkbox next to your newly approved desktop
+5. Click "Save Assignments"
+6. Repeat for "new2@example.com":
+   - Locate the user in the list
+   - Click "Assign"
+   - Select your desktop
+   - Click "Save Assignments"
+
+**Expected Results**:
+- Assignment dialog displays all available desktops
+- Dialog closes automatically after saving
+- Both users show the desktop in their assigned desktops list
 
 
 ---
 
-### Step 1.5: Initiate Access Request
+### Step 2.5: Initiate Access Request
 
 **Purpose**: Verify that the Token Control application detects approval requirements and enters polling mode.
 
@@ -212,7 +234,7 @@ Authorities
 
 ---
 
-### Step 1.6: First Governance Authority Approval
+### Step 2.6: First Governance Authority Approval
 
 **Purpose**: Verify that the first governance user can provide their approval for desktop access.
 
@@ -232,7 +254,7 @@ Authorities
 
 ---
 
-### Step 1.7: Second Governance Authority Approval
+### Step 2.7: Second Governance Authority Approval
 
 **Purpose**: Verify that the second governance user can provide the final approval required to unlock the desktop.
 
@@ -252,7 +274,7 @@ Authorities
 
 ---
 
-### Step 1.8: Automatic Desktop Unlock
+### Step 2.8: Automatic Desktop Unlock
 
 **Purpose**: Verify that the Token Control application automatically detects full authorization and unlocks the interface.
 
@@ -270,7 +292,7 @@ Authorities
 
 ---
 
-### Step 1.9: Recover Cryptographic Keys Using Shares
+### Step 2.9: Recover Cryptographic Keys Using Shares
 
 **Purpose**: Verify that the Token Control application can reconstruct the genesis key from distributed shares and retrieve blockchain data.
 
@@ -288,7 +310,7 @@ Authorities
 
 ---
 
-### Step 1.10: Verify Countdown Timer Functionality
+### Step 2.10: Verify Countdown Timer Functionality
 
 **Purpose**: Confirm that the access countdown timer functions accurately and displays correctly.
 
@@ -306,7 +328,7 @@ Authorities
 
 ---
 
-### Step 1.11: Access Expiration and Auto-Lock
+### Step 2.11: Access Expiration and Auto-Lock
 
 **Purpose**: Verify that the application automatically locks when the authorized access period expires.
 
@@ -323,11 +345,11 @@ Authorities
 
 ---
 
-## Test Scenario 2: Error Handling and Recovery
+## Test Scenario 3: Error Handling and Recovery
 
 This scenario validates the application's error handling capabilities and recovery mechanisms.
 
-### Step 2.1: Network Connection Failure
+### Step 3.1: Network Connection Failure
 
 **Purpose**: Verify that the application displays appropriate error messages when the governance server is unreachable.
 
@@ -345,7 +367,7 @@ This scenario validates the application's error handling capabilities and recove
 
 ---
 
-### Step 2.2: Connection Recovery
+### Step 3.2: Connection Recovery
 
 **Purpose**: Verify that the retry mechanism successfully reconnects when the server becomes available.
 
@@ -362,11 +384,189 @@ This scenario validates the application's error handling capabilities and recove
 
 ---
 
-## Test Scenario 3: Governance Portal Functionality
+## Test Scenario 4: Admin Portal - Complete Functionality
 
-This scenario validates the features and capabilities of the governance web portal.
+This scenario validates all features and capabilities of the admin web portal.
 
-### Step 3.1: Desktop List View
+### Step 4.1: Governance Authorities Management
+
+**Purpose**: Verify that administrators can create, edit, and manage governance user accounts.
+
+**Test Steps**:
+1. Navigate to https://apkserve.com/governance and log in as admin
+2. Click the "Governance Authorities" tab
+3. Review the list of existing governance users
+4. Click "Create User" button
+5. Fill in the new user form:
+   - Email address
+   - Password
+   - Role (GovernanceAuthority)
+   - MFA Secret (scan QR code with authenticator app)
+6. Click "Save"
+7. Verify the new user appears in the list
+8. Click "Edit" on an existing user
+9. Modify the user details and save
+
+**Expected Results**:
+- User list displays all governance authorities with their status
+- Create dialog displays form with all required fields
+- QR code is generated for MFA setup
+- New user is added successfully
+- Edit functionality allows updating user details
+- Active/Inactive status can be toggled
+- "Assign" button is available for desktop assignment
+
+---
+
+### Step 4.2: Manage Desktops - Desktop Lifecycle
+
+**Purpose**: Verify desktop approval, configuration, and status management.
+
+**Test Steps**:
+1. Navigate to the "Manage Desktops" tab
+2. Review the list of all desktops (Pending, Active, Disabled)
+3. Use the search box to filter desktops by name or DesktopAppId
+4. Select a "Pending" desktop
+5. Review desktop details (computer name, username, DesktopAppId)
+6. Click "Approve" button
+7. Verify desktop status changes to "Active"
+8. Click "Edit" on an active desktop
+9. Modify settings:
+   - Name Label
+   - Required Approvals (N)
+   - Unlock Duration (minutes)
+10. Click "Save"
+11. Click "Disable" on an active desktop
+12. Verify status changes to "Disabled"
+
+**Expected Results**:
+- Complete list of all registered desktops
+- Search functionality filters results in real-time
+- Status badges clearly indicate desktop state (Pending/Active/Disabled)
+- Approve button is only visible for pending desktops
+- Edit dialog allows configuration of desktop-specific settings
+- Disable action removes desktop from active use
+- Changes are reflected immediately in the list
+
+---
+
+### Step 4.3: Assign Desktops - Visual Assignment Interface
+
+**Purpose**: Verify the desktop-centric assignment interface for managing user access.
+
+**Test Steps**:
+1. Navigate to the "Assign Desktops" tab
+2. Review the grid of desktop cards
+3. Use the search box to filter desktops
+4. Click on a desktop card
+5. In the assignment dialog:
+   - Review the list of all governance users
+   - Use the search box to filter users
+   - Check boxes next to users who should have access
+   - Uncheck boxes to remove assignments
+6. Click "Save Assignments"
+7. Verify the dialog closes
+8. Click on the same desktop again
+9. Verify the assignments are saved correctly
+
+**Expected Results**:
+- Desktops are displayed as visual cards in a grid layout
+- Each card shows:
+  - Desktop icon
+  - Name label and DesktopAppId
+  - Status badge (Active/Pending/Disabled)
+  - Required approvals and unlock duration
+- Hover effect highlights desktop cards
+- Assignment dialog displays all governance users
+- Checked users indicate current assignments
+- Search functionality filters users by email
+- Changes are saved successfully
+- Interface scales well with multiple desktops and users
+
+---
+
+### Step 4.4: Certificates Management
+
+**Purpose**: Verify certificate authority information and management.
+
+**Test Steps**:
+1. Navigate to the "Certificates" tab
+2. Review the displayed certificate information
+3. Verify certificate details are accurate
+
+**Expected Results**:
+- Certificate information is displayed clearly
+- Certificate status and validity are shown
+- (Note: Specific test steps depend on your certificate implementation)
+
+---
+
+### Step 4.5: Audit Logs
+
+**Purpose**: Verify that all system actions are logged and searchable.
+
+**Test Steps**:
+1. Navigate to the "Audit Logs" tab
+2. Review the list of audit entries
+3. Note the displayed information for each entry:
+   - Timestamp
+   - Action type
+   - Actor (user)
+   - Desktop (if applicable)
+   - Session ID (if applicable)
+   - Additional details
+4. Use the search box to filter logs by keyword
+5. Use pagination controls to navigate through log pages
+6. Change page size to display more/fewer results
+
+**Expected Results**:
+- Complete chronological list of system actions
+- Each entry shows timestamp, action, and actor
+- Search functionality filters logs in real-time
+- Pagination works correctly for large datasets
+- Actions include:
+  - Desktop registration
+  - Desktop approval/rejection
+  - User creation/modification
+  - Desktop assignments
+  - Access approvals
+  - Session expirations
+  - Settings changes
+
+---
+
+### Step 4.6: System Settings
+
+**Purpose**: Verify global system configuration management.
+
+**Test Steps**:
+1. Navigate to the "System Settings" tab
+2. Review current settings:
+   - Default Required Approvals (N)
+   - Default Unlock Duration (minutes)
+3. Modify the default required approvals value
+4. Modify the default unlock duration
+5. Click "Save Settings"
+6. Verify success message appears
+7. Refresh the page
+8. Confirm settings are persisted
+
+**Expected Results**:
+- Current system settings are displayed
+- Input fields allow numeric values
+- Save button updates the configuration
+- Success message confirms changes
+- Settings persist across sessions
+- New desktops use updated default values
+- Existing desktop settings remain unchanged
+
+---
+
+## Test Scenario 5: Governance Portal Functionality
+
+This scenario validates the features and capabilities of the governance web portal for governance authority users.
+
+### Step 5.1: Desktop List View
 
 **Purpose**: Verify that governance users can view all desktops assigned to their authority.
 
@@ -386,7 +586,8 @@ This scenario validates the features and capabilities of the governance web port
   - "Approve" button (if awaiting approval)
 
 ---
-Real-Time Approval Status
+
+### Step 5.2: Real-Time Approval Status
 
 **Purpose**: Verify that the portal accurately displays approval progress and updates in real-time.
 
@@ -399,15 +600,16 @@ Real-Time Approval Status
 - Initial state: Displays "0/2"
 - After first approval: Updates to "1/2 Session: Pending"
 - After second approval: Shows "2/2 Unlocked (14:32 remaining)"
-- Countdown timer decrements in real-time within the web interfac4:32 remaining)"
+- Countdown timer decrements in real-time within the web interface
 - Timer counts down in real-time on the web page
 
 ---
--Desktop Management
+
+## Test Scenario 6: Multi-Desktop Management
 
 This scenario validates the system's ability to manage multiple independent desktop instances simultaneously.
 
-### Step 4.1: Concurrent Desktop Operations
+### Step 6.1: Concurrent Desktop Operations
 
 **Purpose**: Verify that the system can handle multiple desktops with independent states and approval workflows.
 
@@ -429,7 +631,10 @@ This scenario validates the system's ability to manage multiple independent desk
   - Desktop 3: Awaiting approvals (0/2)
 - Approval actions on one desktop do not affect others
 - Each unlocked desktop maintains its own independent countdown timer
-- Each has its own Guide
+
+---
+
+## Troubleshooting Guide
 
 ### Terminology
 - **Desktop/Token Control**: Windows desktop application for token management operations
@@ -437,9 +642,9 @@ This scenario validates the system's ability to manage multiple independent desk
 - **Admin Portal**: Web-based interface for administrators to manage desktops, users, and system configuration
 - **Approval**: Authorization granted by governance users to enable Token Control access
 - **Countdown Timer**: Visual indicator showing remaining authorized access time
-- **Locked Screen**: Security interface displayed when access is denied, pending,s requests
-- **Admin Portal**: The website where administrators manage desktops and users
-- **Approval**: PermGuide
+- **Locked Screen**: Security interface displayed when access is denied, pending, or expired
+
+### Common Issues and Solutions
 
 #### Network Connectivity Issues
 **Symptom**: Application displays "Network error"  
@@ -471,8 +676,69 @@ This scenario validates the system's ability to manage multiple independent desk
 2. Verify desktop is assigned to your user account
 3. Refresh the web page (F5 or browser refresh button)
 4. Log out and log back in to refresh session data
-- Verify desktop was approved by administrator
-- Check desktop is assigned to your user account
-- Refresh the web page
-- Log out and log back in
+
+---
+
+## Test Completion Checklist
+
+Use this checklist to verify all test scenarios have been completed successfully:
+
+### Desktop Application Tests
+- [ ] Mint Application launches successfully
+- [ ] Treasury address is generated
+- [ ] Smart contract deploys to blockchain
+- [ ] Shares are generated and saved
+- [ ] Token Control registers with governance system
+- [ ] Authorization polling works correctly
+- [ ] Countdown timer displays and decrements
+- [ ] Application locks when timer expires
+- [ ] Share recovery reconstructs genesis key
+- [ ] Network error handling works properly
+- [ ] Retry connection mechanism functions
+
+### Admin Portal Tests
+- [ ] Login with admin credentials successful
+- [ ] Governance Authorities page displays user list
+- [ ] Create new user functionality works
+- [ ] Edit user functionality works
+- [ ] User MFA setup generates QR code
+- [ ] Manage Desktops page displays all desktops
+- [ ] Desktop search/filter functionality works
+- [ ] Approve pending desktops functionality works
+- [ ] Edit desktop settings functionality works
+- [ ] Disable desktop functionality works
+- [ ] Assign Desktops page displays desktop grid
+- [ ] Desktop card click opens assignment dialog
+- [ ] User assignment checkboxes work correctly
+- [ ] User search in assignment dialog works
+- [ ] Save assignments persists changes
+- [ ] Certificates page displays information
+- [ ] Audit Logs page displays system actions
+- [ ] Audit log search/filter functionality works
+- [ ] Audit log pagination works
+- [ ] System Settings page displays defaults
+- [ ] System Settings save functionality works
+
+### Governance Portal Tests
+- [ ] Login with governance credentials successful
+- [ ] Assigned desktops list displays correctly
+- [ ] Desktop approval button functions
+- [ ] Approval count updates in real-time
+- [ ] Countdown timer displays in portal
+- [ ] Timer counts down accurately
+- [ ] Multiple governance users can approve independently
+
+### Multi-Desktop Tests
+- [ ] Multiple desktops maintain independent states
+- [ ] Each desktop has unique approval tracking
+- [ ] Independent countdown timers for each desktop
+- [ ] Actions on one desktop don't affect others
+
+### Integration Tests
+- [ ] Desktop registration appears in Admin Portal
+- [ ] Desktop approval enables governance assignment
+- [ ] Governance user assignments are reflected
+- [ ] Desktop application detects approvals
+- [ ] Timer expiration locks desktop application
+- [ ] Re-approval process works for expired sessions
 
