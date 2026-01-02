@@ -157,14 +157,15 @@ export default function AssignDesktopsPage() {
   };
 
   return (
-    <div>
-      <div style={{ marginBottom: "1.5rem", display: "flex", gap: "1rem", alignItems: "center" }}>
+    <div className="stack">
+      <div className="row">
         <input
           type="text"
           placeholder="Search desktops..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ flex: 1, padding: "0.5rem", borderRadius: "4px", border: "1px solid #ddd" }}
+          className="input"
+          style={{ flex: 1 }}
         />
         <Button onClick={refresh} disabled={loading}>
           {loading ? "Loading..." : "Refresh"}
@@ -172,43 +173,40 @@ export default function AssignDesktopsPage() {
       </div>
 
       {error && (
-        <div style={{ padding: "1rem", marginBottom: "1rem", backgroundColor: "#fee", borderRadius: "4px", color: "#c00" }}>
-          {error}
+        <div className="card ghost" style={{ padding: "1rem", borderColor: "rgba(249, 112, 102, 0.35)" }}>
+          <span style={{ color: "var(--bad)" }}>{error}</span>
         </div>
       )}
 
       <div style={{ 
         display: "grid", 
         gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", 
-        gap: "1rem" 
+        gap: "14px" 
       }}>
         {filteredDesktops.map((desktop) => (
           <div
             key={desktop.desktopAppId}
+            className="card"
             style={{
-              border: "1px solid #ddd",
-              borderRadius: "8px",
               padding: "1.25rem",
               cursor: "pointer",
               transition: "all 0.2s",
-              backgroundColor: "#fff",
             }}
             onClick={() => openDesktopModal(desktop)}
             onMouseEnter={(e) => {
-              e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.1)";
               e.currentTarget.style.transform = "translateY(-2px)";
+              e.currentTarget.style.borderColor = "rgba(124, 92, 255, 0.45)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.boxShadow = "none";
               e.currentTarget.style.transform = "translateY(0)";
+              e.currentTarget.style.borderColor = "var(--line)";
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.75rem" }}>
-              <div style={{ 
+              <div className="tile" style={{ 
                 width: "48px", 
                 height: "48px", 
-                borderRadius: "8px", 
-                backgroundColor: "#f0f0f0",
+                padding: "0",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -226,9 +224,8 @@ export default function AssignDesktopsPage() {
                 }}>
                   {desktop.nameLabel || "Unnamed"}
                 </div>
-                <div style={{ 
+                <div className="muted" style={{ 
                   fontSize: "11px", 
-                  color: "#666", 
                   overflow: "hidden", 
                   textOverflow: "ellipsis", 
                   whiteSpace: "nowrap" 
@@ -242,13 +239,7 @@ export default function AssignDesktopsPage() {
               {getDesktopStatusBadge(desktop)}
             </div>
 
-            <div style={{ 
-              fontSize: "12px", 
-              color: "#666",
-              padding: "0.5rem",
-              backgroundColor: "#f8f9fa",
-              borderRadius: "4px"
-            }}>
+            <div className="tile" style={{ fontSize: "12px" }}>
               <div>Required Approvals: {desktop.requiredApprovalsN}</div>
               <div>Unlock Duration: {desktop.unlockMinutes} min</div>
             </div>
@@ -257,115 +248,103 @@ export default function AssignDesktopsPage() {
       </div>
 
       {filteredDesktops.length === 0 && !loading && (
-        <div style={{ textAlign: "center", padding: "3rem", color: "#999" }}>
-          {search ? "No desktops found matching your search" : "No desktops available"}
+        <div style={{ textAlign: "center", padding: "3rem" }}>
+          <span className="muted">{search ? "No desktops found matching your search" : "No desktops available"}</span>
         </div>
       )}
 
       {/* Modal for assigning users */}
       {selectedDesktop && (
         <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
+          className="modal"
           onClick={closeModal}
         >
           <div
+            className="modal-card"
             style={{
-              backgroundColor: "white",
-              borderRadius: "8px",
-              padding: "2rem",
-              maxWidth: "600px",
-              width: "90%",
               maxHeight: "80vh",
-              overflow: "hidden",
               display: "flex",
               flexDirection: "column",
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ marginBottom: "1.5rem" }}>
-              <h3 style={{ margin: 0, marginBottom: "0.5rem" }}>
-                Assign Users to {selectedDesktop.nameLabel || "Desktop"}
-              </h3>
-              <p style={{ margin: 0, color: "#666", fontSize: "14px" }}>
-                Select governance users who can approve access for this desktop
-              </p>
+            <div className="hd">
+              <div>
+                <h3 style={{ margin: 0, marginBottom: "0.25rem" }}>
+                  Assign Users to {selectedDesktop.nameLabel || "Desktop"}
+                </h3>
+                <p className="muted small" style={{ margin: 0 }}>
+                  Select governance users who can approve access for this desktop
+                </p>
+              </div>
             </div>
 
-            <input
-              type="text"
-              placeholder="Search users..."
-              value={userSearch}
-              onChange={(e) => setUserSearch(e.target.value)}
-              style={{
-                padding: "0.5rem",
-                borderRadius: "4px",
-                border: "1px solid #ddd",
+            <div className="bd" style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+              <input
+                type="text"
+                placeholder="Search users..."
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+                className="input"
+                style={{ marginBottom: "1rem" }}
+              />
+
+              <div style={{ 
+                flex: 1, 
+                overflow: "auto", 
+                border: "1px solid var(--line)", 
+                borderRadius: "12px",
                 marginBottom: "1rem",
-              }}
-            />
-
-            <div style={{ 
-              flex: 1, 
-              overflow: "auto", 
-              border: "1px solid #ddd", 
-              borderRadius: "4px",
-              marginBottom: "1.5rem"
-            }}>
-              {filteredUsers.length === 0 ? (
-                <div style={{ padding: "2rem", textAlign: "center", color: "#999" }}>
-                  {userSearch ? "No users found" : "No governance users available"}
-                </div>
-              ) : (
-                filteredUsers.map((user) => (
-                  <label
-                    key={user.id}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      padding: "0.75rem 1rem",
-                      cursor: "pointer",
-                      borderBottom: "1px solid #f0f0f0",
-                      transition: "background-color 0.15s",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = "#f8f9fa";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = "transparent";
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={tempAssignments.includes(user.id)}
-                      onChange={() => toggleUserAssignment(user.id)}
-                      style={{ marginRight: "0.75rem", cursor: "pointer" }}
-                    />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 500, fontSize: "14px" }}>{user.email}</div>
-                      <div style={{ fontSize: "12px", color: "#666" }}>
-                        {user.role} • {user.is_active ? "Active" : "Inactive"}
+                background: "rgba(0, 0, 0, 0.12)"
+              }}>
+                {filteredUsers.length === 0 ? (
+                  <div style={{ padding: "2rem", textAlign: "center" }}>
+                    <span className="muted">{userSearch ? "No users found" : "No governance users available"}</span>
+                  </div>
+                ) : (
+                  filteredUsers.map((user) => (
+                    <label
+                      key={user.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        padding: "0.75rem 1rem",
+                        cursor: "pointer",
+                        borderBottom: "1px solid var(--line)",
+                        transition: "background-color 0.15s",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = "rgba(255, 255, 255, 0.05)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = "transparent";
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={tempAssignments.includes(user.id)}
+                        onChange={() => toggleUserAssignment(user.id)}
+                        style={{ marginRight: "0.75rem", cursor: "pointer", accentColor: "var(--accent)" }}
+                      />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 500, fontSize: "14px" }}>{user.email}</div>
+                        <div className="muted" style={{ fontSize: "12px" }}>
+                          {user.role} • {user.is_active ? "Active" : "Inactive"}
+                        </div>
                       </div>
-                    </div>
-                  </label>
-                ))
-              )}
-            </div>
+                    </label>
+                  ))
+                )}
+              </div>
 
-            <div style={{ display: "flex", gap: "0.75rem", justifyContent: "flex-end" }}>
-              <Button variant="secondary" onClick={closeModal} disabled={saving}>
-                Cancel
-              </Button>
-              <Button onClick={handleSaveAssignments} disabled={saving}>
-                {saving ? "Saving..." : "Save Assignments"}
-              </Button>
+              <div className="row" style={{ justifyContent: "flex-end" }}>
+                <Button variant="ghost" onClick={closeModal} disabled={saving}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveAssignments} disabled={saving}>
+                  {saving ? "Saving..." : "Save Assignments"}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
