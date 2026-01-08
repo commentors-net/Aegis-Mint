@@ -315,7 +315,9 @@ Screen 2: Approved by new2@example.com
 - Countdown timer updates every second
 - All Token Control features are now operational
 
-Screen 1: Token Control unlocked and timer is on.
+Screen 1: Token Control unlocked
+<img width="988" height="1051" alt="image" src="https://github.com/user-attachments/assets/6d71f79c-ef29-4f3b-a995-67f0b83086a4" />
+
 
 ---
 
@@ -333,6 +335,16 @@ Screen 1: Token Control unlocked and timer is on.
 - Treasury Address populates in the interface
 - Contract address is retrieved from the blockchain
 - Current ETH and token balances are displayed for the treasury address
+
+Screen 1: No information and recover button is available
+<img width="988" height="1050" alt="image" src="https://github.com/user-attachments/assets/62f7e5af-e311-42ad-bbf2-2c585956c4fd" />
+
+Screen 2: Process of recovery 
+<img width="972" height="1030" alt="image" src="https://github.com/user-attachments/assets/1f7ef4e6-7dfd-4846-9c66-6e3e99613c80" />
+
+Screen 3: After recovery done from the minimum shares
+<img width="982" height="1040" alt="image" src="https://github.com/user-attachments/assets/a33bc39f-4691-423d-9e1e-761c9e6a266a" />
+#This is a demo scree, in actual scenario the contract number will be recovred from blockchain.
 
 
 ---
