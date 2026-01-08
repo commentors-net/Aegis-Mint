@@ -111,11 +111,15 @@ This scenario tests the complete workflow of registering a new desktop computer 
 - Initial message: "Checking authorization..."
 - Registration confirmation message: "Your application has been registered and is pending approval by an administrator. The application will close now. Please restart after approval."
 - Application automatically closes after approximately
+- 
 **What You Should See**:
 - A locked screen appears with a padlock icon (🔒)
 - Message says: "Checking authorization..."
 - After a few seconds, message changes to: "Your application has been registered and is pending approval by an administrator. The application will close now. Please restart after approval."
 - Application automatically closes
+
+ <img width="976" height="1036" alt="image" src="https://github.com/user-attachments/assets/1ccd6555-8d31-4c31-b8c6-27cbd5e29b3c" />
+ 
 
 ---
 
@@ -127,7 +131,7 @@ This scenario tests the complete workflow of registering a new desktop computer 
 1. Open a web browser
 2. Navigate to the Admin Portal: https://apkserve.com/governance
 3. Log in using admin credentials
-4. Select "Desktops" from the navigation menu
+4. Select "Manage Desktops" from the navigation menu
 5. Locate the newly registered desktop in the pending list
 
 **Expected Results**:
@@ -143,6 +147,13 @@ This scenario tests the complete workflow of registering a new desktop computer 
   - DesktopAppId
   - Required Approvals: 2
   - Unlock Duration: 15 minutes
+
+Screen 1: Login screen
+<img width="1148" height="499" alt="image" src="https://github.com/user-attachments/assets/9a1b9acc-1e16-4ec6-8d80-792f37fa29de" />
+
+Screen 2: Manage Desktops
+<img width="1142" height="671" alt="image" src="https://github.com/user-attachments/assets/8c05c845-24eb-42fc-9a50-71e8c9c9e749" />
+
 
 ---
 
@@ -164,6 +175,12 @@ This scenario tests the complete workflow of registering a new desktop computer 
 - Status changes from "Pending" to "Active"
 - A success message appears (e.g., "Desktop approved successfully")
 - Desktop now appears in the "Active Desktops" section
+
+Screen 1: Pending Status, Approve button and Reject button
+<img width="1142" height="671" alt="image" src="https://github.com/user-attachments/assets/443ae26f-d9d0-468b-a5b1-1cdddccc9c30" />
+
+Screen 2: Active status, Edit button with Disable button
+<img width="1145" height="661" alt="image" src="https://github.com/user-attachments/assets/73860a5a-84b9-42a3-93fb-daf86062148f" />
 
 ---
 
@@ -193,24 +210,12 @@ This scenario tests the complete workflow of registering a new desktop computer 
 - Dialog closes automatically after saving
 - Both governance users now have access to the desktop
 
-**Method 2: Using the Governance Authorities Page (Alternative)**
+Screen 1: Assign desktops
+<img width="1152" height="526" alt="image" src="https://github.com/user-attachments/assets/5b062c91-a25e-47fb-b05e-aefda8a2551c" />
 
-**Test Steps**:
-1. Navigate to the "Governance Authorities" tab in the Admin Portal
-2. Locate "gov@example.com" in the user list
-3. Click the "Assign" button for this user
-4. In the popup dialog, select the checkbox next to your newly approved desktop
-5. Click "Save Assignments"
-6. Repeat for "new2@example.com":
-   - Locate the user in the list
-   - Click "Assign"
-   - Select your desktop
-   - Click "Save Assignments"
+Screen 2: Click on desktop to assign the selected desktop to governance user
+<img width="1152" height="814" alt="image" src="https://github.com/user-attachments/assets/f67bd6f8-fa06-40c5-88c1-2a9c3a688e90" />
 
-**Expected Results**:
-- Assignment dialog displays all available desktops
-- Dialog closes automatically after saving
-- Both users show the desktop in their assigned desktops list
 
 
 ---
@@ -230,6 +235,9 @@ This scenario tests the complete workflow of registering a new desktop computer 
 - Locked screen with padlock icon remains visible
 - Application remains running (does not close automatically)
 - Automatic authorization check occurs every 30 seconds
+
+Screen: Waiting for authorization
+<img width="973" height="1036" alt="image" src="https://github.com/user-attachments/assets/183b4975-9ca3-41d7-a976-5b12c0c320e8" />
 
 
 ---
@@ -251,6 +259,15 @@ This scenario tests the complete workflow of registering a new desktop computer 
 - Post-approval state: Approvals column updates to "1/2 Session: Pending"
 - Desktop remains locked (awaiting second approval)
 
+Screen 1: Governance dashboard. User: gov@example.com
+<img width="1161" height="581" alt="image" src="https://github.com/user-attachments/assets/bf38d90f-e0ef-40d5-b825-6933b31110fd" />
+
+Screen 2: Approved by gov@example.com
+<img width="1156" height="584" alt="image" src="https://github.com/user-attachments/assets/7359e060-2dac-4151-9f62-743772d6f808" />
+
+Screen 3: Token Control wait for one more approval
+<img width="969" height="1032" alt="image" src="https://github.com/user-attachments/assets/380184ab-fe50-45b9-8ba1-8b0d59f287a9" />
+
 
 ---
 
@@ -271,6 +288,14 @@ This scenario tests the complete workflow of registering a new desktop computer 
 - Post-approval state: Updates to "2/2 Unlocked" with active countdown timer
 - Timer displays remaining access time (e.g., "14:30 remaining")
 
+Screen 1: Governance dashboard. User: new2@example.com
+<img width="1152" height="543" alt="image" src="https://github.com/user-attachments/assets/9d12d3f6-70b1-45a9-90d9-93e935dc0b45" />
+
+Screen 2: Approved by new2@example.com
+<img width="1146" height="555" alt="image" src="https://github.com/user-attachments/assets/d83c42a6-97d2-4ceb-9e46-5bde05124e37" />
+
+
+
 
 ---
 
@@ -289,6 +314,8 @@ This scenario tests the complete workflow of registering a new desktop computer 
 - Window title bar displays: "Aegis Token Control - SEPOLIA - 14:32 remaining"
 - Countdown timer updates every second
 - All Token Control features are now operational
+
+Screen 1: Token Control unlocked and timer is on.
 
 ---
 
