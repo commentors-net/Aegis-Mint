@@ -473,6 +473,9 @@ public partial class MainWindow : Window
                     false);
                 DisableApplication();
                 Logger.Info("Access time expired - application locked");
+                
+                // Start checking for new approvals
+                StartApprovalCheckTimer();
             }
             else
             {
