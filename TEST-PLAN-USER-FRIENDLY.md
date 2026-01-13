@@ -93,7 +93,7 @@ You should see:
 # TEST SCENARIO 2 – Desktop Registration & Access Approval
 (Plain‑English Version)
 
-## IMPORTANT – READ FIRST
+## IMPORTANT
 
 Token Control may be locked for **normal reasons**:
 1. New computer
