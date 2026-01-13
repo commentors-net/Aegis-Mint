@@ -127,13 +127,34 @@
                   HorizontalAlignment="Stretch"
                   VerticalAlignment="Stretch"
                   Visibility="Collapsed">
-                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="500">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="550">
                     <Border Background="#0f1724"
                             BorderBrush="#1e293b"
                             BorderThickness="1"
                             CornerRadius="8"
                             Padding="32">
                         <StackPanel>
+                            <!-- Application Info Header -->
+                            <StackPanel Margin="0,0,0,16" HorizontalAlignment="Center">
+                                <TextBlock x:Name="LockAppVersion"
+                                           Text="Token Control v1.1.5"
+                                           Foreground="#6b7280"
+                                           FontSize="11"
+                                           TextAlignment="Center"
+                                           Margin="0,0,0,2" />
+                                <TextBlock x:Name="LockDesktopId"
+                                           Text="Desktop ID: Loading..."
+                                           Foreground="#6b7280"
+                                           FontSize="11"
+                                           TextAlignment="Center"
+                                           Margin="0,0,0,2" />
+                                <TextBlock x:Name="LockNetwork"
+                                           Text="Network: SEPOLIA"
+                                           Foreground="#6b7280"
+                                           FontSize="11"
+                                           TextAlignment="Center" />
+                            </StackPanel>
+                            
                             <TextBlock Text="🔒"
                                        FontSize="48"
                                        TextAlignment="Center"
@@ -151,7 +172,62 @@
                                        FontSize="14"
                                        TextAlignment="Center"
                                        TextWrapping="Wrap"
-                                       Margin="0,0,0,24" />
+                                       Margin="0,0,0,16" />
+                            
+                            <!-- Why is this locked? -->
+                            <Border Background="#1e293b"
+                                    BorderBrush="#334155"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="12"
+                                    Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Text="ℹ️ Why is this locked?"
+                                               Foreground="#93c5fd"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Margin="0,0,0,6" />
+                                    <TextBlock x:Name="LockExplanation"
+                                               Text="This application is locked because approvals are missing, expired, or pending."
+                                               Foreground="#d1d5db"
+                                               FontSize="11"
+                                               TextWrapping="Wrap"
+                                               LineHeight="16" />
+                                </StackPanel>
+                            </Border>
+                            
+                            <!-- Last Session Info (read-only) -->
+                            <Border x:Name="LastSessionInfo"
+                                    Background="#0f172a"
+                                    BorderBrush="#1e293b"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="12"
+                                    Margin="0,0,0,16"
+                                    Visibility="Collapsed">
+                                <StackPanel>
+                                    <TextBlock x:Name="SessionInfoTitle"
+                                               Text="Session Information"
+                                               Foreground="#94a3b8"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Margin="0,0,0,6" />
+                                    <TextBlock x:Name="LastUnlockTime"
+                                               Text="Last unlock: Never"
+                                               Foreground="#cbd5e1"
+                                               FontSize="10"
+                                               Margin="0,0,0,2" />
+                                    <TextBlock x:Name="LastSessionExpiry"
+                                               Text="Last session expiry: N/A"
+                                               Foreground="#cbd5e1"
+                                               FontSize="10"
+                                               Margin="0,0,0,2" />
+                                    <TextBlock x:Name="LastApprovalCount"
+                                               Text="Last approval count: 0"
+                                               Foreground="#cbd5e1"
+                                               FontSize="10" />
+                                </StackPanel>
+                            </Border>
                             <Button x:Name="RetryButton"
                                     Content="Retry Connection"
                                     Foreground="White"

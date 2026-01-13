@@ -22,6 +22,18 @@ using Nethereum.Web3;
 
 namespace AegisMint.TokenControl;
 
+public enum LockReason
+{
+    Checking,
+    FirstTimeRegistration,
+    PendingApproval,
+    AwaitingGovernance,
+    SessionExpired,
+    Disabled,
+    NetworkError,
+    Error
+}
+
 public partial class MainWindow : Window
 {
     private string? _htmlPath;
@@ -50,7 +62,7 @@ public partial class MainWindow : Window
         _tokenControlService = new TokenControlService(_vaultManager);
         Loaded += OnLoaded;
         PreviewKeyDown += OnPreviewKeyDown;
-        Title = "Aegis Token Control";
+        Title = $"Aegis Token Control {GetAppVersion()}";
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -310,14 +322,14 @@ public partial class MainWindow : Window
             Logger.Info($"Desktop App ID: {_authService.DesktopAppId}");
 
             Logger.Debug("Showing lock overlay: Checking authorization...");
-            ShowLockOverlay("Checking authorization...", false);
+            ShowLockOverlay(LockReason.Checking, false);
             await CheckAuthenticationStatusAsync();
             Logger.Debug("InitializeAuthenticationAsync - END");
         }
         catch (Exception ex)
         {
             Logger.Error("Authentication initialization failed", ex);
-            ShowLockOverlay($"Authentication error: {ex.Message}", true);
+            ShowLockOverlay(LockReason.Error, true);
         }
     }
 
@@ -336,10 +348,7 @@ public partial class MainWindow : Window
 
             if (status.DesktopStatus == "Pending")
             {
-                ShowLockOverlay(
-                    "Your application registration is pending approval by an administrator. " +
-                    "The application will close now. Please restart after approval.",
-                    false);
+                ShowLockOverlay(LockReason.PendingApproval, false, status);
                 await Task.Delay(5000);
                 System.Windows.Application.Current.Shutdown();
                 return;
@@ -347,23 +356,20 @@ public partial class MainWindow : Window
 
             if (status.DesktopStatus == "Disabled")
             {
-                ShowLockOverlay("This desktop application has been disabled by an administrator.", false);
+                ShowLockOverlay(LockReason.Disabled, false, status);
                 return;
             }
 
             if (status.DesktopStatus != "Active")
             {
-                ShowLockOverlay($"Unexpected desktop status: {status.DesktopStatus}", true);
+                ShowLockOverlay(LockReason.Error, true, status);
                 return;
             }
 
             // Desktop is Active
             if (!status.IsUnlocked)
             {
-                ShowLockOverlay(
-                    $"Access requires approval from {status.RequiredApprovalsN} administrator(s). " +
-                    $"Current approvals: {status.ApprovalsSoFar}. Please wait for authorization.",
-                    false);
+                ShowLockOverlay(LockReason.AwaitingGovernance, false, status);
                 
                 // Check every 30 seconds while waiting for approval
                 StartApprovalCheckTimer();
@@ -398,16 +404,14 @@ public partial class MainWindow : Window
         {
             Logger.Debug($"Network error caught: {ex.Message}");
             Logger.Error("Network error during authentication check", ex);
-            ShowLockOverlay(
-                $"Network error: Unable to connect to the governance server. {ex.Message}",
-                true);
+            ShowLockOverlay(LockReason.NetworkError, true);
             Logger.Debug($"Auth failed - _hasAuthenticationSucceeded={_hasAuthenticationSucceeded}");
         }
         catch (Exception ex)
         {
             Logger.Debug($"General exception caught: {ex.Message}");
             Logger.Error("Authentication check failed", ex);
-            ShowLockOverlay($"Authentication failed: {ex.Message}", true);
+            ShowLockOverlay(LockReason.Error, true);
             Logger.Debug($"Auth failed - _hasAuthenticationSucceeded={_hasAuthenticationSucceeded}");
         }
     }
@@ -427,10 +431,7 @@ public partial class MainWindow : Window
 
             Logger.Info($"Desktop registered with status: {response.DesktopStatus}");
 
-            ShowLockOverlay(
-                "Your application has been registered and is pending approval by an administrator. " +
-                "The application will close now. Please restart after approval.",
-                false);
+            ShowLockOverlay(LockReason.FirstTimeRegistration, false);
 
             await Task.Delay(5000);
             System.Windows.Application.Current.Shutdown();
@@ -438,7 +439,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             Logger.Error("Desktop registration failed", ex);
-            ShowLockOverlay($"Registration failed: {ex.Message}", true);
+            ShowLockOverlay(LockReason.Error, true);
         }
     }
 
@@ -468,14 +469,18 @@ public partial class MainWindow : Window
                 // Hide countdown timer in web UI
                 await SendCountdownUpdateAsync(null, false);
                 
-                ShowLockOverlay(
-                    "Your access time has expired. The application cannot be used until re-approved.",
-                    false);
+                ShowLockOverlay(LockReason.SessionExpired, false);
                 DisableApplication();
                 Logger.Info("Access time expired - application locked");
                 
-                // Start checking for new approvals
+                // Start checking for new approvals (will check immediately and then every 30s)
+                Logger.Info("Starting approval check timer to monitor for re-approval");
                 StartApprovalCheckTimer();
+                
+                // Immediately check status to see if there are pending approvals
+                // This will update the UI from "SessionExpired" to "AwaitingGovernance" if desktop is still Active
+                await Task.Delay(1000); // Brief delay to let user see the expired message
+                await CheckAuthenticationStatusAsync();
             }
             else
             {
@@ -510,8 +515,8 @@ public partial class MainWindow : Window
 
     private void UpdateTitle(TimeSpan? remaining = null)
     {
-        // Simplified - just show network name without countdown
-        var baseTitle = $"Aegis Token Control - {_currentNetwork.ToUpperInvariant()}";
+        // Show version and network name
+        var baseTitle = $"Aegis Token Control {GetAppVersion()} - {_currentNetwork.ToUpperInvariant()}";
         
         // Only update if changed
         if (baseTitle != _cachedTitle)
@@ -521,12 +526,184 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ShowLockOverlay(string message, bool showRetry)
+    private string GetAppVersion()
     {
-        Logger.Debug($"ShowLockOverlay called: message='{message}', showRetry={showRetry}");
+        var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+        var version = assembly.GetName().Version;
+        return version != null ? $"v{version.Major}.{version.Minor}.{version.Build}" : "v1.0.0";
+    }
+
+    private string GetShortDesktopId()
+    {
+        if (_authService == null || string.IsNullOrEmpty(_authService.DesktopAppId))
+            return "Loading...";
+        
+        var id = _authService.DesktopAppId;
+        if (id.Length > 8)
+        {
+            return $"{id.Substring(0, 4)}...{id.Substring(id.Length - 3)}";
+        }
+        return id;
+    }
+
+    private void ShowLockOverlay(LockReason reason, bool showRetry, UnlockStatusResponse? statusInfo = null)
+    {
+        Logger.Debug($"ShowLockOverlay called: reason={reason}, showRetry={showRetry}");
         Dispatcher.Invoke(() =>
         {
+            // Update app info
+            LockAppVersion.Text = $"Token Control {GetAppVersion()}";
+            LockDesktopId.Text = $"Desktop ID: {GetShortDesktopId()}";
+            LockNetwork.Text = $"Network: {_currentNetwork.ToUpperInvariant()}";
+
+            // Set title and message based on reason
+            string title, message, explanation;
+            switch (reason)
+            {
+                case LockReason.FirstTimeRegistration:
+                    title = "Registration Complete";
+                    message = "Your application has been registered and is pending approval by an administrator. " +
+                             "The application will close now. Please restart after approval.";
+                    explanation = "New desktop applications require administrator approval before they can be used. " +
+                                 "This is a security measure to prevent unauthorized access.";
+                    break;
+
+                case LockReason.PendingApproval:
+                    title = "Pending Approval";
+                    message = statusInfo != null 
+                        ? $"This computer is already registered. Access requires approval from {statusInfo.RequiredApprovalsN} administrator(s). " +
+                          $"Current approvals: {statusInfo.ApprovalsSoFar}. Please wait for authorization."
+                        : "Your application registration is pending approval by an administrator. " +
+                          "The application will close now. Please restart after approval.";
+                    explanation = "Desktop applications require administrator approval before access can be granted. " +
+                                 "Approvals are currently missing or pending.";
+                    break;
+
+                case LockReason.AwaitingGovernance:
+                    title = "Awaiting Governance Approvals";
+                    message = statusInfo != null
+                        ? $"Access requires approval from {statusInfo.RequiredApprovalsN} administrator(s). " +
+                          $"Current approvals: {statusInfo.ApprovalsSoFar}. Please wait for authorization."
+                        : "Awaiting required governance approvals. Please wait for administrator authorization.";
+                    explanation = "Multi-signature governance requires multiple administrators to approve access. " +
+                                 "This ensures no single person has unilateral control.";
+                    break;
+
+                case LockReason.SessionExpired:
+                    title = "Session Expired";
+                    message = "Your access session has expired. Please request new approvals to regain access.";
+                    explanation = "Access sessions have a time limit for security purposes. " +
+                                 "When a session expires, new approvals are required.";
+                    break;
+
+                case LockReason.Disabled:
+                    title = "Application Disabled";
+                    message = "This desktop application has been disabled by an administrator.";
+                    explanation = "An administrator has explicitly disabled this desktop application. " +
+                                 "Contact your administrator for more information.";
+                    break;
+
+                case LockReason.NetworkError:
+                    title = "Connection Error";
+                    message = "Unable to connect to the governance server. Check your network connection and try again.";
+                    explanation = "The application cannot connect to the governance backend to verify authorization. " +
+                                 "This could be due to network issues or server unavailability.";
+                    break;
+
+                case LockReason.Checking:
+                    title = "Verifying Access";
+                    message = "Checking authorization...";
+                    explanation = "Connecting to the governance server to verify your access permissions.";
+                    break;
+
+                default:
+                    title = "Access Restricted";
+                    message = "An error occurred while checking authorization.";
+                    explanation = "This application is locked due to an unexpected error. Please try again or contact support.";
+                    break;
+            }
+
+            LockTitle.Text = title;
             LockMessage.Text = message;
+            LockExplanation.Text = explanation;
+
+            // Update session info if available
+            if (statusInfo != null && statusInfo.SessionStatus != "None")
+            {
+                LastSessionInfo.Visibility = Visibility.Visible;
+                
+                // Determine if this is current session (Pending) or last session (Expired/Unlocked)
+                bool isCurrentSession = statusInfo.SessionStatus == "Pending";
+                
+                // Update title
+                SessionInfoTitle.Text = isCurrentSession ? "Current Session Information" : "Last Session Information";
+                
+                // Show approval status
+                LastApprovalCount.Text = isCurrentSession 
+                    ? $"Current approvals: {statusInfo.ApprovalsSoFar} of {statusInfo.RequiredApprovalsN}"
+                    : $"Last approval count: {statusInfo.ApprovalsSoFar} of {statusInfo.RequiredApprovalsN}";
+
+                // For current session (Pending), show different information
+                if (isCurrentSession)
+                {
+                    // Don't show "Last unlock: Never" for active approval session
+                    if (statusInfo.ApprovalsSoFar > 0)
+                    {
+                        LastUnlockTime.Text = $"Approval session active";
+                    }
+                    else
+                    {
+                        LastUnlockTime.Text = $"Waiting for first approval";
+                    }
+                    
+                    // Show time remaining or status
+                    if (statusInfo.UnlockedUntilUtc.HasValue && statusInfo.UnlockedUntilUtc.Value > DateTime.Now)
+                    {
+                        var remaining = statusInfo.UnlockedUntilUtc.Value.ToLocalTime() - DateTime.Now;
+                        LastSessionExpiry.Text = $"Time to complete: {remaining.TotalMinutes:F0} minutes";
+                    }
+                    else
+                    {
+                        LastSessionExpiry.Text = "Session expires when threshold reached";
+                    }
+                }
+                else
+                {
+                    // Last session (Expired/Unlocked) - show historical info
+                    if (statusInfo.UnlockedUntilUtc.HasValue && statusInfo.UnlockedUntilUtc.Value > DateTime.MinValue)
+                    {
+                        var unlockTime = statusInfo.UnlockedUntilUtc.Value.ToLocalTime();
+                        var expiredAgo = DateTime.Now - unlockTime;
+                        
+                        if (expiredAgo.TotalMinutes < 60)
+                            LastUnlockTime.Text = $"Last unlock: {expiredAgo.TotalMinutes:F0} minutes ago";
+                        else if (expiredAgo.TotalHours < 24)
+                            LastUnlockTime.Text = $"Last unlock: {expiredAgo.TotalHours:F0} hours ago";
+                        else
+                            LastUnlockTime.Text = $"Last unlock: {unlockTime:MMM dd, HH:mm}";
+                    }
+                    else
+                    {
+                        LastUnlockTime.Text = "Last unlock: Never";
+                    }
+
+                    // Session expiry
+                    if (statusInfo.UnlockedUntilUtc.HasValue && statusInfo.UnlockedUntilUtc.Value > DateTime.MinValue)
+                    {
+                        var expiryLocal = statusInfo.UnlockedUntilUtc.Value.ToLocalTime();
+                        LastSessionExpiry.Text = $"Last session expiry: {expiryLocal:MMM dd, HH:mm}";
+                    }
+                    else
+                    {
+                        LastSessionExpiry.Text = "Last session expiry: N/A";
+                    }
+                }
+            }
+            else
+            {
+                LastSessionInfo.Visibility = Visibility.Collapsed;
+            }
+
             RetryButton.Visibility = showRetry ? Visibility.Visible : Visibility.Collapsed;
             LockOverlay.Visibility = Visibility.Visible;
             // Hide the loading overlay so LockOverlay is visible
@@ -562,7 +739,7 @@ public partial class MainWindow : Window
 
     private async void OnRetryClick(object sender, RoutedEventArgs e)
     {
-        ShowLockOverlay("Retrying connection...", false);
+        ShowLockOverlay(LockReason.Checking, false);
         await Task.Delay(500);
         await CheckAuthenticationStatusAsync();
     }
