@@ -29,9 +29,12 @@ export default function AssignDesktopsPage() {
   }, [desktops, search]);
 
   const filteredUsers = useMemo(() => {
-    if (!userSearch) return users;
+    // Filter out admin users
+    const nonAdminUsers = users.filter((u) => u.role.toLowerCase() !== "admin");
+    
+    if (!userSearch) return nonAdminUsers;
     const q = userSearch.toLowerCase();
-    return users.filter((u) => u.email.toLowerCase().includes(q));
+    return nonAdminUsers.filter((u) => u.email.toLowerCase().includes(q));
   }, [users, userSearch]);
 
   const refresh = async () => {

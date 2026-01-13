@@ -43,7 +43,7 @@ export default function Shell({ children }: { children: ReactNode }) {
             <div className="brand-sub">TokenControl unlock approvals</div>
           </div>
           <Badge tone={role ? "good" : "warn"}>
-            {role ? `Signed in: ${role}` : "Not signed in"}
+            {user ? `Signed in: ${user.email}` : "Not signed in"}
           </Badge>
         </div>
         <div className="nav">
