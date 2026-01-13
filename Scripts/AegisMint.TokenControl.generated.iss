@@ -1,6 +1,6 @@
-﻿#define AppVersion "1.1.5"
-#define AdminSourceDir "D:\Jobs\workspace\DiG\Aegis-Mint\Scripts\publish\tokencontrol"
-#define OutputDir "D:\Jobs\workspace\DiG\Aegis-Mint\Scripts\dist"
+﻿#define AppVersion "1.1.6"
+#define AdminSourceDir "D:\Jobs\workspace\DiG\Aegis-Mint\scripts\publish\tokencontrol"
+#define OutputDir "D:\Jobs\workspace\DiG\Aegis-Mint\scripts\dist"
 #define ServiceName "AegisMintService"
 
 [Setup]
@@ -9,7 +9,7 @@ AppVersion={#AppVersion}
 DefaultDirName={pf}\AegisMint\TokenControl
 DefaultGroupName=AegisMint
 DisableProgramGroupPage=yes
-OutputBaseFilename=AegisMint-TokenControl-Setup-1.1.5
+OutputBaseFilename=AegisMint-TokenControl-Setup-1.1.6
 OutputDir={#OutputDir}
 UninstallDisplayIcon={app}\AegisMint.TokenControl.exe
 UninstallDisplayName=AegisMint Token Control
