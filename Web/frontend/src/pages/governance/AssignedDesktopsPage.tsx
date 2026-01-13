@@ -42,9 +42,11 @@ export default function AssignedDesktopsPage() {
   }, [token]);
 
   const filtered = useMemo(() => {
-    if (!search) return rows;
+    // Only show Active desktops
+    const activeRows = rows.filter((r) => r.status === "Active");
+    if (!search) return activeRows;
     const q = search.toLowerCase();
-    return rows.filter((r) => (r.nameLabel || "").toLowerCase().includes(q) || r.desktopAppId.toLowerCase().includes(q));
+    return activeRows.filter((r) => (r.nameLabel || "").toLowerCase().includes(q) || r.desktopAppId.toLowerCase().includes(q));
   }, [rows, search]);
 
   const formatLocal = (value?: string) => {
@@ -96,14 +98,13 @@ export default function AssignedDesktopsPage() {
             <Th>Desktop</Th>
             <Th>DesktopAppId</Th>
             <Th>Approvals</Th>
-            <Th>Status</Th>
             <Th>Action</Th>
           </tr>
         </thead>
         <tbody>
           {filtered.map((d) => {
             const remaining = remainingSeconds(d);
-            const disableApprove = (d.alreadyApproved && remaining > 0) || d.status !== "Active";
+            const disableApprove = d.alreadyApproved && remaining > 0;
             const sessionLabel =
               d.sessionStatus === "Unlocked"
                 ? remaining > 0
@@ -124,19 +125,6 @@ export default function AssignedDesktopsPage() {
                     {d.approvalsSoFar} / {d.requiredApprovalsN}
                   </b>
                   <div className="muted small">{sessionLabel}</div>
-                </Td>
-                <Td>
-                  <Badge
-                    tone={
-                      d.sessionStatus === "Unlocked" && remaining > 0
-                        ? "good"
-                        : d.status === "Active"
-                          ? "warn"
-                          : "bad"
-                    }
-                  >
-                    {d.sessionStatus === "Unlocked" ? (remaining > 0 ? "Unlocked" : "Expired") : d.status}
-                  </Badge>
                 </Td>
                 <Td>
                   <Button

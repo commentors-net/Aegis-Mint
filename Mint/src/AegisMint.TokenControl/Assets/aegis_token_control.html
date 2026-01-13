@@ -721,9 +721,12 @@
     }
 
     @keyframes pulse {
-      0%, 100% {
+
+      0%,
+      100% {
         box-shadow: 0 4px 12px rgba(220, 38, 38, 0.2);
       }
+
       50% {
         box-shadow: 0 4px 16px rgba(220, 38, 38, 0.35);
       }
@@ -742,9 +745,12 @@
     }
 
     @keyframes pulse-fast {
-      0%, 100% {
+
+      0%,
+      100% {
         transform: scale(1);
       }
+
       50% {
         transform: scale(1.02);
       }
@@ -825,25 +831,13 @@
 
               <!-- Send -->
               <div class="field-group">
-                <label class="label" for="send-to">
-                  <span class="main">Send tokens</span>
-                  <span class="hint">Standard transfer via vault key</span>
-                </label>
-                <div class="field-row">
-                  <div class="field-group">
-                    <label class="label" for="send-from">
-                      <span class="main">From</span>
-                      <span class="hint">Treasury / controller</span>
-                    </label>
-                    <input id="send-from" class="input" type="text" value="0x0000...TREASURY" readonly />
-                  </div>
-                  <div class="field-group">
-                    <label class="label" for="send-to">
-                      <span class="main">To</span>
-                      <span class="hint">Recipient address</span>
-                    </label>
-                    <input id="send-to" class="input" type="text" placeholder="0x... recipient" />
-                  </div>
+                <div class="field-group">
+                  <label class="label" for="send-to">
+                    <span class="main">Send tokens To</span>
+                    <span class="hint">Standard transfer via vault key Recipient address</span>
+                  </label>
+                  <input id="send-from" type="hidden" value="0x0000...TREASURY" />
+                  <input id="send-to" class="input" type="text" placeholder="0x... recipient" />
                 </div>
                 <div class="field-row">
                   <div class="field-group">
@@ -903,25 +897,10 @@
               <!-- Retrieve -->
               <div class="field-group">
                 <label class="label" for="retrieve-from">
-                  <span class="main">Retrieve tokens</span>
-                  <span class="hint">Move from (typically frozen) address back to treasury</span>
+                  <span class="main">Retrieve tokens From Source address (typically frozen)</span>
                 </label>
-                <div class="field-row">
-                  <div class="field-group">
-                    <label class="label" for="retrieve-from">
-                      <span class="main">From</span>
-                      <span class="hint">Source address</span>
-                    </label>
                     <input id="retrieve-from" class="input" type="text" placeholder="0x... source" />
-                  </div>
-                  <div class="field-group">
-                    <label class="label" for="retrieve-to">
-                      <span class="main">To</span>
-                      <span class="hint">Treasury</span>
-                    </label>
-                    <input id="retrieve-to" class="input" type="text" value="0x0000...TREASURY" readonly />
-                  </div>
-                </div>
+                    <input id="retrieve-to" type="hidden" value="0x0000...TREASURY"/>
                 <div class="field-row">
                   <div class="field-group">
                     <label class="label" for="retrieve-memo">
@@ -970,100 +949,96 @@
 
 
                 <div class="metric">
-              <div class="metric-label">Token Balance</div>
-              <div class="metric-value" id="stat-token-balance">0.00 TOK</div>
-            </div>
-            <div class="metric">
-              <div class="metric-label">ETH Balance</div>
-              <div class="metric-value" id="stat-eth-balance">0.00 ETH</div>
-            </div>
-            <div class="metric">
-              <div class="metric-label">Contract</div>
-              <div class="metric-value" id="stat-contract-address">0x0000...0000</div>
-            </div>
-            <div class="metric">
-              <div class="metric-label">Total Supply</div>
-              <div class="metric-value" id="stat-total-supply">0 TOK</div>
-            </div>
-          </div>
-              </div>
-
-              <div class="field-group">
-                <div class="switch-row">
-                  <div>
-                    <div class="switch-label-main">System pause</div>
-                    <div class="switch-label-hint">Stops all token transfers while on.</div>
-                  </div>
-                  <div class="switch" id="pause-switch" data-on="false">
-                    <div class="switch-knob"></div>
-                  </div>
+                  <div class="metric-label">Token Balance</div>
+                  <div class="metric-value" id="stat-token-balance">0.00 TOK</div>
                 </div>
-                <div class="hint-inline">Aegis signs pause / unpause transactions via the vault.</div>
-              </div>
-
-              <div class="field-group">
-               
-
-                
-
-                
-              </div>
-              <hr class="section-divider" />
-
-              <div class="field-group">
-                <div class="label" style="align-items: flex-start;">
-                  <div>
-                    <span class="main">Recent control actions</span>
-                    <span class="hint">Local view - back-end should persist real audit log</span>
-                  </div>
-                  <div class="inline-actions">
-                    <button type="button" class="btn btn-ghost" id="export-logs">Export logs</button>
-                  </div>
+                <div class="metric">
+                  <div class="metric-label">ETH Balance</div>
+                  <div class="metric-value" id="stat-eth-balance">0.00 ETH</div>
                 </div>
-                <div class="tab-row">
-                  <button type="button" class="tab-btn active" data-target="log-list">Logs</button>
-                  <button type="button" class="tab-btn" data-target="frozen-list">Frozen</button>
-                  <button type="button" class="tab-btn" data-target="unfrozen-list">Unfrozen</button>
+                <div class="metric">
+                  <div class="metric-label">Contract</div>
+                  <div class="metric-value" id="stat-contract-address">0x0000...0000</div>
                 </div>
-                <div id="log-list" class="log-list">
-                  <div class="log-item">
-                    <div class="log-meta">
-                      <span class="log-tag">System</span>
-                      <span>Just now</span>
-                    </div>
-                    <div>Token Control console opened.</div>
-                  </div>
+                <div class="metric">
+                  <div class="metric-label">Total Supply</div>
+                  <div class="metric-value" id="stat-total-supply">0 TOK</div>
                 </div>
-                <div id="frozen-list" class="log-list" style="display:none;"></div>
-                <div id="unfrozen-list" class="log-list" style="display:none;"></div>
               </div>
             </div>
-          </div>
-        </div>
 
-        <!-- FOOTER -->
-        <div class="footer">
-          <div class="footer-left">
-            <div class="footer-status">
-              <span class="status-dot"></span>
-              <span>Key operations routed through Aegis vault</span>
+            <div class="field-group">
+              <div class="switch-row">
+                <div>
+                  <div class="switch-label-main">System pause</div>
+                  <div class="switch-label-hint">Stops all token transfers while on.</div>
+                </div>
+                <div class="switch" id="pause-switch" data-on="false">
+                  <div class="switch-knob"></div>
+                </div>
+              </div>
+              <div class="hint-inline">Aegis signs pause / unpause transactions via the vault.</div>
             </div>
-            <div class="footer-note">Users never see the private key; all actions are mediated here.</div>
-          </div>
-          
-          <div class="footer-right">
-            <div id="countdown-timer" class="countdown-timer" style="display: none;">
-              <span class="countdown-icon">⏱️</span>
-              <span class="countdown-label">Time remaining:</span>
-              <span class="countdown-value" id="countdown-value">--:--</span>
+
+            <div class="field-group">
+
+
+
+
+
             </div>
-            <button type="button" class="btn btn-outline" id="recover-btn">Recover</button>
-            <button type="button" class="btn btn-outline" id="refresh-balances">Refresh balances</button>
+            <hr class="section-divider" />
+
+            <div class="field-group">
+              <div class="label" style="align-items: flex-start;">
+                <div>
+                  <span class="main">Recent control actions</span>
+                  <span class="hint">Local view - back-end should persist real audit log</span>
+                </div>
+                <div class="inline-actions">
+                  <button type="button" class="btn btn-ghost" id="export-logs">Export logs</button>
+                </div>
+              </div>
+              <div class="tab-row">
+                <button type="button" class="tab-btn active" data-target="log-list">Logs</button>
+                <button type="button" class="tab-btn" data-target="frozen-list">Frozen</button>
+                <button type="button" class="tab-btn" data-target="unfrozen-list">Unfrozen</button>
+              </div>
+              <div id="log-list" class="log-list">
+                <div class="log-item">
+                  <div class="log-meta">
+                    <span class="log-tag">System</span>
+                    <span>Just now</span>
+                  </div>
+                  <div>Token Control console opened.</div>
+                </div>
+              </div>
+              <div id="frozen-list" class="log-list" style="display:none;"></div>
+              <div id="unfrozen-list" class="log-list" style="display:none;"></div>
+            </div>
           </div>
         </div>
-
-      </form>
     </div>
+
+    <!-- FOOTER -->
+    <div class="footer">
+      <div class="footer-left">
+
+      </div>
+
+      <div class="footer-right">
+        <div id="countdown-timer" class="countdown-timer" style="display: none;">
+          <span class="countdown-icon">⏱️</span>
+          <span class="countdown-label">Time remaining:</span>
+          <span class="countdown-value" id="countdown-value">--:--</span>
+        </div>
+        <button type="button" class="btn btn-outline" id="recover-btn">Recover</button>
+        <button type="button" class="btn btn-outline" id="refresh-balances">Refresh balances</button>
+      </div>
+    </div>
+
+    </form>
+  </div>
   </div>
 
   <script src="bridge.js"></script>

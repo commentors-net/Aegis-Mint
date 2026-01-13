@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import * as adminApi from "../../api/admin";
 import Badge from "../../components/Badge";
 import Button from "../../components/Button";
+import Toast from "../../components/Toast";
 import { useAuth } from "../../auth/useAuth";
 
 export default function AssignDesktopsPage() {
@@ -18,19 +19,25 @@ export default function AssignDesktopsPage() {
   const [tempAssignments, setTempAssignments] = useState<string[]>([]);
   const [userSearch, setUserSearch] = useState("");
   const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   const filteredDesktops = useMemo(() => {
-    if (!search) return desktops;
+    // Filter out disabled desktops
+    const activeDesktops = desktops.filter((d) => d.status !== "Disabled");
+    if (!search) return activeDesktops;
     const q = search.toLowerCase();
-    return desktops.filter((d) => 
+    return activeDesktops.filter((d) => 
       (d.nameLabel || "").toLowerCase().includes(q) || 
       d.desktopAppId.toLowerCase().includes(q)
     );
   }, [desktops, search]);
 
   const filteredUsers = useMemo(() => {
-    // Filter out admin users
-    const nonAdminUsers = users.filter((u) => u.role.toLowerCase() !== "admin");
+    // Filter out admin and superadmin users
+    const nonAdminUsers = users.filter((u) => {
+      const role = u.role.toLowerCase();
+      return role !== "admin" && role !== "superadmin";
+    });
     
     if (!userSearch) return nonAdminUsers;
     const q = userSearch.toLowerCase();
@@ -132,9 +139,12 @@ export default function AssignDesktopsPage() {
       }
 
       setAssignedUsers(tempAssignments);
+      setToast({ message: "User assignments saved successfully", type: "success" });
       closeModal();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save assignments");
+      const errorMsg = err instanceof Error ? err.message : "Failed to save assignments";
+      setError(errorMsg);
+      setToast({ message: errorMsg, type: "error" });
     } finally {
       setSaving(false);
     }
@@ -160,7 +170,15 @@ export default function AssignDesktopsPage() {
   };
 
   return (
-    <div className="stack">
+    <>
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+      <div className="stack">
       <div className="row">
         <input
           type="text"
@@ -352,6 +370,7 @@ export default function AssignDesktopsPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }

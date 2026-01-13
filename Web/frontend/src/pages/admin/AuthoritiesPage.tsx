@@ -4,9 +4,10 @@ import * as adminApi from "../../api/admin";
 import Badge from "../../components/Badge";
 import Button from "../../components/Button";
 import { Table, Td, Th } from "../../components/Table";
+import Toast from "../../components/Toast";
 import { useAuth } from "../../auth/useAuth";
 
-type ModalMode = "add" | "edit" | "assign" | null;
+type ModalMode = "add" | "edit" | null;
 
 export default function AuthoritiesPage() {
   const { token } = useAuth();
@@ -15,6 +16,7 @@ export default function AuthoritiesPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [selectedUser, setSelectedUser] = useState<adminApi.User | null>(null);
@@ -26,7 +28,6 @@ export default function AuthoritiesPage() {
     mfa_secret: "",
     is_active: true,
   });
-  const [assignSelection, setAssignSelection] = useState<string[]>([]);
 
   const filteredUsers = useMemo(() => {
     if (!search) return users;
@@ -65,26 +66,9 @@ export default function AuthoritiesPage() {
     setModalMode("edit");
   };
 
-  const openAssign = async (user: adminApi.User) => {
-    if (!token) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const current = await adminApi.getUserAssignments(token, user.id);
-      setAssignSelection(current);
-      setSelectedUser(user);
-      setModalMode("assign");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load assignments");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const closeModal = () => {
     setModalMode(null);
     setSelectedUser(null);
-    setAssignSelection([]);
   };
 
   const handleSaveAdd = async () => {
@@ -98,10 +82,13 @@ export default function AuthoritiesPage() {
         role: form.role,
         mfa_secret: form.mfa_secret,
       });
+      setToast({ message: "User created successfully", type: "success" });
       closeModal();
       refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create user");
+      const errorMsg = err instanceof Error ? err.message : "Failed to create user";
+      setError(errorMsg);
+      setToast({ message: errorMsg, type: "error" });
     } finally {
       setLoading(false);
     }
@@ -118,10 +105,13 @@ export default function AuthoritiesPage() {
         ...(form.password ? { password: form.password } : {}),
         ...(form.mfa_secret ? { mfa_secret: form.mfa_secret } : {}),
       });
+      setToast({ message: "User updated successfully", type: "success" });
       closeModal();
       refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update user");
+      const errorMsg = err instanceof Error ? err.message : "Failed to update user";
+      setError(errorMsg);
+      setToast({ message: errorMsg, type: "error" });
     } finally {
       setLoading(false);
     }
@@ -133,35 +123,27 @@ export default function AuthoritiesPage() {
     setError(null);
     try {
       await adminApi.updateUser(token, user.id, { is_active: false });
+      setToast({ message: "User disabled successfully", type: "success" });
       refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to disable user");
+      const errorMsg = err instanceof Error ? err.message : "Failed to disable user";
+      setError(errorMsg);
+      setToast({ message: errorMsg, type: "error" });
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleSaveAssignments = async () => {
-    if (!token || !selectedUser) return;
-    setLoading(true);
-    setError(null);
-    try {
-      await adminApi.setUserAssignments(token, selectedUser.id, assignSelection);
-      closeModal();
-      refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update assignments");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const toggleAssign = (desktopId: string) => {
-    setAssignSelection((prev) => (prev.includes(desktopId) ? prev.filter((id) => id !== desktopId) : [...prev, desktopId]));
   };
 
   return (
-    <div className="stack">
+    <>
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+      <div className="stack">
       <div className="row">
         <Button size="sm" onClick={openAdd}>
           + Add Authority
@@ -195,9 +177,6 @@ export default function AuthoritiesPage() {
                   <Button size="sm" variant="ghost" onClick={() => openEdit(u)}>
                     Edit
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => openAssign(u)}>
-                    Assign
-                  </Button>
                   <Button size="sm" variant="danger" onClick={() => handleDisable(u)} disabled={!u.is_active}>
                     Disable
                   </Button>
@@ -216,7 +195,6 @@ export default function AuthoritiesPage() {
               <h3>
                 {modalMode === "add" && "Add Authority"}
                 {modalMode === "edit" && "Edit Authority"}
-                {modalMode === "assign" && `Assign desktops for ${selectedUser?.email ?? ""}`}
               </h3>
               <Button variant="ghost" size="sm" onClick={closeModal}>
                 Close
@@ -295,33 +273,11 @@ export default function AuthoritiesPage() {
                   </Button>
                 </>
               )}
-
-              {modalMode === "assign" && (
-                <>
-                  <div className="stack">
-                    {desktops.map((d) => (
-                      <label key={d.desktopAppId} className="row" style={{ alignItems: "center" }}>
-                        <input
-                          type="checkbox"
-                          checked={assignSelection.includes(d.desktopAppId)}
-                          onChange={() => toggleAssign(d.desktopAppId)}
-                          style={{ width: 16, height: 16 }}
-                        />
-                        <span className="strong">{d.nameLabel ?? d.desktopAppId}</span>
-                        <span className="muted mono">{d.desktopAppId}</span>
-                        <Badge tone={d.status === "Active" ? "good" : d.status === "Pending" ? "warn" : "bad"}>{d.status}</Badge>
-                      </label>
-                    ))}
-                  </div>
-                  <Button onClick={handleSaveAssignments} disabled={loading}>
-                    Save assignments
-                  </Button>
-                </>
-              )}
             </div>
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
