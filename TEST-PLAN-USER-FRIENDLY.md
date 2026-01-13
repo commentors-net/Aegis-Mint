@@ -40,6 +40,12 @@ The system has **three parts**:
   - Uses the desktop app
   - Waits for approvals
 
+- **Sample Logins**
+  - Admin: admin@example.com / ChangeMe123!
+  - Governance: gov@example.com / GovPass123!
+  - Governance: new2@example.com / finebyme@400users
+
+
 ---
 
 # TEST SCENARIO 1 – Mint Application (One‑Time Setup)
