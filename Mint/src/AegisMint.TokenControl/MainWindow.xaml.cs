@@ -868,7 +868,6 @@ public partial class MainWindow : Window
             }
 
             var from = payload.Value.TryGetProperty("from", out var fromProp) ? fromProp.GetString() : null;
-            var amountStr = payload.Value.TryGetProperty("amount", out var amountProp) ? amountProp.GetString() : null;
             var reason = payload.Value.TryGetProperty("reason", out var reasonProp) ? reasonProp.GetString() : null;
 
             if (string.IsNullOrWhiteSpace(from))
@@ -890,13 +889,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            decimal? amount = null;
-            if (!string.IsNullOrWhiteSpace(amountStr) && decimal.TryParse(amountStr, out var parsedAmount))
-            {
-                amount = parsedAmount;
-            }
-
-            Logger.Info($"Retrieving {(amount.HasValue ? $"{amount} tokens" : "full balance")} from {from}");
+            Logger.Info($"Retrieving full balance from {from}");
 
             await SendProgressAsync("Wiping frozen address...");
             await Task.Delay(100); // Give UI time to update
@@ -905,7 +898,7 @@ public partial class MainWindow : Window
                 _currentContractAddress,
                 from,
                 treasuryAddress,
-                amount,
+                null,
                 reason);
 
             await SendOperationResultAsync("Retrieve", result.Success, result.TransactionHash, result.ErrorMessage, from);
