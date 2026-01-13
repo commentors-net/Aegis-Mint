@@ -1,10 +1,12 @@
 {
   "name": "aegismint-governance",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "prebuild": "node build-version.js",
+    "build": "vite build && node build-version.js",
+    "build:prod": "vite build --mode production && node build-version.js",
     "preview": "vite preview",
     "lint": "echo \"add your linter here\""
   },
