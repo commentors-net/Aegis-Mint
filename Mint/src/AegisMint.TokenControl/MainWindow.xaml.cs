@@ -34,6 +34,8 @@ public partial class MainWindow : Window
     private DispatcherTimer? _countdownTimer;
     private DateTime? _unlockedUntilUtc;
     private bool _hasAuthenticationSucceeded = false;
+    private bool _hasAuthenticationChecked = false;
+    private bool _hasNavigationCompleted = false;
     private string _currentNetwork = "sepolia";
     private string? _currentContractAddress;
     private string _cachedTitle = string.Empty;
@@ -137,19 +139,40 @@ public partial class MainWindow : Window
 
     private async void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
-        Logger.Debug($"OnNavigationCompleted - IsSuccess={e.IsSuccess}, _hasAuthenticationSucceeded={_hasAuthenticationSucceeded}");
+        Logger.Debug($"OnNavigationCompleted - IsSuccess={e.IsSuccess}");
         if (e.IsSuccess)
         {
-            // Only hide overlay if authentication has succeeded
+            // Mark navigation as completed
+            _hasNavigationCompleted = true;
+            Logger.Debug("Navigation completed - setting flag to true");
+            
+            // Only hide overlays if authentication explicitly succeeded
+            // Lock overlay visibility is controlled ONLY by ShowLockOverlay/HideLockOverlay
+            Logger.Debug($"OnNavigationCompleted check - AuthChecked={_hasAuthenticationChecked}, AuthSucceeded={_hasAuthenticationSucceeded}, LockOverlay={LockOverlay.Visibility}, Overlay={Overlay.Visibility}");
+            
             if (_hasAuthenticationSucceeded)
             {
-                Logger.Debug("Auth succeeded - Hiding Overlay");
+                // Authentication succeeded - hide all overlays to show WebView
+                Logger.Debug("Auth succeeded - hiding all overlays");
                 Overlay.Visibility = Visibility.Collapsed;
+                LockOverlay.Visibility = Visibility.Collapsed;
+            }
+            else if (_hasAuthenticationChecked && LockOverlay.Visibility == Visibility.Visible)
+            {
+                // Auth checked but not succeeded - lock overlay is showing, just hide loading overlay
+                Logger.Debug("Auth checked but not succeeded - lock overlay visible, hiding loading overlay only");
+                Overlay.Visibility = Visibility.Collapsed;
+            }
+            else if (_hasAuthenticationChecked)
+            {
+                // Auth checked but lock overlay not showing - this shouldn't happen
+                Logger.Debug("WARNING: Auth checked but lock overlay not visible - keeping loading overlay");
             }
             else
             {
-                Logger.Debug("Auth NOT succeeded - Keeping Overlay visible");
+                Logger.Debug("Auth check not completed yet - keeping loading overlay visible");
             }
+            
             await SendToWebAsync("host-info", new { host = "Aegis Token Control WPF", version = "1.0", network = _currentNetwork });
             await SendVaultStatusAsync();
             await UpdateBalanceStatsAsync();
@@ -308,6 +331,9 @@ public partial class MainWindow : Window
             var status = await _authService.CheckUnlockStatusAsync();
             Logger.Debug($"CheckAuthenticationStatusAsync - Status: {status.DesktopStatus}, Unlocked: {status.IsUnlocked}");
 
+            // Mark that authentication check has completed
+            _hasAuthenticationChecked = true;
+
             if (status.DesktopStatus == "Pending")
             {
                 ShowLockOverlay(
@@ -447,6 +473,9 @@ public partial class MainWindow : Window
                     false);
                 DisableApplication();
                 Logger.Info("Access time expired - application locked");
+                
+                // Start checking for new approvals
+                StartApprovalCheckTimer();
             }
             else
             {
@@ -456,9 +485,9 @@ public partial class MainWindow : Window
         };
 
         _countdownTimer.Start();
-        // Send initial countdown update
+        // Send initial countdown update (don't wait - would deadlock UI thread)
         var initialRemaining = unlockUntil - DateTime.Now;
-        SendCountdownUpdateAsync(initialRemaining, true).GetAwaiter().GetResult();
+        _ = SendCountdownUpdateAsync(initialRemaining, true);
         Logger.Info($"Countdown timer started - expires at {unlockUntil:HH:mm:ss}");
     }
 
@@ -495,7 +524,6 @@ public partial class MainWindow : Window
     private void ShowLockOverlay(string message, bool showRetry)
     {
         Logger.Debug($"ShowLockOverlay called: message='{message}', showRetry={showRetry}");
-        Logger.Debug($"ShowLockOverlay - StackTrace: {Environment.StackTrace}");
         Dispatcher.Invoke(() =>
         {
             LockMessage.Text = message;
@@ -503,7 +531,7 @@ public partial class MainWindow : Window
             LockOverlay.Visibility = Visibility.Visible;
             // Hide the loading overlay so LockOverlay is visible
             Overlay.Visibility = Visibility.Collapsed;
-            // Hide WebView to prevent Z-order issues (WebView2 renders on top)
+            // CRITICAL: Hide WebView to prevent it rendering on top of overlay (WebView2 Z-order issue)
             MainWebView.Visibility = Visibility.Collapsed;
             Logger.Debug($"ShowLockOverlay completed: LockOverlay={LockOverlay.Visibility}, Overlay={Overlay.Visibility}, WebView={MainWebView.Visibility}");
         });
@@ -512,13 +540,14 @@ public partial class MainWindow : Window
     private void HideLockOverlay()
     {
         Logger.Debug("HideLockOverlay called");
-        Logger.Debug($"HideLockOverlay - StackTrace: {Environment.StackTrace}");
         Dispatcher.Invoke(() =>
         {
             LockOverlay.Visibility = Visibility.Collapsed;
-            // Show WebView again when unlocked
+            // Also hide loading overlay when unlocking
+            Overlay.Visibility = Visibility.Collapsed;
+            // Show WebView now that we're unlocked (safe to do here - auth succeeded)
             MainWebView.Visibility = Visibility.Visible;
-            Logger.Debug($"HideLockOverlay completed: LockOverlay={LockOverlay.Visibility}, WebView={MainWebView.Visibility}");
+            Logger.Debug($"HideLockOverlay completed: LockOverlay={LockOverlay.Visibility}, Overlay={Overlay.Visibility}, WebView={MainWebView.Visibility}");
         });
     }
 

@@ -94,6 +94,7 @@
             <Border Background="#020617" />
 
             <wv2:WebView2 x:Name="MainWebView"
+                          Visibility="Collapsed"
                           NavigationStarting="OnNavigationStarting"
                           NavigationCompleted="OnNavigationCompleted"
                           CoreWebView2InitializationCompleted="OnWebViewInitialized"
