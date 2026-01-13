@@ -5,6 +5,7 @@ import * as govApi from "../../api/governance";
 import { useAuth } from "../../auth/useAuth";
 import Badge from "../../components/Badge";
 import Button from "../../components/Button";
+import Toast from "../../components/Toast";
 import { Table, Td, Th } from "../../components/Table";
 
 export default function AssignedDesktopsPage() {
@@ -16,6 +17,7 @@ export default function AssignedDesktopsPage() {
   const [loading, setLoading] = useState(false);
   const [, setTick] = useState(0); // trigger re-render for countdown
   const [fetchedAt, setFetchedAt] = useState(Date.now());
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   useEffect(() => {
     const id = setInterval(() => setTick((v) => v + 1), 1000);
@@ -30,8 +32,11 @@ export default function AssignedDesktopsPage() {
       const data = await govApi.getAssignedDesktops(token);
       setRows(data);
       setFetchedAt(Date.now());
+      setToast({ message: "Desktops refreshed successfully", type: "success" });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load assigned desktops");
+      const errorMsg = err instanceof Error ? err.message : "Failed to load assigned desktops";
+      setError(errorMsg);
+      setToast({ message: errorMsg, type: "error" });
     } finally {
       setLoading(false);
     }
@@ -74,16 +79,27 @@ export default function AssignedDesktopsPage() {
     setError(null);
     try {
       await govApi.approveDesktop(desktopAppId, token);
+      setToast({ message: "Desktop approved successfully", type: "success" });
       refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Approval failed");
+      const errorMsg = err instanceof Error ? err.message : "Approval failed";
+      setError(errorMsg);
+      setToast({ message: errorMsg, type: "error" });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="stack">
+    <>
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+      <div className="stack">
       <div className="row">
         <input className="input" placeholder="Search by name / DesktopAppId" value={search} onChange={(e) => setSearch(e.target.value)} />
         <div className="spacer" />
@@ -147,6 +163,7 @@ export default function AssignedDesktopsPage() {
         Governance can approve only once per desktop per active approval session. Approve disables until unlock window
         expires.
       </p>
-    </div>
+      </div>
+    </>
   );
 }
