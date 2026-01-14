@@ -1,6 +1,6 @@
 
 # AegisMint Token Control – User‑Friendly Test Plan
-(Plain English – Non‑Technical)
+(Non‑Technical)
 
 ---
 
@@ -40,9 +40,25 @@ The system has **three parts**:
   - Uses the desktop app
   - Waits for approvals
 
+- **Test Users**
+  - Admin: admin@example.com / ChangeMe123!
+  - Governance: gov@example.com / GovPass123!
+  - Governance: new2@example.com / finebyme@400users
+
 ---
 
 # TEST SCENARIO 1 – Mint Application (One‑Time Setup)
+
+## What This Step Is For (Important)
+
+This scenario creates **two critical things**:
+1. The token itself
+2. **Recovery shares**, which are needed later in Test Scenario 3
+
+These shares are **not used every day**.
+They are only needed for **recovery or disaster situations**.
+
+---
 
 ## Step 1.1 – Start Mint
 
@@ -82,16 +98,47 @@ You should see:
 
 ---
 
-## Step 1.4 – Finish Mint Setup
+## Step 1.4 – What Are Shares?
 
-- Mint can now be closed or uninstalled
-- Shares must be stored securely
+Shares are **pieces of a master key**.
+
+- One share alone does **nothing**
+- No single person can control the token
+- A minimum number of shares must be combined to recover access
+
+Think of shares like **parts of a safe combination**.
+
+---
+
+## Step 1.5 – How to Store and Distribute Shares
+
+- Give **one share per trusted person**
+- Store shares in different locations
+- Never email or centrally store all shares
+
+---
+
+## Step 1.6 – When Shares Are Needed Again
+
+Shares are only required when:
+- Recovering the token ([Test Scenario 3](#test-scenario-3--recovering-the-token))
+- Rebuilding access after a disaster
+
+---
+
+## Step 1.7 – Finish Mint Setup
+
+- Mint can be closed or uninstalled
+- Shares must remain safely stored
 - Continue to Token Control
 
 ---
 
+### [Scenario 1 → See Appendix A](#appendix-a--shares--recovery-explained-one-page)
+
+---
+
 # TEST SCENARIO 2 – Desktop Registration & Access Approval
-(Plain‑English Version)
 
 ## IMPORTANT
 
@@ -210,57 +257,53 @@ This is expected.
 ---
 
 # TEST SCENARIO 3 – Recovering the Token
+(Connection to Shares Created in Scenario 1)
+
+## What This Step Is For (Important)
+
+This scenario uses the **shares created in Test Scenario 1**.
+It confirms that multiple trusted people can jointly recover access.
+
+---
 
 ## Step 3.1 – Start Recovery
 
-1. Click **Recover**
-2. Provide the minimum required shares
+1. Open **Token Control**
+2. Ensure the application is unlocked
+3. Click **Recover**
+4. Provide the minimum required shares
 
-Result:
-- Wallet and contract info appear
-- Balances load
+You should see:
+- Wallet address appears
+- Contract address loads
+- Balances display
+
+---
+
+### [Scenario 1 → See Appendix A](#appendix-a--shares--recovery-explained-one-page)
 
 ---
 
 # TEST SCENARIO 4 – Admin Portal Basics
 
-## Step 4.1 – Manage Users
-
 Admin can:
-- Create users
-- Edit users
-- Enable or disable users
-
----
-
-## Step 4.2 – Manage Desktops
-
-Admin can:
-- Approve computers
-- Edit approval rules
-- Disable computers
-
----
-
-## Step 4.3 – Assign Desktops
-
-Admin can:
-- Assign which users approve which desktops
+- Manage users
+- Manage desktops
+- Assign approvals
 
 ---
 
 # TEST SCENARIO 5 – Governance Portal
 
 Governance users can:
-- See assigned desktops
 - Approve access
-- See countdown timers
+- Monitor timers
 
 ---
 
 # TEST SCENARIO 6 – Multiple Desktops
 
-System supports:
+The system supports:
 - Multiple computers
 - Independent approvals
 - Independent timers
@@ -271,9 +314,120 @@ System supports:
 
 - Lock screens are normal
 - Approvals expire by design
+- Shares are only used for recovery
 - Restarting does not bypass security
-- If unsure, check approval status in the portal
 
 ---
 
 # END OF TEST PLAN
+
+
+
+# Appendix A – Shares & Recovery Explained (One Page)
+
+## What Are Shares?
+
+Shares are **pieces of a master key** created when the token is minted.
+
+- A single share is **not useful on its own**
+- No single person can control the token
+- A minimum number of shares must be combined to recover access
+
+Think of shares like **parts of a safe combination**:
+- One person cannot open the safe
+- A group must agree and work together
+
+---
+
+## Why Shares Exist
+
+Shares exist to prevent:
+- Single-person control
+- Accidental loss of access
+- Insider abuse
+
+They ensure that **important actions require agreement**.
+
+---
+
+## How Shares Are Created
+
+- Shares are created **once**, during the Mint process
+- They are saved as files
+- They are never sent to the server
+
+---
+
+## How Shares Should Be Distributed
+
+Recommended best practices:
+- One share per trusted person
+- Different physical or secure digital locations
+- No emailing or shared folders
+
+Example holders:
+- CTO
+- Security Officer
+- Compliance Officer
+- External custodian (optional)
+
+---
+
+## When Shares Are Needed
+
+Shares are **not needed for daily use**.
+
+They are only used when:
+- Recovering the token
+- Rebuilding access after a failure
+- Verifying ownership using Token Control recovery
+
+---
+
+## What Happens During Recovery
+
+1. Token Control requests recovery
+2. Trusted people provide their shares
+3. Once the minimum number is reached:
+   - The master key is reconstructed
+   - Wallet and contract data are restored
+
+---
+
+## What If a Share Is Lost?
+
+- As long as the minimum required shares exist, recovery still works
+- If too many shares are lost, recovery is not possible
+
+---
+
+## Key Takeaway
+
+Shares protect the system.
+They make sure **no single mistake or person can break it**.
+
+
+
+# Appendix B – AegisMint End-to-End Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Mint Application] --> B[Generate Token]
+    B --> C[Create Shares]
+    C --> D[Distribute Shares to Trusted People]
+
+    D --> E[Token Control Installed]
+    E --> F[Desktop Registration]
+    F --> G[Admin Approval]
+    G --> H[Governance Approvals]
+    H --> I[Token Control Unlocked]
+
+    I --> J[Normal Usage]
+    J --> K[Session Expiry]
+    K --> H
+
+    C --> L[Recovery Needed]
+    L --> M[Collect Required Shares]
+    M --> N[Recover Master Key]
+    N --> I
+```
