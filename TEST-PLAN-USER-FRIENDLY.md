@@ -53,7 +53,7 @@ The system has **three parts**:
 
 This scenario creates **two critical things**:
 1. The token itself
-2. **Recovery shares**, which are needed later in Test Scenario 3
+2. **Recovery shares**, which are needed later in [Test Scenario 3](#test-scenario-3--recovering-the-token)
 
 These shares are **not used every day**.
 They are only needed for **recovery or disaster situations**.
@@ -264,6 +264,11 @@ This is expected.
 This scenario uses the **shares created in Test Scenario 1**.
 It confirms that multiple trusted people can jointly recover access.
 
+### Important
+- This scenario is required when new desktop needed
+- Install Token Control on new desktop
+- Follow the Step 2.1 to Step 2.8 from [Test Scenario 2](#test-scenario-2--desktop-registration--access-approval)
+- Once application is unlocked then follow Step 3.1
 ---
 
 ## Step 3.1 – Start Recovery
