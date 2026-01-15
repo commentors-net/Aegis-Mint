@@ -1,4 +1,5 @@
-import { createContext, ReactNode, useContext, useState } from "react";
+import { createContext, ReactNode, useContext, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import * as authApi from "../api/auth";
 
@@ -15,6 +16,8 @@ type AuthContextType = {
   mfaQrBase64: string | null;
   loading: boolean;
   error: string | null;
+  sessionExpiresAt: Date | null;
+  timeRemaining: number | null;
   login: (email: string, password: string) => Promise<void>;
   verifyOtp: (otp: string) => Promise<void>;
   logout: () => void;
@@ -23,6 +26,7 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const navigate = useNavigate();
   const [token, setToken] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [role, setRole] = useState<Role>(null);
@@ -33,6 +37,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [mfaQrBase64, setMfaQrBase64] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sessionExpiresAt, setSessionExpiresAt] = useState<Date | null>(null);
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
 
   const login = async (email: string, password: string) => {
     setLoading(true);
@@ -71,6 +77,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setEnrollmentSecret(null);
       setOtpauthUrl(null);
       setMfaQrBase64(null);
+      
+      // Set session expiration
+      const expiresAt = new Date(res.expires_at);
+      setSessionExpiresAt(expiresAt);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Verification failed");
       setRole(null);
@@ -90,7 +100,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setOtpauthUrl(null);
     setMfaQrBase64(null);
     setError(null);
+    setSessionExpiresAt(null);
+    setTimeRemaining(null);
   };
+
+  // Countdown timer and auto-logout on expiration
+  useEffect(() => {
+    if (!sessionExpiresAt || !token) {
+      setTimeRemaining(null);
+      return;
+    }
+
+    const updateCountdown = () => {
+      const now = new Date();
+      const remaining = Math.floor((sessionExpiresAt.getTime() - now.getTime()) / 1000);
+      
+      if (remaining <= 0) {
+        // Session expired - logout and redirect
+        logout();
+        navigate("/login", { replace: true });
+        return;
+      }
+      
+      setTimeRemaining(remaining);
+    };
+
+    // Update immediately
+    updateCountdown();
+
+    // Update every second
+    const interval = setInterval(updateCountdown, 1000);
+
+    return () => clearInterval(interval);
+  }, [sessionExpiresAt, token, navigate]);
 
   return (
     <AuthContext.Provider
@@ -105,6 +147,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         mfaQrBase64,
         loading,
         error,
+        sessionExpiresAt,
+        timeRemaining,
         login,
         verifyOtp,
         logout,

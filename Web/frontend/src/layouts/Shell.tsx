@@ -7,7 +7,21 @@ import Button from "../components/Button";
 import { useAuth } from "../auth/useAuth";
 
 export default function Shell({ children }: { children: ReactNode }) {
-  const { role, user, token, logout } = useAuth();
+  const { role, user, token, logout, timeRemaining } = useAuth();
+
+  const formatTimeRemaining = (seconds: number | null): string => {
+    if (seconds === null || seconds <= 0) return "--:--";
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const getTimerClass = (seconds: number | null): string => {
+    if (seconds === null) return "";
+    if (seconds <= 60) return "timer-critical";
+    if (seconds <= 300) return "timer-warning";
+    return "";
+  };
   const [showPwd, setShowPwd] = useState(false);
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -45,6 +59,11 @@ export default function Shell({ children }: { children: ReactNode }) {
           <Badge tone={role ? "good" : "warn"}>
             {user ? `Signed in: ${user.email}` : "Not signed in"}
           </Badge>
+          {user && timeRemaining !== null && (
+            <Badge tone={timeRemaining <= 60 ? "danger" : timeRemaining <= 300 ? "warn" : "good"} className={getTimerClass(timeRemaining)}>
+              ⏱️ {formatTimeRemaining(timeRemaining)}
+            </Badge>
+          )}
         </div>
         <div className="nav">
           {role === "SuperAdmin" && (
