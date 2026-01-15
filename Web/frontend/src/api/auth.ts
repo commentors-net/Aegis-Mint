@@ -42,3 +42,10 @@ export async function changePassword(token: string, current_password: string, ne
     body: JSON.stringify({ current_password, new_password }),
   });
 }
+
+export async function refreshToken(refreshToken: string): Promise<VerifyOtpResponse> {
+  return apiFetch<VerifyOtpResponse>("/auth/refresh", {
+    method: "POST",
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
+}
