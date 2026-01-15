@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import * as authApi from "../api/auth";
@@ -8,6 +8,15 @@ import { useAuth } from "../auth/useAuth";
 
 export default function Shell({ children }: { children: ReactNode }) {
   const { role, user, token, logout, timeRemaining } = useAuth();
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Fetch app version
+    fetch('/governance/version.json?t=' + Date.now())
+      .then(res => res.json())
+      .then(data => setAppVersion(data.version))
+      .catch(() => {});
+  }, []);
 
   const formatTimeRemaining = (seconds: number | null): string => {
     if (seconds === null || seconds <= 0) return "--:--";
@@ -62,6 +71,11 @@ export default function Shell({ children }: { children: ReactNode }) {
           {user && timeRemaining !== null && (
             <Badge tone={timeRemaining <= 60 ? "danger" : timeRemaining <= 300 ? "warn" : "good"} className={getTimerClass(timeRemaining)}>
               ⏱️ {formatTimeRemaining(timeRemaining)}
+            </Badge>
+          )}
+          {appVersion && (
+            <Badge tone="neutral">
+              v{appVersion}
             </Badge>
           )}
         </div>
