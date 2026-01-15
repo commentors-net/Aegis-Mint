@@ -9,7 +9,7 @@ import Shell from "../layouts/Shell";
 export default function LoginPage() {
   const navigate = useNavigate();
   const { login, challengeId, loading, error, enrollmentSecret, otpauthUrl, mfaQrBase64 } = useAuth();
-  const [email, setEmail] = useState("authority@example.com");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   useEffect(() => {

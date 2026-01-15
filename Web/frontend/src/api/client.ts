@@ -11,7 +11,14 @@ export async function apiFetch<T>(path: string, options: Options = {}): Promise<
     headers.Authorization = `Bearer ${options.token}`;
   }
 
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  // Add cache-busting headers to prevent browser caching
+  const fetchOptions: RequestInit = {
+    ...options,
+    headers,
+    cache: "no-store",
+  };
+
+  const res = await fetch(`${API_BASE}${path}`, fetchOptions);
   if (!res.ok) {
     const message = await res.text();
     throw new Error(message || res.statusText);

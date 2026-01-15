@@ -599,7 +599,6 @@ window.addEventListener('DOMContentLoaded', function() {
 
   retrieveBtn.addEventListener('click', () => {
     const from = (document.getElementById('retrieve-from').value || '').trim();
-    const amount = document.getElementById('retrieve-amount').value || '';
     const reason = document.getElementById('retrieve-memo').value || '';
     
     if (!from) {
@@ -608,8 +607,8 @@ window.addEventListener('DOMContentLoaded', function() {
     }
     
     showProgress(`Retrieving tokens from frozen address...`);
-    addLog('Retrieve', `Retrieving ${amount || 'full balance'} from address`, null, from);
-    sendToHost('retrieve-tokens', { from, amount, reason });
+    addLog('Retrieve', `Retrieving full balance from address`, null, from);
+    sendToHost('retrieve-tokens', { from, reason });
   });
 
 

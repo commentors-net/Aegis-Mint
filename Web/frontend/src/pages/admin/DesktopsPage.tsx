@@ -4,6 +4,7 @@ import * as adminApi from "../../api/admin";
 import Badge from "../../components/Badge";
 import Button from "../../components/Button";
 import { Table, Td, Th } from "../../components/Table";
+import Toast from "../../components/Toast";
 import { useAuth } from "../../auth/useAuth";
 
 type DesktopRow = adminApi.Desktop;
@@ -17,6 +18,7 @@ export default function DesktopsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [selected, setSelected] = useState<DesktopRow | null>(null);
@@ -28,9 +30,11 @@ export default function DesktopsPage() {
   });
 
   const filtered = useMemo(() => {
-    if (!search) return rows;
+    // Filter out disabled desktops
+    const activeRows = rows.filter((r) => r.status !== "Disabled");
+    if (!search) return activeRows;
     const q = search.toLowerCase();
-    return rows.filter((r) => (r.nameLabel || "").toLowerCase().includes(q) || r.desktopAppId.toLowerCase().includes(q));
+    return activeRows.filter((r) => (r.nameLabel || "").toLowerCase().includes(q) || r.desktopAppId.toLowerCase().includes(q));
   }, [rows, search]);
 
   const refresh = async () => {
@@ -84,10 +88,13 @@ export default function DesktopsPage() {
         requiredApprovalsN: form.requiredApprovalsN,
         unlockMinutes: form.unlockMinutes,
       });
+      setToast({ message: "Desktop created successfully", type: "success" });
       closeModal();
       refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create desktop");
+      const errorMsg = err instanceof Error ? err.message : "Failed to create desktop";
+      setError(errorMsg);
+      setToast({ message: errorMsg, type: "error" });
     } finally {
       setLoading(false);
     }
@@ -103,10 +110,13 @@ export default function DesktopsPage() {
         requiredApprovalsN: form.requiredApprovalsN,
         unlockMinutes: form.unlockMinutes,
       });
+      setToast({ message: "Desktop updated successfully", type: "success" });
       closeModal();
       refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update desktop");
+      const errorMsg = err instanceof Error ? err.message : "Failed to update desktop";
+      setError(errorMsg);
+      setToast({ message: errorMsg, type: "error" });
     } finally {
       setLoading(false);
     }
@@ -118,9 +128,12 @@ export default function DesktopsPage() {
     setError(null);
     try {
       await adminApi.updateDesktop(token, row.desktopAppId, { status: "Disabled" });
+      setToast({ message: "Desktop disabled successfully", type: "success" });
       refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to disable desktop");
+      const errorMsg = err instanceof Error ? err.message : "Failed to disable desktop";
+      setError(errorMsg);
+      setToast({ message: errorMsg, type: "error" });
     } finally {
       setLoading(false);
     }
@@ -132,9 +145,12 @@ export default function DesktopsPage() {
     setError(null);
     try {
       await adminApi.updateDesktop(token, row.desktopAppId, { status: "Active" });
+      setToast({ message: "Desktop enabled successfully", type: "success" });
       refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to enable desktop");
+      const errorMsg = err instanceof Error ? err.message : "Failed to enable desktop";
+      setError(errorMsg);
+      setToast({ message: errorMsg, type: "error" });
     } finally {
       setLoading(false);
     }
@@ -149,9 +165,12 @@ export default function DesktopsPage() {
         requiredApprovalsN: row.requiredApprovalsN,
         unlockMinutes: row.unlockMinutes,
       });
+      setToast({ message: "Desktop approved successfully", type: "success" });
       refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to approve desktop");
+      const errorMsg = err instanceof Error ? err.message : "Failed to approve desktop";
+      setError(errorMsg);
+      setToast({ message: errorMsg, type: "error" });
     } finally {
       setLoading(false);
     }
@@ -163,16 +182,27 @@ export default function DesktopsPage() {
     setError(null);
     try {
       await adminApi.rejectDesktop(token, row.desktopAppId);
+      setToast({ message: "Desktop rejected successfully", type: "success" });
       refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to reject desktop");
+      const errorMsg = err instanceof Error ? err.message : "Failed to reject desktop";
+      setError(errorMsg);
+      setToast({ message: errorMsg, type: "error" });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="stack">
+    <>
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+      <div className="stack">
       <div className="row">
         {enableRegister && (
           <Button size="sm" onClick={openCreate}>
@@ -306,6 +336,7 @@ export default function DesktopsPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }

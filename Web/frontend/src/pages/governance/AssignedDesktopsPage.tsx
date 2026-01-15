@@ -5,6 +5,7 @@ import * as govApi from "../../api/governance";
 import { useAuth } from "../../auth/useAuth";
 import Badge from "../../components/Badge";
 import Button from "../../components/Button";
+import Toast from "../../components/Toast";
 import { Table, Td, Th } from "../../components/Table";
 
 export default function AssignedDesktopsPage() {
@@ -16,6 +17,7 @@ export default function AssignedDesktopsPage() {
   const [loading, setLoading] = useState(false);
   const [, setTick] = useState(0); // trigger re-render for countdown
   const [fetchedAt, setFetchedAt] = useState(Date.now());
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   useEffect(() => {
     const id = setInterval(() => setTick((v) => v + 1), 1000);
@@ -30,8 +32,11 @@ export default function AssignedDesktopsPage() {
       const data = await govApi.getAssignedDesktops(token);
       setRows(data);
       setFetchedAt(Date.now());
+      setToast({ message: "Desktops refreshed successfully", type: "success" });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load assigned desktops");
+      const errorMsg = err instanceof Error ? err.message : "Failed to load assigned desktops";
+      setError(errorMsg);
+      setToast({ message: errorMsg, type: "error" });
     } finally {
       setLoading(false);
     }
@@ -42,9 +47,11 @@ export default function AssignedDesktopsPage() {
   }, [token]);
 
   const filtered = useMemo(() => {
-    if (!search) return rows;
+    // Only show Active desktops
+    const activeRows = rows.filter((r) => r.status === "Active");
+    if (!search) return activeRows;
     const q = search.toLowerCase();
-    return rows.filter((r) => (r.nameLabel || "").toLowerCase().includes(q) || r.desktopAppId.toLowerCase().includes(q));
+    return activeRows.filter((r) => (r.nameLabel || "").toLowerCase().includes(q) || r.desktopAppId.toLowerCase().includes(q));
   }, [rows, search]);
 
   const formatLocal = (value?: string) => {
@@ -72,16 +79,27 @@ export default function AssignedDesktopsPage() {
     setError(null);
     try {
       await govApi.approveDesktop(desktopAppId, token);
+      setToast({ message: "Desktop approved successfully", type: "success" });
       refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Approval failed");
+      const errorMsg = err instanceof Error ? err.message : "Approval failed";
+      setError(errorMsg);
+      setToast({ message: errorMsg, type: "error" });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="stack">
+    <>
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+      <div className="stack">
       <div className="row">
         <input className="input" placeholder="Search by name / DesktopAppId" value={search} onChange={(e) => setSearch(e.target.value)} />
         <div className="spacer" />
@@ -96,14 +114,13 @@ export default function AssignedDesktopsPage() {
             <Th>Desktop</Th>
             <Th>DesktopAppId</Th>
             <Th>Approvals</Th>
-            <Th>Status</Th>
             <Th>Action</Th>
           </tr>
         </thead>
         <tbody>
           {filtered.map((d) => {
             const remaining = remainingSeconds(d);
-            const disableApprove = (d.alreadyApproved && remaining > 0) || d.status !== "Active";
+            const disableApprove = d.alreadyApproved && remaining > 0;
             const sessionLabel =
               d.sessionStatus === "Unlocked"
                 ? remaining > 0
@@ -126,19 +143,6 @@ export default function AssignedDesktopsPage() {
                   <div className="muted small">{sessionLabel}</div>
                 </Td>
                 <Td>
-                  <Badge
-                    tone={
-                      d.sessionStatus === "Unlocked" && remaining > 0
-                        ? "good"
-                        : d.status === "Active"
-                          ? "warn"
-                          : "bad"
-                    }
-                  >
-                    {d.sessionStatus === "Unlocked" ? (remaining > 0 ? "Unlocked" : "Expired") : d.status}
-                  </Badge>
-                </Td>
-                <Td>
                   <Button
                     size="sm"
                     onClick={(e) => {
@@ -159,6 +163,7 @@ export default function AssignedDesktopsPage() {
         Governance can approve only once per desktop per active approval session. Approve disables until unlock window
         expires.
       </p>
-    </div>
+      </div>
+    </>
   );
 }

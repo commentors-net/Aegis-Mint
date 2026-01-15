@@ -14,6 +14,7 @@ import SystemSettingsPage from "../pages/admin/SystemSettingsPage";
 import CertificateAuthorityPage from "../pages/admin/CertificateAuthorityPage";
 import AssignedDesktopsPage from "../pages/governance/AssignedDesktopsPage";
 import DesktopDetailPage from "../pages/governance/DesktopDetailPage";
+import VersionCheck from "../components/VersionCheck";
 
 export default function App() {
   const { role } = useAuth();
@@ -21,7 +22,9 @@ export default function App() {
   const redirectForRole = role === "SuperAdmin" ? "/admin" : "/gov";
 
   return (
-    <Routes>
+    <>
+      <VersionCheck />
+      <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/mfa" element={<MFAPage />} />
 
@@ -56,6 +59,7 @@ export default function App() {
       </Route>
 
       <Route path="*" element={<Navigate to={role ? redirectForRole : "/login"} replace />} />
-    </Routes>
+      </Routes>
+    </>
   );
 }

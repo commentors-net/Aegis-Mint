@@ -881,8 +881,12 @@ public partial class MainWindow : Window
                 return false;
             }
 
+            // Encrypt mnemonic with application-specific key before splitting
+            var encryptionKey = DeriveApplicationEncryptionKey();
+            var encryptedMnemonic = EncryptMnemonic(mnemonic, encryptionKey);
+            
             var shamir = new ShamirSecretSharingService();
-            var secretBytes = Encoding.UTF8.GetBytes(mnemonic);
+            var secretBytes = Encoding.UTF8.GetBytes(encryptedMnemonic);
             var shares = shamir.Split(secretBytes, threshold, totalShares);
 
             using var folderDialog = new WinForms.FolderBrowserDialog
@@ -911,7 +915,8 @@ public partial class MainWindow : Window
                     clientShareCount = clientShares,
                     safekeepingShareCount = threshold,
                     shareId = share.Id,
-                    shareValue = share.Value
+                    shareValue = share.Value,
+                    encryptionVersion = 1
                 };
 
                 var fileName = $"aegis-share-{share.Id:D3}.json";
@@ -932,6 +937,56 @@ public partial class MainWindow : Window
     }
 
     private record BridgeMessage(string? type, JsonElement? payload);
+
+    // Application-specific encryption key derivation
+    private string DeriveApplicationEncryptionKey()
+    {
+        // Application-specific constant embedded in code
+        const string APP_SALT = "AegisMint-Recovery-v1-2026";
+        
+        return Convert.ToBase64String(System.Security.Cryptography.SHA256.HashData(
+            Encoding.UTF8.GetBytes(APP_SALT)));
+    }
+
+    // AES-256 encryption
+    private string EncryptMnemonic(string mnemonic, string key)
+    {
+        using var aes = System.Security.Cryptography.Aes.Create();
+        aes.Key = Convert.FromBase64String(key);
+        aes.GenerateIV();
+        
+        using var encryptor = aes.CreateEncryptor();
+        var mnemonicBytes = Encoding.UTF8.GetBytes(mnemonic);
+        var encrypted = encryptor.TransformFinalBlock(mnemonicBytes, 0, mnemonicBytes.Length);
+        
+        // Prepend IV to encrypted data
+        var result = new byte[aes.IV.Length + encrypted.Length];
+        Buffer.BlockCopy(aes.IV, 0, result, 0, aes.IV.Length);
+        Buffer.BlockCopy(encrypted, 0, result, aes.IV.Length, encrypted.Length);
+        
+        return Convert.ToBase64String(result);
+    }
+
+    // AES-256 decryption
+    private string DecryptMnemonic(string encryptedMnemonic, string key)
+    {
+        var data = Convert.FromBase64String(encryptedMnemonic);
+        
+        using var aes = System.Security.Cryptography.Aes.Create();
+        aes.Key = Convert.FromBase64String(key);
+        
+        // Extract IV from beginning
+        var iv = new byte[aes.IV.Length];
+        var encrypted = new byte[data.Length - iv.Length];
+        Buffer.BlockCopy(data, 0, iv, 0, iv.Length);
+        Buffer.BlockCopy(data, iv.Length, encrypted, 0, encrypted.Length);
+        
+        aes.IV = iv;
+        using var decryptor = aes.CreateDecryptor();
+        var decrypted = decryptor.TransformFinalBlock(encrypted, 0, encrypted.Length);
+        
+        return Encoding.UTF8.GetString(decrypted);
+    }
 
     private void LoadContractArtifacts()
     {
