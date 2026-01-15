@@ -17,6 +17,8 @@ export default function VersionCheck() {
       .then(data => {
         setCurrentVersion(data);
         localStorage.setItem('app-version', JSON.stringify(data));
+        // Update document title with version
+        document.title = `Aegis Token Control Governance v${data.version}`;
       })
       .catch(() => {});
 
