@@ -104,6 +104,65 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setTimeRemaining(null);
   };
 
+  // Auto-refresh token on user activity to extend session
+  useEffect(() => {
+    if (!token || !refreshToken || !sessionExpiresAt) return;
+
+    let isRefreshing = false;
+    let debounceTimer: number | null = null;
+    let lastRefreshTime = Date.now();
+
+    const handleActivity = () => {
+      // Debounce activity events to avoid too many refresh attempts
+      if (debounceTimer) clearTimeout(debounceTimer);
+      
+      debounceTimer = setTimeout(async () => {
+        if (isRefreshing) return; // Prevent concurrent refreshes
+        
+        const now = Date.now();
+        const timeSinceLastRefresh = now - lastRefreshTime;
+        
+        // Only refresh if at least 30 seconds have passed since last refresh
+        // This prevents too many refresh requests
+        if (timeSinceLastRefresh < 30000) {
+          console.log('[Auth] Activity detected but refresh cooldown active');
+          return;
+        }
+        
+        const remaining = Math.floor((sessionExpiresAt.getTime() - now) / 1000);
+        
+        // Refresh token on any activity (this extends the session to full 15 minutes)
+        if (remaining > 0) {
+          isRefreshing = true;
+          try {
+            console.log(`[Auth] Activity detected - refreshing token (${remaining}s remaining)`);
+            const res = await authApi.refreshToken(refreshToken);
+            setToken(res.access_token);
+            setRefreshToken(res.refresh_token ?? null);
+            const newExpiresAt = new Date(res.expires_at);
+            setSessionExpiresAt(newExpiresAt);
+            lastRefreshTime = Date.now();
+            console.log(`[Auth] Token refreshed - session extended to: ${newExpiresAt.toLocaleTimeString()}`);
+          } catch (err) {
+            console.error('[Auth] Token refresh failed:', err);
+            // Refresh failed - will timeout naturally
+          } finally {
+            isRefreshing = false;
+          }
+        }
+      }, 1000); // Debounce for 1 second
+    };
+
+    // Listen for user activity
+    const events = ['mousedown', 'keydown', 'scroll', 'touchstart'];
+    events.forEach(event => window.addEventListener(event, handleActivity, { passive: true }));
+
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      events.forEach(event => window.removeEventListener(event, handleActivity));
+    };
+  }, [token, refreshToken, sessionExpiresAt]);
+
   // Countdown timer and auto-logout on expiration
   useEffect(() => {
     if (!sessionExpiresAt || !token) {

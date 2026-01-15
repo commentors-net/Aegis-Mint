@@ -57,3 +57,8 @@ def create_access_token(user_id: str, role: str) -> str:
 def create_refresh_token(user_id: str, role: str) -> str:
     settings = get_settings()
     return create_token({"sub": user_id, "role": role, "type": "refresh"}, settings.refresh_token_exp_minutes)
+
+
+def verify_token(token: str) -> Dict[str, Any]:
+    """Verify and decode a JWT token."""
+    return decode_token(token)

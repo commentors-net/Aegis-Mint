@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_user
-from app.schemas.auth import ChangePasswordRequest, LoginRequest, LoginResponse, VerifyOtpRequest, VerifyOtpResponse
+from app.schemas.auth import ChangePasswordRequest, LoginRequest, LoginResponse, RefreshTokenRequest, VerifyOtpRequest, VerifyOtpResponse
 from app.services import auth_service
 from app.core.config import get_settings
 
@@ -44,3 +44,16 @@ def change_password(
 ):
     auth_service.change_password(db, user, body.current_password, body.new_password)
     return {"status": "ok"}
+
+
+@router.post("/refresh", response_model=VerifyOtpResponse)
+def refresh_token(body: RefreshTokenRequest, db: Session = Depends(get_db)):
+    """Refresh access token using refresh token."""
+    result = auth_service.refresh_access_token(db, body.refresh_token)
+    return VerifyOtpResponse(
+        access_token=result["access_token"],
+        refresh_token=result["refresh_token"],
+        expires_at=result["expires_at"],
+        role=result["role"],
+        user=result["user"],
+    )

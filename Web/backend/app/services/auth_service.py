@@ -138,6 +138,32 @@ def change_password(db: Session, user: User, current_password: str, new_password
     return user
 
 
+def refresh_access_token(db: Session, refresh_token: str):
+    """Refresh access token using refresh token."""
+    try:
+        payload = security.verify_token(refresh_token)
+        if payload.get("type") != "refresh":
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
+        
+        user_id = payload.get("sub")
+        user = db.query(User).filter(User.id == user_id, User.is_active.is_(True)).first()
+        if not user:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+        
+        new_access = security.create_access_token(user.id, user.role.value)
+        new_refresh = security.create_refresh_token(user.id, user.role.value)
+        
+        return {
+            "access_token": new_access,
+            "refresh_token": new_refresh,
+            "expires_at": utcnow() + timedelta(minutes=get_settings().access_token_exp_minutes),
+            "role": user.role,
+            "user": user,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired refresh token")
+
+
 def build_otpauth_and_qr(email: str, secret: str):
     settings = get_settings()
     otpauth = f"otpauth://totp/{settings.totp_issuer}:{email}?secret={secret}&issuer={settings.totp_issuer}"
