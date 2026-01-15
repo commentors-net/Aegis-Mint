@@ -425,6 +425,12 @@ window.addEventListener('DOMContentLoaded', function() {
         contractPillDot.classList.remove('paused');
       }
     }
+    
+    // Enable/disable operation buttons based on pause state
+    if (sendBtn) sendBtn.disabled = paused;
+    if (freezeBtn) freezeBtn.disabled = paused;
+    if (retrieveBtn) retrieveBtn.disabled = paused;
+    
     if (options.logChange) {
       addLog('Pause', `System pause ${paused ? 'ON' : 'OFF'}${options.reason ? ` (${options.reason})` : ''}`);
     }
@@ -818,6 +824,19 @@ window.addEventListener('DOMContentLoaded', function() {
         recordFreezeChange(lastFreezeContext.address, !!lastFreezeContext.freeze);
       }
       sendToHost('refresh-balances', {});
+      
+      // Clear input fields after successful operations
+      if (opName === 'Send') {
+        document.getElementById('send-to').value = '';
+        document.getElementById('send-amount').value = '';
+        document.getElementById('send-memo').value = '';
+      } else if (opName === 'Freeze') {
+        document.getElementById('freeze-address').value = '';
+        document.getElementById('freeze-reason').value = '';
+      } else if (opName === 'Retrieve') {
+        document.getElementById('retrieve-from').value = '';
+        document.getElementById('retrieve-memo').value = '';
+      }
     } else {
       addLog('Error', `${opName} failed: ${errorMessage || 'Unknown error'}`, transactionHash, addressForLog, ts);
       showToast(errorMessage || `${opName} failed`, true, 7000);

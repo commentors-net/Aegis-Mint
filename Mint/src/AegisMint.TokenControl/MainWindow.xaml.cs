@@ -1039,6 +1039,7 @@ public partial class MainWindow : Window
             await DiscoverAndPersistContractAsync();
             await SendVaultStatusAsync();
             await UpdateBalanceStatsAsync();
+            await UpdatePauseStatusAsync();
             await SendToWebAsync("recovery-result", new { ok = true, message = "Treasury recovered from shares." });
         }
         catch (Exception ex)
