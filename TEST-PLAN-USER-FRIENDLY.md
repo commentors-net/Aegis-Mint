@@ -406,6 +406,14 @@ They are only used when:
 
 ---
 
+## About Shares
+
+-- Useless without AegisMint applications
+-- Protected by AES-256 encryption
+-- Can only be decrypted by AegisMint applications
+
+---
+
 ## Key Takeaway
 
 Shares protect the system.
