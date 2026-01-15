@@ -194,7 +194,11 @@ public partial class MainWindow : Window
                 .ToArray();
 
             var secretBytes = _shamir.Combine(sharesToUse, _metadata.Threshold);
-            var mnemonic = Encoding.UTF8.GetString(secretBytes).Trim();
+            var encryptedMnemonic = Encoding.UTF8.GetString(secretBytes).Trim();
+            
+            // Decrypt the reconstructed mnemonic
+            var encryptionKey = DeriveApplicationEncryptionKey();
+            var mnemonic = DecryptMnemonic(encryptedMnemonic, encryptionKey);
             var normalizedMnemonic = string.Join(" ", mnemonic.Split(' ', StringSplitOptions.RemoveEmptyEntries));
 
             RecoveredMnemonicBox.Text = normalizedMnemonic;
@@ -285,6 +289,37 @@ public partial class MainWindow : Window
         StatusText.Foreground = isError ? System.Windows.Media.Brushes.Tomato : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(203, 213, 225));
     }
 
+    // Application-specific encryption key derivation
+    private string DeriveApplicationEncryptionKey()
+    {
+        // Application-specific constant embedded in code (MUST match Mint and TokenControl apps)
+        const string APP_SALT = "AegisMint-Recovery-v1-2026";
+        
+        return Convert.ToBase64String(System.Security.Cryptography.SHA256.HashData(
+            Encoding.UTF8.GetBytes(APP_SALT)));
+    }
+
+    // AES-256 decryption
+    private string DecryptMnemonic(string encryptedMnemonic, string key)
+    {
+        var data = Convert.FromBase64String(encryptedMnemonic);
+        
+        using var aes = System.Security.Cryptography.Aes.Create();
+        aes.Key = Convert.FromBase64String(key);
+        
+        // Extract IV from beginning
+        var iv = new byte[aes.IV.Length];
+        var encrypted = new byte[data.Length - iv.Length];
+        Buffer.BlockCopy(data, 0, iv, 0, iv.Length);
+        Buffer.BlockCopy(data, iv.Length, encrypted, 0, encrypted.Length);
+        
+        aes.IV = iv;
+        using var decryptor = aes.CreateDecryptor();
+        var decrypted = decryptor.TransformFinalBlock(encrypted, 0, encrypted.Length);
+        
+        return Encoding.UTF8.GetString(decrypted);
+    }
+
     private sealed record ShareSetMetadata(int TotalShares, int Threshold, int ClientShareCount, int SafekeepingShareCount, string Network, int ShareLength)
     {
         public string Description => $"{Threshold}-of-{TotalShares} ({Network})";
@@ -344,5 +379,8 @@ public partial class MainWindow : Window
 
         [JsonPropertyName("shareValue")]
         public string? ShareValue { get; set; }
+
+        [JsonPropertyName("encryptionVersion")]
+        public int EncryptionVersion { get; set; }
     }
 }

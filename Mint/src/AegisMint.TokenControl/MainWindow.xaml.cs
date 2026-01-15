@@ -425,7 +425,7 @@ public partial class MainWindow : Window
             var machineName = Environment.MachineName;
             var osUser = Environment.UserName;
             var version = "1.0.0"; // TODO: Get from assembly version
-            var nameLabel = $"{machineName} - {osUser}";
+            var nameLabel = $"{machineName} - {osUser} (Registered: {DateTime.Now:yyyy-MM-dd HH:mm})";
 
             var response = await _authService.RegisterAsync(machineName, version, osUser, nameLabel);
 
@@ -1021,7 +1021,11 @@ public partial class MainWindow : Window
 
             var shamir = new ShamirSecretSharingService();
             var secretBytes = shamir.Combine(sharesToUse, metadata.Threshold);
-            var mnemonicRaw = Encoding.UTF8.GetString(secretBytes).Trim();
+            var encryptedMnemonic = Encoding.UTF8.GetString(secretBytes).Trim();
+            
+            // Decrypt the reconstructed mnemonic
+            var encryptionKey = DeriveApplicationEncryptionKey();
+            var mnemonicRaw = DecryptMnemonic(encryptedMnemonic, encryptionKey);
             var mnemonic = string.Join(" ", mnemonicRaw.Split(' ', StringSplitOptions.RemoveEmptyEntries));
 
             _vaultManager.ImportTreasuryMnemonic(mnemonic);
@@ -1100,6 +1104,38 @@ public partial class MainWindow : Window
         public int SafekeepingShareCount { get; set; }
         public byte ShareId { get; set; }
         public string? ShareValue { get; set; }
+        public int EncryptionVersion { get; set; }
+    }
+
+    // Application-specific encryption key derivation
+    private string DeriveApplicationEncryptionKey()
+    {
+        // Application-specific constant embedded in code (MUST match Mint app)
+        const string APP_SALT = "AegisMint-Recovery-v1-2026";
+        
+        return Convert.ToBase64String(System.Security.Cryptography.SHA256.HashData(
+            Encoding.UTF8.GetBytes(APP_SALT)));
+    }
+
+    // AES-256 decryption
+    private string DecryptMnemonic(string encryptedMnemonic, string key)
+    {
+        var data = Convert.FromBase64String(encryptedMnemonic);
+        
+        using var aes = System.Security.Cryptography.Aes.Create();
+        aes.Key = Convert.FromBase64String(key);
+        
+        // Extract IV from beginning
+        var iv = new byte[aes.IV.Length];
+        var encrypted = new byte[data.Length - iv.Length];
+        Buffer.BlockCopy(data, 0, iv, 0, iv.Length);
+        Buffer.BlockCopy(data, iv.Length, encrypted, 0, encrypted.Length);
+        
+        aes.IV = iv;
+        using var decryptor = aes.CreateDecryptor();
+        var decrypted = decryptor.TransformFinalBlock(encrypted, 0, encrypted.Length);
+        
+        return Encoding.UTF8.GetString(decrypted);
     }
 
     private async Task<bool> DiscoverAndPersistContractAsync()
