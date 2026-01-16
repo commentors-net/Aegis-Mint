@@ -6,6 +6,7 @@ from .approval import Approval
 from .audit import AuditLog
 from .setting import SystemSetting
 from .login_challenge import LoginChallenge
+from .share_recovery_log import ShareRecoveryLog
 
 __all__ = [
     "User",
@@ -19,4 +20,5 @@ __all__ = [
     "AuditLog",
     "SystemSetting",
     "LoginChallenge",
+    "ShareRecoveryLog",
 ]

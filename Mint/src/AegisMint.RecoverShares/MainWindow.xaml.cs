@@ -132,28 +132,34 @@ public partial class MainWindow : Window
         var payload = JsonSerializer.Deserialize<ShareFilePayload>(json, _jsonOptions)
             ?? throw new InvalidOperationException("File did not contain a share payload.");
 
-        if (payload.ShareId <= 0)
-        {
-            throw new InvalidOperationException("ShareId must be greater than zero.");
-        }
-
         if (payload.Threshold <= 0 || payload.TotalShares <= 0 || payload.Threshold > payload.TotalShares)
         {
             throw new InvalidOperationException("Invalid threshold/total share values.");
         }
 
-        if (string.IsNullOrWhiteSpace(payload.ShareValue))
+        if (string.IsNullOrWhiteSpace(payload.Share))
         {
-            throw new InvalidOperationException("Missing share value.");
+            throw new InvalidOperationException("Missing share data.");
         }
 
-        var shareBytes = Convert.FromBase64String(payload.ShareValue);
-        if (shareBytes.Length == 0)
+        if (string.IsNullOrWhiteSpace(payload.EncryptedMnemonic))
         {
-            throw new InvalidOperationException("Share payload was empty.");
+            throw new InvalidOperationException("Missing encrypted mnemonic.");
         }
 
-        shareLength = shareBytes.Length;
+        if (string.IsNullOrWhiteSpace(payload.Iv))
+        {
+            throw new InvalidOperationException("Missing IV.");
+        }
+
+        // Parse share to get length (format: "index-hexvalue")
+        var parts = payload.Share.Split('-', 2);
+        if (parts.Length != 2)
+        {
+            throw new InvalidOperationException("Invalid share format.");
+        }
+        shareLength = parts[1].Length;
+
         return payload;
     }
 
@@ -187,18 +193,37 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var sharesToUse = _shares
-                .OrderBy(s => s.ShareId)
+            // Get encrypted mnemonic and IV from first share (all should have same values)
+            var firstPayload = _shares[0].Payload;
+            if (string.IsNullOrWhiteSpace(firstPayload.EncryptedMnemonic) || string.IsNullOrWhiteSpace(firstPayload.Iv))
+            {
+                UpdateStatus("Shares are missing encrypted mnemonic or IV.", true);
+                return;
+            }
+
+            // Parse share format: "index-hexvalue"
+            var parsedShares = _shares
                 .Take(_metadata.Threshold)
-                .Select(s => new ShamirShare(s.ShareId, s.ShareValue))
+                .Select(s => {
+                    var parts = s.Payload.Share?.Split('-', 2);
+                    if (parts == null || parts.Length != 2)
+                        throw new InvalidOperationException($"Invalid share format: {s.Payload.Share}");
+                    return new ShamirShare(byte.Parse(parts[0]), parts[1]);
+                })
                 .ToArray();
 
-            var secretBytes = _shamir.Combine(sharesToUse, _metadata.Threshold);
-            var encryptedMnemonic = Encoding.UTF8.GetString(secretBytes).Trim();
+            // Reconstruct encryption key from shares
+            var keyHexBytes = _shamir.Combine(parsedShares, _metadata.Threshold);
+            var keyHex = Encoding.UTF8.GetString(keyHexBytes).Trim();
             
-            // Decrypt the reconstructed mnemonic
-            var encryptionKey = DeriveApplicationEncryptionKey();
-            var mnemonic = DecryptMnemonic(encryptedMnemonic, encryptionKey);
+            // Convert hex string to bytes
+            var encryptionKey = Enumerable.Range(0, keyHex.Length)
+                .Where(x => x % 2 == 0)
+                .Select(x => Convert.ToByte(keyHex.Substring(x, 2), 16))
+                .ToArray();
+
+            // Decrypt the mnemonic
+            var mnemonic = DecryptMnemonicWithKey(firstPayload.EncryptedMnemonic, firstPayload.Iv, encryptionKey);
             var normalizedMnemonic = string.Join(" ", mnemonic.Split(' ', StringSplitOptions.RemoveEmptyEntries));
 
             RecoveredMnemonicBox.Text = normalizedMnemonic;
@@ -289,35 +314,27 @@ public partial class MainWindow : Window
         StatusText.Foreground = isError ? System.Windows.Media.Brushes.Tomato : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(203, 213, 225));
     }
 
-    // Application-specific encryption key derivation
-    private string DeriveApplicationEncryptionKey()
+    // AES-256 decryption with explicit key and IV
+    private string DecryptMnemonicWithKey(string encryptedMnemonicHex, string ivHex, byte[] key)
     {
-        // Application-specific constant embedded in code (MUST match Mint and TokenControl apps)
-        const string APP_SALT = "AegisMint-Recovery-v1-2026";
+        var encryptedBytes = Enumerable.Range(0, encryptedMnemonicHex.Length)
+            .Where(x => x % 2 == 0)
+            .Select(x => Convert.ToByte(encryptedMnemonicHex.Substring(x, 2), 16))
+            .ToArray();
         
-        return Convert.ToBase64String(System.Security.Cryptography.SHA256.HashData(
-            Encoding.UTF8.GetBytes(APP_SALT)));
-    }
-
-    // AES-256 decryption
-    private string DecryptMnemonic(string encryptedMnemonic, string key)
-    {
-        var data = Convert.FromBase64String(encryptedMnemonic);
+        var ivBytes = Enumerable.Range(0, ivHex.Length)
+            .Where(x => x % 2 == 0)
+            .Select(x => Convert.ToByte(ivHex.Substring(x, 2), 16))
+            .ToArray();
         
         using var aes = System.Security.Cryptography.Aes.Create();
-        aes.Key = Convert.FromBase64String(key);
+        aes.Key = key;
+        aes.IV = ivBytes;
         
-        // Extract IV from beginning
-        var iv = new byte[aes.IV.Length];
-        var encrypted = new byte[data.Length - iv.Length];
-        Buffer.BlockCopy(data, 0, iv, 0, iv.Length);
-        Buffer.BlockCopy(data, iv.Length, encrypted, 0, encrypted.Length);
-        
-        aes.IV = iv;
         using var decryptor = aes.CreateDecryptor();
-        var decrypted = decryptor.TransformFinalBlock(encrypted, 0, encrypted.Length);
+        var decrypted = decryptor.TransformFinalBlock(encryptedBytes, 0, encryptedBytes.Length);
         
-        return Encoding.UTF8.GetString(decrypted);
+        return Encoding.UTF8.GetString(decrypted).Trim();
     }
 
     private sealed record ShareSetMetadata(int TotalShares, int Threshold, int ClientShareCount, int SafekeepingShareCount, string Network, int ShareLength)
@@ -346,8 +363,13 @@ public partial class MainWindow : Window
         public string Path { get; }
         public ShareFilePayload Payload { get; }
 
-        public byte ShareId => Payload.ShareId;
-        public string ShareValue => Payload.ShareValue ?? string.Empty;
+        public byte ShareId {
+            get {
+                var parts = Payload.Share?.Split('-', 2);
+                return parts != null && parts.Length == 2 ? byte.Parse(parts[0]) : (byte)0;
+            }
+        }
+        public string ShareValue => Payload.Share ?? string.Empty;
         public string FileName => System.IO.Path.GetFileName(Path);
         public string Network => string.IsNullOrWhiteSpace(Payload.Network) ? "unknown" : Payload.Network;
         public string CreatedAtLocal => Payload.CreatedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
@@ -374,13 +396,19 @@ public partial class MainWindow : Window
         [JsonPropertyName("safekeepingShareCount")]
         public int SafekeepingShareCount { get; set; }
 
-        [JsonPropertyName("shareId")]
-        public byte ShareId { get; set; }
+        [JsonPropertyName("share")]
+        public string? Share { get; set; }
 
-        [JsonPropertyName("shareValue")]
-        public string? ShareValue { get; set; }
+        [JsonPropertyName("encryptedMnemonic")]
+        public string? EncryptedMnemonic { get; set; }
+
+        [JsonPropertyName("iv")]
+        public string? Iv { get; set; }
 
         [JsonPropertyName("encryptionVersion")]
         public int EncryptionVersion { get; set; }
+
+        [JsonPropertyName("tokenAddress")]
+        public string? TokenAddress { get; set; }
     }
 }

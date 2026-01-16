@@ -941,13 +941,27 @@ public partial class MainWindow : Window
                 return false;
             }
 
-            // Encrypt mnemonic with application-specific key before splitting
-            var encryptionKey = DeriveApplicationEncryptionKey();
-            var encryptedMnemonic = EncryptMnemonic(mnemonic, encryptionKey);
+            // Generate a random encryption key
+            using var rng = System.Security.Cryptography.RandomNumberGenerator.Create();
+            var encryptionKey = new byte[32]; // 256-bit key
+            rng.GetBytes(encryptionKey);
+            var encryptionKeyHex = BitConverter.ToString(encryptionKey).Replace("-", "");
+
+            // Encrypt mnemonic with the random key
+            using var aes = System.Security.Cryptography.Aes.Create();
+            aes.Key = encryptionKey;
+            aes.GenerateIV();
             
+            using var encryptor = aes.CreateEncryptor();
+            var mnemonicBytes = Encoding.UTF8.GetBytes(mnemonic);
+            var encryptedBytes = encryptor.TransformFinalBlock(mnemonicBytes, 0, mnemonicBytes.Length);
+            var encryptedMnemonicHex = BitConverter.ToString(encryptedBytes).Replace("-", "");
+            var ivHex = BitConverter.ToString(aes.IV).Replace("-", "");
+            
+            // Split the encryption key using Shamir
             var shamir = new ShamirSecretSharingService();
-            var secretBytes = Encoding.UTF8.GetBytes(encryptedMnemonic);
-            var shares = shamir.Split(secretBytes, threshold, totalShares);
+            var keyBytes = Encoding.UTF8.GetBytes(encryptionKeyHex);
+            var shares = shamir.Split(keyBytes, threshold, totalShares);
 
             using var folderDialog = new WinForms.FolderBrowserDialog
             {
@@ -964,6 +978,8 @@ public partial class MainWindow : Window
 
             var options = new JsonSerializerOptions { WriteIndented = true };
             var createdAt = DateTimeOffset.UtcNow;
+            var tokenAddress = _vaultManager.GetDeployedContractAddress(_currentNetwork);
+            
             foreach (var share in shares)
             {
                 var sharePayload = new
@@ -974,9 +990,11 @@ public partial class MainWindow : Window
                     threshold,
                     clientShareCount = clientShares,
                     safekeepingShareCount = threshold,
-                    shareId = share.Id,
-                    shareValue = share.Value,
-                    encryptionVersion = 1
+                    share = $"{share.Id}-{share.Value}",
+                    encryptedMnemonic = encryptedMnemonicHex,
+                    iv = ivHex,
+                    encryptionVersion = 1,
+                    tokenAddress = tokenAddress
                 };
 
                 var fileName = $"aegis-share-{share.Id:D3}.json";

@@ -981,9 +981,12 @@ public partial class MainWindow : Window
                 AllowTrailingCommas = true
             };
 
+            string? encryptedMnemonic = null;
+            string? iv = null;
+
             foreach (var file in dialog.FileNames)
             {
-                var payload = ParseShareFile(file, jsonOptions, out var shareLength);
+                var payload = ParseShareFile(file, jsonOptions);
 
                 if (metadata is null)
                 {
@@ -992,12 +995,19 @@ public partial class MainWindow : Window
                         payload.Threshold,
                         payload.ClientShareCount,
                         payload.SafekeepingShareCount,
-                        payload.Network ?? string.Empty,
-                        shareLength);
+                        payload.Network ?? string.Empty);
+                    encryptedMnemonic = payload.EncryptedMnemonic;
+                    iv = payload.Iv;
                 }
-                else if (!metadata.IsCompatibleWith(payload, shareLength))
+                else if (!metadata.IsCompatibleWith(payload))
                 {
                     throw new InvalidOperationException($"Share file {Path.GetFileName(file)} metadata mismatch. Expected {metadata.Description}.");
+                }
+
+                // Verify all shares have same encrypted mnemonic and IV
+                if (payload.EncryptedMnemonic != encryptedMnemonic || payload.Iv != iv)
+                {
+                    throw new InvalidOperationException($"Share file {Path.GetFileName(file)} has mismatched encrypted data.");
                 }
 
                 shares.Add(payload);
@@ -1013,20 +1023,35 @@ public partial class MainWindow : Window
                 throw new InvalidOperationException($"Need at least {metadata.Threshold} shares; only {shares.Count} provided.");
             }
 
-            var sharesToUse = shares
-                .OrderBy(s => s.ShareId)
+            if (string.IsNullOrWhiteSpace(encryptedMnemonic) || string.IsNullOrWhiteSpace(iv))
+            {
+                throw new InvalidOperationException("Missing encrypted mnemonic or IV in shares.");
+            }
+
+            // Parse share format: "index-hexvalue"
+            var parsedShares = shares
                 .Take(metadata.Threshold)
-                .Select(s => new ShamirShare(s.ShareId, s.ShareValue ?? string.Empty))
+                .Select(s => {
+                    var parts = s.Share?.Split('-', 2);
+                    if (parts == null || parts.Length != 2)
+                        throw new InvalidOperationException($"Invalid share format: {s.Share}");
+                    return new ShamirShare(byte.Parse(parts[0]), parts[1]);
+                })
                 .ToArray();
 
+            // Reconstruct encryption key from shares
             var shamir = new ShamirSecretSharingService();
-            var secretBytes = shamir.Combine(sharesToUse, metadata.Threshold);
-            var encryptedMnemonic = Encoding.UTF8.GetString(secretBytes).Trim();
+            var keyHexBytes = shamir.Combine(parsedShares, metadata.Threshold);
+            var keyHex = Encoding.UTF8.GetString(keyHexBytes).Trim();
             
-            // Decrypt the reconstructed mnemonic
-            var encryptionKey = DeriveApplicationEncryptionKey();
-            var mnemonicRaw = DecryptMnemonic(encryptedMnemonic, encryptionKey);
-            var mnemonic = string.Join(" ", mnemonicRaw.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+            // Convert hex string to bytes
+            var encryptionKey = Enumerable.Range(0, keyHex.Length)
+                .Where(x => x % 2 == 0)
+                .Select(x => Convert.ToByte(keyHex.Substring(x, 2), 16))
+                .ToArray();
+
+            // Decrypt the mnemonic
+            var mnemonic = DecryptMnemonicWithKey(encryptedMnemonic, iv, encryptionKey);
 
             _vaultManager.ImportTreasuryMnemonic(mnemonic);
 
@@ -1049,48 +1074,45 @@ public partial class MainWindow : Window
         }
     }
 
-    private ShareFilePayload ParseShareFile(string path, JsonSerializerOptions options, out int shareLength)
+    private ShareFilePayload ParseShareFile(string path, JsonSerializerOptions options)
     {
         var json = File.ReadAllText(path);
         var payload = JsonSerializer.Deserialize<ShareFilePayload>(json, options)
             ?? throw new InvalidOperationException("File did not contain a share payload.");
-
-        if (payload.ShareId <= 0)
-        {
-            throw new InvalidOperationException("ShareId must be greater than zero.");
-        }
 
         if (payload.Threshold <= 0 || payload.TotalShares <= 0 || payload.Threshold > payload.TotalShares)
         {
             throw new InvalidOperationException("Invalid threshold/total share values.");
         }
 
-        if (string.IsNullOrWhiteSpace(payload.ShareValue))
+        if (string.IsNullOrWhiteSpace(payload.Share))
         {
-            throw new InvalidOperationException("Missing share value.");
+            throw new InvalidOperationException("Missing share data.");
         }
 
-        var shareBytes = Convert.FromBase64String(payload.ShareValue);
-        if (shareBytes.Length == 0)
+        if (string.IsNullOrWhiteSpace(payload.EncryptedMnemonic))
         {
-            throw new InvalidOperationException("Share payload was empty.");
+            throw new InvalidOperationException("Missing encrypted mnemonic.");
         }
 
-        shareLength = shareBytes.Length;
+        if (string.IsNullOrWhiteSpace(payload.Iv))
+        {
+            throw new InvalidOperationException("Missing IV.");
+        }
+
         return payload;
     }
 
-    private sealed record ShareSetMetadata(int TotalShares, int Threshold, int ClientShareCount, int SafekeepingShareCount, string Network, int ShareLength)
+    private sealed record ShareSetMetadata(int TotalShares, int Threshold, int ClientShareCount, int SafekeepingShareCount, string Network)
     {
         public string Description => $"{Threshold}-of-{TotalShares} ({Network})";
 
-        public bool IsCompatibleWith(ShareFilePayload payload, int shareLength)
+        public bool IsCompatibleWith(ShareFilePayload payload)
         {
             return payload.TotalShares == TotalShares
                    && payload.Threshold == Threshold
                    && payload.ClientShareCount == ClientShareCount
                    && payload.SafekeepingShareCount == SafekeepingShareCount
-                   && shareLength == ShareLength
                    && string.Equals(payload.Network ?? string.Empty, Network, StringComparison.OrdinalIgnoreCase);
         }
     }
@@ -1103,40 +1125,34 @@ public partial class MainWindow : Window
         public int Threshold { get; set; }
         public int ClientShareCount { get; set; }
         public int SafekeepingShareCount { get; set; }
-        public byte ShareId { get; set; }
-        public string? ShareValue { get; set; }
+        public string? Share { get; set; }
+        public string? EncryptedMnemonic { get; set; }
+        public string? Iv { get; set; }
         public int EncryptionVersion { get; set; }
+        public string? TokenAddress { get; set; }
     }
 
-    // Application-specific encryption key derivation
-    private string DeriveApplicationEncryptionKey()
+    // AES-256 decryption with explicit key and IV
+    private string DecryptMnemonicWithKey(string encryptedMnemonicHex, string ivHex, byte[] key)
     {
-        // Application-specific constant embedded in code (MUST match Mint app)
-        const string APP_SALT = "AegisMint-Recovery-v1-2026";
+        var encryptedBytes = Enumerable.Range(0, encryptedMnemonicHex.Length)
+            .Where(x => x % 2 == 0)
+            .Select(x => Convert.ToByte(encryptedMnemonicHex.Substring(x, 2), 16))
+            .ToArray();
         
-        return Convert.ToBase64String(System.Security.Cryptography.SHA256.HashData(
-            Encoding.UTF8.GetBytes(APP_SALT)));
-    }
-
-    // AES-256 decryption
-    private string DecryptMnemonic(string encryptedMnemonic, string key)
-    {
-        var data = Convert.FromBase64String(encryptedMnemonic);
+        var ivBytes = Enumerable.Range(0, ivHex.Length)
+            .Where(x => x % 2 == 0)
+            .Select(x => Convert.ToByte(ivHex.Substring(x, 2), 16))
+            .ToArray();
         
         using var aes = System.Security.Cryptography.Aes.Create();
-        aes.Key = Convert.FromBase64String(key);
+        aes.Key = key;
+        aes.IV = ivBytes;
         
-        // Extract IV from beginning
-        var iv = new byte[aes.IV.Length];
-        var encrypted = new byte[data.Length - iv.Length];
-        Buffer.BlockCopy(data, 0, iv, 0, iv.Length);
-        Buffer.BlockCopy(data, iv.Length, encrypted, 0, encrypted.Length);
-        
-        aes.IV = iv;
         using var decryptor = aes.CreateDecryptor();
-        var decrypted = decryptor.TransformFinalBlock(encrypted, 0, encrypted.Length);
+        var decrypted = decryptor.TransformFinalBlock(encryptedBytes, 0, encryptedBytes.Length);
         
-        return Encoding.UTF8.GetString(decrypted);
+        return Encoding.UTF8.GetString(decrypted).Trim();
     }
 
     private async Task<bool> DiscoverAndPersistContractAsync()
