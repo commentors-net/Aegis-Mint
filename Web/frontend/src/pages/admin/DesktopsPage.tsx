@@ -221,6 +221,7 @@ export default function DesktopsPage() {
           <tr>
             <Th>Desktop</Th>
             <Th>DesktopAppId</Th>
+            <Th>Type</Th>
             <Th>N approvals</Th>
             <Th>Unlock minutes</Th>
             <Th>Status</Th>
@@ -235,6 +236,9 @@ export default function DesktopsPage() {
                 <div className="muted small">{d.lastSeenAtUtc ? `Last seen: ${new Date(d.lastSeenAtUtc).toLocaleString()}` : "—"}</div>
               </Td>
               <Td className="mono">{d.desktopAppId}</Td>
+              <Td>
+                <Badge tone={d.appType === "Mint" ? "info" : "neutral"}>{d.appType || "TokenControl"}</Badge>
+              </Td>
               <Td>{d.requiredApprovalsN}</Td>
               <Td>{d.unlockMinutes}</Td>
               <Td>

@@ -10,6 +10,7 @@ from app.models.session import SessionStatus
 class AssignedDesktop(BaseModel):
     desktopAppId: str
     nameLabel: Optional[str] = None
+    appType: Optional[str] = None
     lastSeenAtUtc: Optional[datetime] = None
     requiredApprovalsN: int
     approvalsSoFar: int

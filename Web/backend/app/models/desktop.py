@@ -20,6 +20,7 @@ class Desktop(Base):
 
     desktop_app_id = Column(String(64), primary_key=True)
     name_label = Column(String(255), nullable=True)
+    app_type = Column(String(50), nullable=False, default="TokenControl")  # "Mint" or "TokenControl"
     status = Column(Enum(DesktopStatus), default=DesktopStatus.PENDING, nullable=False)
     required_approvals_n = Column(Integer, default=lambda: get_settings().required_approvals_default, nullable=False)
     unlock_minutes = Column(Integer, default=lambda: get_settings().unlock_minutes_default, nullable=False)

@@ -43,6 +43,7 @@ def list_assigned(
             AssignedDesktop(
                 desktopAppId=d.desktop_app_id,
                 nameLabel=d.name_label,
+                appType=d.app_type,
                 requiredApprovalsN=d.required_approvals_n,
                 approvalsSoFar=approvals_count,
                 status=d.status,

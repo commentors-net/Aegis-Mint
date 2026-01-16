@@ -113,6 +113,7 @@ export default function AssignedDesktopsPage() {
           <tr>
             <Th>Desktop</Th>
             <Th>DesktopAppId</Th>
+            <Th>Type</Th>
             <Th>Approvals</Th>
             <Th>Action</Th>
           </tr>
@@ -136,6 +137,9 @@ export default function AssignedDesktopsPage() {
                   <div className="muted small">Last seen: {formatLocal(d.lastSeenAtUtc)}</div>
                 </Td>
                 <Td className="mono">{d.desktopAppId}</Td>
+                <Td>
+                  <Badge tone={d.appType === "Mint" ? "info" : "neutral"}>{d.appType || "TokenControl"}</Badge>
+                </Td>
                 <Td>
                   <b>
                     {d.approvalsSoFar} / {d.requiredApprovalsN}
