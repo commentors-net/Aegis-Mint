@@ -36,6 +36,8 @@ public enum LockReason
 
 public partial class MainWindow : Window
 {
+    private const int RegistrationMessageDelayMs = 5000; // 5 seconds to display registration message before shutdown
+    
     private string? _htmlPath;
     private readonly VaultManager _vaultManager;
     private EthereumService? _ethereumService;
@@ -1081,7 +1083,7 @@ public partial class MainWindow : Window
             if (status.DesktopStatus == "Pending")
             {
                 ShowLockOverlay(LockReason.PendingApproval, false, status);
-                await Task.Delay(5000);
+                await Task.Delay(RegistrationMessageDelayMs);
                 System.Windows.Application.Current.Shutdown();
                 return;
             }
@@ -1156,7 +1158,7 @@ public partial class MainWindow : Window
         {
             var machineName = Environment.MachineName;
             var osUser = Environment.UserName;
-            var version = "1.0.0"; // TODO: Get from assembly version
+            var version = GetAppVersion();
             var nameLabel = $"{machineName} - {osUser} (Registered: {DateTime.Now:yyyy-MM-dd HH:mm})";
 
             var response = await _authService.RegisterAsync(machineName, version, osUser, nameLabel, "Mint");
@@ -1165,7 +1167,7 @@ public partial class MainWindow : Window
 
             ShowLockOverlay(LockReason.FirstTimeRegistration, false);
 
-            await Task.Delay(5000);
+            await Task.Delay(RegistrationMessageDelayMs);
             System.Windows.Application.Current.Shutdown();
         }
         catch (Exception ex)
@@ -1273,7 +1275,7 @@ public partial class MainWindow : Window
         var id = _authService.DesktopAppId;
         if (id.Length > 8)
         {
-            return $"{id.Substring(0, 4)}...{id.Substring(id.Length - 3)}";
+            return $"{id[..4]}...{id[^3..]}";
         }
         return id;
     }
