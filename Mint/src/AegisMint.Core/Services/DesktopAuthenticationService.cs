@@ -34,7 +34,7 @@ public class DesktopAuthenticationService
     /// <summary>
     /// Registers the desktop application with the backend server.
     /// </summary>
-    public async Task<DesktopRegisterResponse> RegisterAsync(string machineName, string tokenControlVersion, string osUser, string nameLabel)
+    public async Task<DesktopRegisterResponse> RegisterAsync(string machineName, string tokenControlVersion, string osUser, string nameLabel, string appType = "TokenControl")
     {
         var requestBody = new
         {
@@ -43,7 +43,7 @@ public class DesktopAuthenticationService
             tokenControlVersion,
             osUser,
             nameLabel,
-            appType = "TokenControl"
+            appType
         };
 
         // Registration doesn't require authentication (first-time setup)
