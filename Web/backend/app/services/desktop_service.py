@@ -30,6 +30,7 @@ def register_desktop(db: Session, body: DesktopRegisterRequest) -> Desktop:
         desktop = Desktop(
             desktop_app_id=body.desktopAppId,
             status=DesktopStatus.PENDING,
+            app_type=body.appType or "TokenControl",
             secret_key=generate_secret_key()  # Generate secret key on first registration
         )
         created = True
@@ -45,7 +46,7 @@ def register_desktop(db: Session, body: DesktopRegisterRequest) -> Desktop:
     db.refresh(desktop)
 
     if created:
-        log_audit(db, action="REGISTERED", desktop_app_id=desktop.desktop_app_id, details={"nameLabel": desktop.name_label})
+        log_audit(db, action="REGISTERED", desktop_app_id=desktop.desktop_app_id, details={"nameLabel": desktop.name_label, "appType": desktop.app_type})
     else:
         log_audit(
             db,

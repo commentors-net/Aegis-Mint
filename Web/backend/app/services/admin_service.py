@@ -92,6 +92,7 @@ def create_desktop(db: Session, body: AdminDesktopCreate) -> Desktop:
     desktop = Desktop(
         desktop_app_id=body.desktopAppId,
         name_label=body.nameLabel,
+        app_type=body.appType or "TokenControl",
         required_approvals_n=body.requiredApprovalsN or Desktop.required_approvals_n.default.arg,
         unlock_minutes=body.unlockMinutes or Desktop.unlock_minutes.default.arg,
         status=DesktopStatus.PENDING,
@@ -107,6 +108,7 @@ def create_desktop(db: Session, body: AdminDesktopCreate) -> Desktop:
             "requiredApprovalsN": desktop.required_approvals_n,
             "unlockMinutes": desktop.unlock_minutes,
             "nameLabel": desktop.name_label,
+            "appType": desktop.app_type,
         },
     )
     return desktop

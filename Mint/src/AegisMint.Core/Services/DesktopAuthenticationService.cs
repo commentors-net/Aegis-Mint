@@ -42,7 +42,8 @@ public class DesktopAuthenticationService
             machineName,
             tokenControlVersion,
             osUser,
-            nameLabel
+            nameLabel,
+            appType = "TokenControl"
         };
 
         // Registration doesn't require authentication (first-time setup)
