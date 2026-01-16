@@ -256,8 +256,9 @@ export default function AssignDesktopsPage() {
               </div>
             </div>
             
-            <div style={{ marginBottom: "0.5rem" }}>
+            <div style={{ marginBottom: "0.5rem", display: "flex", gap: "0.5rem" }}>
               {getDesktopStatusBadge(desktop)}
+              <Badge tone={desktop.appType === "Mint" ? "info" : "neutral"}>{desktop.appType || "TokenControl"}</Badge>
             </div>
 
             <div className="tile" style={{ fontSize: "12px" }}>

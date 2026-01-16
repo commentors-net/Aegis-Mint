@@ -3,6 +3,7 @@ import { apiFetch } from "./client";
 export type AssignedDesktop = {
   desktopAppId: string;
   nameLabel?: string;
+  appType?: string;
   lastSeenAtUtc?: string;
   requiredApprovalsN: number;
   approvalsSoFar: number;

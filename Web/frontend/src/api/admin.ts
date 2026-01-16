@@ -10,6 +10,7 @@ export type User = {
 export type Desktop = {
   desktopAppId: string;
   nameLabel?: string;
+  appType?: string;
   status: "Pending" | "Active" | "Disabled";
   requiredApprovalsN: number;
   unlockMinutes: number;
@@ -41,6 +42,7 @@ export type SystemSettings = {
 const normalizeDesktop = (d: any): Desktop => ({
   desktopAppId: d.desktopAppId ?? d.desktop_app_id,
   nameLabel: d.nameLabel ?? d.name_label,
+  appType: d.appType ?? d.app_type,
   status: d.status,
   requiredApprovalsN: d.requiredApprovalsN ?? d.required_approvals_n,
   unlockMinutes: d.unlockMinutes ?? d.unlock_minutes,
