@@ -57,7 +57,7 @@ export default function App() {
       >
         <Route index element={<Navigate to="assigned" replace />} />
         <Route path="assigned" element={<AssignedDesktopsPage />} />
-        <Route path="desktops/:desktopAppId" element={<DesktopDetailPage />} />
+        <Route path="desktops/:desktopAppId/:appType" element={<DesktopDetailPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to={role ? redirectForRole : "/login"} replace />} />

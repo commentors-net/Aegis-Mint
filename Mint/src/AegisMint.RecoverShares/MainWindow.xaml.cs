@@ -93,7 +93,11 @@ public partial class MainWindow : Window
                     continue;
                 }
 
-                var existing = _shares.FirstOrDefault(s => s.ShareId == payload.ShareId);
+                // Parse share ID from the share field (format: "index-hexvalue")
+                var shareParts = payload.Share?.Split('-', 2);
+                var shareId = shareParts != null && shareParts.Length == 2 ? byte.Parse(shareParts[0]) : (byte)0;
+                
+                var existing = _shares.FirstOrDefault(s => s.ShareId == shareId);
                 if (existing is not null)
                 {
                     _shares.Remove(existing);

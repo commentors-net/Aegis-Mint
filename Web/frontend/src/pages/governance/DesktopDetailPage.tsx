@@ -9,7 +9,7 @@ import { Table, Td, Th } from "../../components/Table";
 
 export default function DesktopDetailPage() {
   const navigate = useNavigate();
-  const { desktopAppId } = useParams<{ desktopAppId: string }>();
+  const { desktopAppId, appType } = useParams<{ desktopAppId: string; appType: string }>();
   const { token } = useAuth();
   const [detail, setDetail] = useState<govApi.ApprovalSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -23,11 +23,11 @@ export default function DesktopDetailPage() {
   }, []);
 
   const load = async () => {
-    if (!token || !desktopAppId) return;
+    if (!token || !desktopAppId || !appType) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await govApi.getDesktopHistory(desktopAppId, token);
+      const res = await govApi.getDesktopHistory(desktopAppId, appType, token);
       setDetail(res);
       setFetchedAt(Date.now());
     } catch (err) {
@@ -39,7 +39,7 @@ export default function DesktopDetailPage() {
 
   useEffect(() => {
     load();
-  }, [desktopAppId, token]);
+  }, [desktopAppId, appType, token]);
 
   const remainingSeconds = useMemo(() => {
     if (!detail) return 0;
@@ -71,11 +71,11 @@ export default function DesktopDetailPage() {
   };
 
   const approve = async () => {
-    if (!token || !desktopAppId) return;
+    if (!token || !desktopAppId || !appType) return;
     setLoading(true);
     setError(null);
     try {
-      await govApi.approveDesktop(desktopAppId, token);
+      await govApi.approveDesktop(desktopAppId, appType, token);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Approval failed");

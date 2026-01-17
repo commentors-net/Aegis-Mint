@@ -31,7 +31,7 @@ def list_assigned(
     desktops = desktop_service.list_assigned_desktops(db, user)
     payload: list[AssignedDesktop] = []
     for d in desktops:
-        session = approval_service.get_latest_session(db, d.desktop_app_id)
+        session = approval_service.get_latest_session(db, d.desktop_app_id, d.app_type)
         status = session.status if session else SessionStatus.NONE
         unlocked = session.unlocked_until_utc if session else None
         approvals_count = len(session.approvals) if session else 0
@@ -60,10 +60,14 @@ def list_assigned(
 @router.post("/desktops/{desktop_app_id}/approve", response_model=ApprovalSummary)
 def approve_desktop(
     desktop_app_id: str = Path(..., description="DesktopAppId"),
+    app_type: str = "TokenControl",
     db: Session = Depends(get_db),
     user: User = Depends(require_role(UserRole.GOVERNANCE_AUTHORITY)),
 ):
-    desktop = db.query(Desktop).filter(Desktop.desktop_app_id == desktop_app_id).first()
+    desktop = db.query(Desktop).filter(
+        Desktop.desktop_app_id == desktop_app_id,
+        Desktop.app_type == app_type
+    ).first()
     if not desktop:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Desktop not found")
 
@@ -92,13 +96,17 @@ def approve_desktop(
 @router.get("/desktops/{desktop_app_id}/history", response_model=ApprovalSummary | None)
 def desktop_history(
     desktop_app_id: str,
+    app_type: str = "TokenControl",
     db: Session = Depends(get_db),
     user: User = Depends(require_role(UserRole.GOVERNANCE_AUTHORITY)),
 ):
-    desktop = db.query(Desktop).filter(Desktop.desktop_app_id == desktop_app_id).first()
+    desktop = db.query(Desktop).filter(
+        Desktop.desktop_app_id == desktop_app_id,
+        Desktop.app_type == app_type
+    ).first()
     if not desktop:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Desktop not found")
-    session = approval_service.get_latest_session(db, desktop.desktop_app_id)
+    session = approval_service.get_latest_session(db, desktop.desktop_app_id, desktop.app_type)
     if not session:
         return None
     remaining = _remaining_seconds(session.unlocked_until_utc)

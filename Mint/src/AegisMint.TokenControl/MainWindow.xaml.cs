@@ -318,8 +318,9 @@ public partial class MainWindow : Window
         try
         {
             Logger.Debug("InitializeAuthenticationAsync - START");
-            _authService = new DesktopAuthenticationService(_vaultManager);
+            _authService = new DesktopAuthenticationService(_vaultManager, "TokenControl");
             Logger.Info($"Desktop App ID: {_authService.DesktopAppId}");
+            Logger.Info($"App Type: {_authService.AppType}");
 
             Logger.Debug("Showing lock overlay: Checking authorization...");
             ShowLockOverlay(LockReason.Checking, false);

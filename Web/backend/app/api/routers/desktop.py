@@ -62,7 +62,7 @@ def unlock_status(
     Check the unlock status of a desktop application.
     Requires HMAC authentication.
     """
-    return desktop_service.unlock_status(db, desktop_app_id)
+    return desktop_service.unlock_status(db, desktop_app_id, desktop.app_type)
 
 
 class SubmitCSRRequest(BaseModel):

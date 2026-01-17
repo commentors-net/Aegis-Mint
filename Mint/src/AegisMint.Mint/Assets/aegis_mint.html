@@ -590,6 +590,71 @@
       text-transform: uppercase;
       color: #fca5a5;
     }
+
+    .countdown-timer {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.15), rgba(34, 211, 238, 0.1));
+      border: 2px solid rgba(56, 189, 248, 0.4);
+      font-size: 18px;
+      font-weight: 600;
+      color: #38bdf8;
+      letter-spacing: 0.05em;
+      box-shadow: 0 4px 12px rgba(56, 189, 248, 0.2);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        box-shadow: 0 4px 12px rgba(56, 189, 248, 0.2);
+      }
+      50% {
+        box-shadow: 0 4px 16px rgba(56, 189, 248, 0.35);
+      }
+    }
+
+    .countdown-timer.warning {
+      background: linear-gradient(135deg, rgba(234, 179, 8, 0.15), rgba(202, 138, 4, 0.1));
+      border-color: rgba(202, 138, 4, 0.5);
+      color: #ca8a04;
+    }
+
+    .countdown-timer.critical {
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.25), rgba(220, 38, 38, 0.2));
+      border-color: rgba(220, 38, 38, 0.8);
+      color: #dc2626;
+      animation: pulse-fast 0.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse-fast {
+      0%, 100% {
+        transform: scale(1);
+      }
+      50% {
+        transform: scale(1.02);
+      }
+    }
+
+    .countdown-icon {
+      font-size: 20px;
+    }
+
+    .countdown-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      opacity: 0.8;
+      margin-right: 4px;
+    }
+
+    .countdown-value {
+      font-size: 22px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
   </style>
 </head>
 <body>
@@ -876,6 +941,11 @@
             
           </div>
           <div class="footer-right">
+            <div id="countdown-timer" class="countdown-timer" style="display: none;">
+              <span class="countdown-icon">⏱️</span>
+              <span class="countdown-label">Time remaining:</span>
+              <span class="countdown-value" id="countdown-value">--:--</span>
+            </div>
             <button type="button" class="btn btn-ghost" id="reset-form">
               Reset
             </button>

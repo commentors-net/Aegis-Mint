@@ -18,18 +18,21 @@ public class DesktopAuthenticationService
     private string _desktopAppId;
     private string _secretKey;
     private string _apiBaseUrl;
+    private string _appType;
 
-    public DesktopAuthenticationService(VaultManager vaultManager)
+    public DesktopAuthenticationService(VaultManager vaultManager, string appType = "TokenControl")
     {
         _vaultManager = vaultManager ?? throw new ArgumentNullException(nameof(vaultManager));
         _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        _appType = appType;
         
         _desktopAppId = _vaultManager.GetDesktopAppId();
-        _secretKey = _vaultManager.GetDesktopSecretKey();
+        _secretKey = _vaultManager.GetDesktopSecretKey(_appType);
         _apiBaseUrl = _vaultManager.GetApiBaseUrl();
     }
 
     public string DesktopAppId => _desktopAppId;
+    public string AppType => _appType;
 
     /// <summary>
     /// Registers the desktop application with the backend server.
@@ -52,9 +55,9 @@ public class DesktopAuthenticationService
         // If backend returned a secret key (first registration), save it
         if (!string.IsNullOrEmpty(response.SecretKey))
         {
-            Logger.Info("Received secret key from backend - saving to vault");
+            Logger.Info($"Received secret key from backend - saving to vault for app type {_appType}");
             _secretKey = response.SecretKey;
-            _vaultManager.SaveDesktopSecretKey(response.SecretKey);
+            _vaultManager.SaveDesktopSecretKey(response.SecretKey, _appType);
         }
         
         return response;
@@ -70,9 +73,9 @@ public class DesktopAuthenticationService
         // Check if backend rotated the key
         if (!string.IsNullOrWhiteSpace(response.NewSecretKey))
         {
-            Logger.Info("Backend rotated secret key - updating local storage");
+            Logger.Info($"Backend rotated secret key - updating local storage for app type {_appType}");
             _secretKey = response.NewSecretKey;
-            _vaultManager.SaveDesktopSecretKey(response.NewSecretKey);
+            _vaultManager.SaveDesktopSecretKey(response.NewSecretKey, _appType);
         }
         
         return response;
@@ -173,6 +176,7 @@ public class DesktopAuthenticationService
 
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Add("X-Desktop-Id", _desktopAppId);
+        request.Headers.Add("X-App-Type", _appType);
         request.Headers.Add("X-Desktop-Timestamp", timestamp.ToString());
         request.Headers.Add("X-Desktop-Signature", signature);
 
@@ -204,6 +208,7 @@ public class DesktopAuthenticationService
 
         using var request = new HttpRequestMessage(HttpMethod.Post, url);
         request.Headers.Add("X-Desktop-Id", _desktopAppId);
+        request.Headers.Add("X-App-Type", _appType);
         request.Headers.Add("X-Desktop-Timestamp", timestamp.ToString());
         request.Headers.Add("X-Desktop-Signature", signature);
         request.Content = new StringContent(bodyJson, Encoding.UTF8, "application/json");

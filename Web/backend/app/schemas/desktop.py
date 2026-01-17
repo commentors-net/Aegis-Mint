@@ -50,6 +50,7 @@ class DesktopUpdateRequest(BaseModel):
 
 
 class DesktopAdminOut(BaseModel):
+    id: str  # UUID field for unique desktop identification
     desktopAppId: str = Field(alias="desktop_app_id")
     nameLabel: Optional[str] = Field(None, alias="name_label")
     appType: str = Field(alias="app_type")

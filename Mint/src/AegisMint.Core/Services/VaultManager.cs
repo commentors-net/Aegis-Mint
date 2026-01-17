@@ -281,9 +281,10 @@ public class VaultManager
         return newId;
     }
 
-    public string GetDesktopSecretKey()
+    public string GetDesktopSecretKey(string appType = "TokenControl")
     {
-        var existing = _store.GetSetting(DesktopSecretKeyKey);
+        var keyName = $"DesktopSecretKey_{appType}";
+        var existing = _store.GetSetting(keyName);
         if (!string.IsNullOrWhiteSpace(existing))
         {
             return existing;
@@ -291,13 +292,14 @@ public class VaultManager
 
         // Generate new secret key
         var newSecret = AegisMint.Core.Security.HmacSignature.GenerateSecretKey();
-        _store.SaveSetting(DesktopSecretKeyKey, newSecret);
+        _store.SaveSetting(keyName, newSecret);
         return newSecret;
     }
 
-    public void SaveDesktopSecretKey(string secretKey)
+    public void SaveDesktopSecretKey(string secretKey, string appType = "TokenControl")
     {
-        _store.SaveSetting(DesktopSecretKeyKey, secretKey);
+        var keyName = $"DesktopSecretKey_{appType}";
+        _store.SaveSetting(keyName, secretKey);
     }
 
     public void SaveApiBaseUrl(string url)

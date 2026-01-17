@@ -105,7 +105,7 @@ export default function DesktopsPage() {
     setLoading(true);
     setError(null);
     try {
-      await adminApi.updateDesktop(token, selected.desktopAppId, {
+      await adminApi.updateDesktop(token, selected.desktopAppId, selected.appType || "TokenControl", {
         nameLabel: form.nameLabel,
         requiredApprovalsN: form.requiredApprovalsN,
         unlockMinutes: form.unlockMinutes,
@@ -127,7 +127,7 @@ export default function DesktopsPage() {
     setLoading(true);
     setError(null);
     try {
-      await adminApi.updateDesktop(token, row.desktopAppId, { status: "Disabled" });
+      await adminApi.updateDesktop(token, row.desktopAppId, row.appType || "TokenControl", { status: "Disabled" });
       setToast({ message: "Desktop disabled successfully", type: "success" });
       refresh();
     } catch (err) {
@@ -144,7 +144,7 @@ export default function DesktopsPage() {
     setLoading(true);
     setError(null);
     try {
-      await adminApi.updateDesktop(token, row.desktopAppId, { status: "Active" });
+      await adminApi.updateDesktop(token, row.desktopAppId, row.appType || "TokenControl", { status: "Active" });
       setToast({ message: "Desktop enabled successfully", type: "success" });
       refresh();
     } catch (err) {
@@ -161,7 +161,7 @@ export default function DesktopsPage() {
     setLoading(true);
     setError(null);
     try {
-      await adminApi.approveDesktop(token, row.desktopAppId, {
+      await adminApi.approveDesktop(token, row.desktopAppId, row.appType || "TokenControl", {
         requiredApprovalsN: row.requiredApprovalsN,
         unlockMinutes: row.unlockMinutes,
       });
@@ -181,7 +181,7 @@ export default function DesktopsPage() {
     setLoading(true);
     setError(null);
     try {
-      await adminApi.rejectDesktop(token, row.desktopAppId);
+      await adminApi.rejectDesktop(token, row.desktopAppId, row.appType || "TokenControl");
       setToast({ message: "Desktop rejected successfully", type: "success" });
       refresh();
     } catch (err) {

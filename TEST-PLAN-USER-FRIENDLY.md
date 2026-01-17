@@ -60,13 +60,113 @@ They are only needed for **recovery or disaster situations**.
 
 ---
 
-## Step 1.1 – Start Mint
+## Step 1.1 – Desktop Registration & Approval (New Requirement)
+
+**The Mint application requires governance approval before it can be used**, similar to Token Control.
+
+### Step 1.1.1 – Launch Mint for First Time
 
 1. Open the **Mint** application
 
+You will see:
+- A lock icon
+- "Checking authorization…"
+
+### Possible outcomes
+
+**A. New computer**
+- Message says it is registered and pending approval
+- App closes automatically
+
+**B. Already registered**
+- Message says approvals are required
+- App stays open
+
+**C. Already approved**
+- App unlocks immediately (skip to Step 1.2)
+
+---
+
+### Step 1.1.2 – Admin Verifies Mint Registration
+
+1. Admin logs into the governance website
+2. Opens **Manage Desktops**
+
 You should see:
-- A window opens
-- Only the **Generate Treasury** button is enabled
+- The Mint application listed (App Type: **Mint**)
+- Status = Pending
+
+---
+
+### Step 1.1.3 – Admin Approves Mint Application
+
+1. Admin clicks **Approve** for the Mint entry
+
+Result:
+- Status becomes **Active**
+
+---
+
+### Step 1.1.4 – Admin Assigns Approvers for Mint
+
+1. Admin opens **Assign Desktops**
+2. Selects the Mint application
+3. Assigns two governance users
+4. Saves
+
+---
+
+### Step 1.1.5 – Request Access for Mint
+
+1. Relaunch Mint
+
+You will see:
+- Locked screen
+- Approval count (0 of 2)
+
+---
+
+### Step 1.1.6 – First Approval
+
+1. Governance user #1 logs in
+2. Clicks **Approve** for the Mint session
+
+Result:
+- Status shows 1 of 2
+- App remains locked
+
+---
+
+### Step 1.1.7 – Second Approval
+
+1. Governance user #2 logs in
+2. Clicks **Approve** for the Mint session
+
+Result:
+- Status shows 2 of 2
+- Countdown timer starts
+
+---
+
+### Step 1.1.8 – Automatic Unlock
+
+1. Wait up to 30 seconds
+
+Result:
+- Mint unlocks
+- Timer visible in title bar
+- **Generate Treasury** button is enabled
+
+---
+
+### Step 1.1.9 – Session Expiry
+
+When timer ends:
+- Mint locks again
+- Approvals reset
+- Must repeat approval process to continue
+
+This is expected behavior.
 
 ---
 
@@ -128,7 +228,7 @@ Shares are only required when:
 
 ## Step 1.7 – Finish Mint Setup
 
-- Mint can be closed or uninstalled
+- After completing the minting process, Mint can be closed
 - Shares must remain safely stored
 - Continue to Token Control
 
@@ -264,11 +364,55 @@ This is expected.
 This scenario uses the **shares created in Test Scenario 1**.
 It confirms that multiple trusted people can jointly recover access.
 
-### Important
-- This scenario is required when new desktop needed
-- Install Token Control on new desktop
-- Follow the Step 2.1 to Step 2.8 from [Test Scenario 2](#test-scenario-2--desktop-registration--access-approval)
-- Once application is unlocked then follow Step 3.1
+## Important – Recovery Prerequisites
+
+Before you can recover a token, you must complete these steps:
+
+### Step A – Install Token Control on New Desktop
+
+1. Install the Token Control application on your new or replacement computer
+2. Launch it and it will register with web server
+
+---
+
+### Step B – Complete Desktop Registration & Approval
+
+You must complete the full approval process from [Test Scenario 2](#test-scenario-2--desktop-registration--access-approval):
+
+1. **Launch Token Control** (Step 2.1)
+   - Application will register with the server
+   - Application will lock automatically
+
+2. **Admin Verifies Registration** (Step 2.2)
+   - Admin sees the new desktop in the governance website
+
+3. **Admin Approves Computer** (Step 2.3)
+   - Admin changes status from Pending to Active
+
+4. **Admin Assigns Approvers** (Step 2.4)
+   - Admin assigns at least 2 governance users
+
+5. **Request Access** (Step 2.5)
+   - Relaunch Token Control
+   - See locked screen with approval count
+
+6. **First Approval** (Step 2.6)
+   - First governance user approves
+
+7. **Second Approval** (Step 2.7)
+   - Second governance user approves
+   - Countdown timer starts
+
+8. **Automatic Unlock** (Step 2.8)
+   - Wait up to 30 seconds
+   - Application unlocks
+
+---
+
+### Step C – Proceed to Recovery
+
+- **Only after** Token Control is unlocked, proceed to Step 3.1 below
+- Have your recovery shares ready (created in [Test Scenario 1](#test-scenario-1--mint-application-one-time-setup))
 ---
 
 ## Step 3.1 – Start Recovery

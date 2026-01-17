@@ -20,7 +20,9 @@ class ApprovalSession(Base):
     __tablename__ = "approval_sessions"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    desktop_app_id = Column(String(64), ForeignKey("desktops.desktop_app_id"), nullable=False, index=True)
+    desktop_id = Column(String(36), ForeignKey("desktops.id", ondelete="CASCADE"), nullable=False, index=True)
+    desktop_app_id = Column(String(64), nullable=False, index=True)  # Kept for convenience/queries
+    app_type = Column(String(50), nullable=False, server_default="TokenControl")
     status = Column(Enum(SessionStatus), default=SessionStatus.PENDING, nullable=False)
     required_approvals_snapshot = Column(Integer, nullable=False)
     created_at_utc = Column(DateTime(timezone=True), default=utcnow, nullable=False)

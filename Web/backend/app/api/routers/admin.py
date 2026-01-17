@@ -54,11 +54,12 @@ def create_desktop(
 @router.put("/desktops/{desktop_app_id}", response_model=DesktopAdminOut)
 def update_desktop(
     desktop_app_id: str,
+    app_type: str = "TokenControl",
     body: DesktopUpdateRequest | None = None,
     db: Session = Depends(get_db),
     _: User = Depends(require_role(UserRole.SUPER_ADMIN)),
 ):
-    return admin_service.admin_update_desktop(db, desktop_app_id, body or DesktopUpdateRequest())
+    return admin_service.admin_update_desktop(db, desktop_app_id, app_type, body or DesktopUpdateRequest())
 
 
 class AssignRequest(BaseModel):
@@ -135,20 +136,22 @@ def set_user_assignments(
 @router.post("/desktops/{desktop_app_id}/approve", response_model=DesktopAdminOut)
 def approve_desktop(
     desktop_app_id: str,
+    app_type: str = "TokenControl",
     body: AdminDesktopApprove | None = None,
     db: Session = Depends(get_db),
     _: User = Depends(require_role(UserRole.SUPER_ADMIN)),
 ):
-    return admin_service.approve_desktop(db, desktop_app_id, body or AdminDesktopApprove())
+    return admin_service.approve_desktop(db, desktop_app_id, app_type, body or AdminDesktopApprove())
 
 
 @router.post("/desktops/{desktop_app_id}/reject", response_model=DesktopAdminOut)
 def reject_desktop(
     desktop_app_id: str,
+    app_type: str = "TokenControl",
     db: Session = Depends(get_db),
     _: User = Depends(require_role(UserRole.SUPER_ADMIN)),
 ):
-    return admin_service.reject_desktop(db, desktop_app_id)
+    return admin_service.reject_desktop(db, desktop_app_id, app_type)
 
 
 @router.get("/settings", response_model=SystemSettings)

@@ -73,12 +73,12 @@ export default function AssignedDesktopsPage() {
     return remaining;
   };
 
-  const handleApprove = async (desktopAppId: string) => {
+  const handleApprove = async (desktopAppId: string, appType: string) => {
     if (!token) return;
     setLoading(true);
     setError(null);
     try {
-      await govApi.approveDesktop(desktopAppId, token);
+      await govApi.approveDesktop(desktopAppId, appType, token);
       setToast({ message: "Desktop approved successfully", type: "success" });
       refresh();
     } catch (err) {
@@ -131,7 +131,7 @@ export default function AssignedDesktopsPage() {
                   ? "Session: Pending"
                   : d.sessionStatus;
             return (
-              <tr key={d.desktopAppId} onClick={() => navigate(`/gov/desktops/${d.desktopAppId}`)} style={{ cursor: "pointer" }}>
+              <tr key={d.desktopAppId + d.appType} onClick={() => navigate(`/gov/desktops/${d.desktopAppId}/${d.appType || "TokenControl"}`)} style={{ cursor: "pointer" }}>
                 <Td>
                   <div className="strong">{d.nameLabel || "Unlabeled"}</div>
                   <div className="muted small">Last seen: {formatLocal(d.lastSeenAtUtc)}</div>
@@ -151,7 +151,7 @@ export default function AssignedDesktopsPage() {
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleApprove(d.desktopAppId);
+                      handleApprove(d.desktopAppId, d.appType || "TokenControl");
                     }}
                     disabled={disableApprove || loading}
                   >

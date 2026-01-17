@@ -68,7 +68,7 @@ public partial class MainWindow : Window
         _ethereumService = new EthereumService(rpcUrl);
         
         // Update window title to show selected network
-        Title = $"Aegis Mint - {network.ToUpper()}";
+        Title = $"Aegis Mint {GetAppVersion()} - {network.ToUpper()}";
     }
 
     private void InitializeEthereumService(string network)
@@ -333,7 +333,7 @@ public partial class MainWindow : Window
                 InitializeEthereumService(network);
                 Logger.Info($"Network switched to: {network}");
                 _vaultManager.SaveLastNetwork(network);
-                Title = $"Aegis Mint - {network.ToUpperInvariant()}";
+                Title = $"Aegis Mint {GetAppVersion()} - {network.ToUpperInvariant()}";
                 _ = CheckExistingVaults();
             }
         }
@@ -649,13 +649,19 @@ public partial class MainWindow : Window
                 await SendToWebAsync("host-error", new { message = "Total share count cannot exceed 255." });
                 return;
             }
-            if (!await CreateAndSaveRecoverySharesAsync(totalShares, govThreshold, govShares))
-            {
-                return;
-            }
 
             // Step 4: Extract token parameters
             var tokenName = GetString(payload, "tokenName");
+            if (string.IsNullOrWhiteSpace(tokenName))
+            {
+                await SendToWebAsync("host-error", new { message = "Token name is required." });
+                return;
+            }
+            
+            if (!await CreateAndSaveRecoverySharesAsync(totalShares, govThreshold, govShares, tokenName))
+            {
+                return;
+            }
             var tokenDecimals = GetInt(payload, "tokenDecimals");
             var tokenSymbol = DeriveSymbol(tokenName);
             var tokenSupplyRaw = GetString(payload, "tokenSupply");
@@ -772,6 +778,25 @@ public partial class MainWindow : Window
                         DateTimeOffset.UtcNow);
 
                     _vaultManager.RecordDeploymentSnapshot(_currentNetwork, snapshot);
+
+                    // Store deployment information in backend for emergency recovery
+                    if (!string.IsNullOrWhiteSpace(tokenName))
+                    {
+                        var sharesPath = Path.Combine(@"C:\Shares", tokenName);
+                        await StoreDeploymentInformationAsync(
+                            tokenName: tokenName,
+                            tokenSymbol: tokenSymbol,
+                            tokenDecimals: tokenDecimals,
+                            tokenSupply: tokenSupplyDecimal.ToString(CultureInfo.InvariantCulture),
+                            contractAddress: recordedContractAddress,
+                            treasuryAddress: GetString(payload, "treasuryAddress"),
+                            proxyAdminAddress: proxyAdminAddress,
+                            govShares: GetInt(payload, "govShares"),
+                            govThreshold: GetInt(payload, "govThreshold"),
+                            totalShares: totalShares,
+                            clientShareCount: govShares,
+                            sharesPath: sharesPath);
+                    }
 
                     await SendToWebAsync("contract-deployed", new
                     {
@@ -930,7 +955,7 @@ public partial class MainWindow : Window
         };
     }
 
-    private async Task<bool> CreateAndSaveRecoverySharesAsync(int totalShares, int threshold, int clientShares)
+    private async Task<bool> CreateAndSaveRecoverySharesAsync(int totalShares, int threshold, int clientShares, string tokenName)
     {
         try
         {
@@ -963,18 +988,13 @@ public partial class MainWindow : Window
             var keyBytes = Encoding.UTF8.GetBytes(encryptionKeyHex);
             var shares = shamir.Split(keyBytes, threshold, totalShares);
 
-            using var folderDialog = new WinForms.FolderBrowserDialog
-            {
-                Description = "Choose a folder to save individual recovery share files",
-                ShowNewFolderButton = true
-            };
-
-            var dialogResult = folderDialog.ShowDialog();
-            if (dialogResult != WinForms.DialogResult.OK || string.IsNullOrWhiteSpace(folderDialog.SelectedPath))
-            {
-                await SendToWebAsync("host-error", new { message = "Share creation cancelled by user." });
-                return false;
-            }
+            // Create directory path: C:\Shares\{TokenName}
+            var sharesBasePath = @"C:\Shares";
+            var tokenSharesPath = Path.Combine(sharesBasePath, tokenName);
+            
+            // Create the directory if it doesn't exist
+            Directory.CreateDirectory(tokenSharesPath);
+            Logger.Info($"Saving recovery shares to: {tokenSharesPath}");
 
             var options = new JsonSerializerOptions { WriteIndented = true };
             var createdAt = DateTimeOffset.UtcNow;
@@ -998,11 +1018,13 @@ public partial class MainWindow : Window
                 };
 
                 var fileName = $"aegis-share-{share.Id:D3}.json";
-                var path = Path.Combine(folderDialog.SelectedPath, fileName);
+                var path = Path.Combine(tokenSharesPath, fileName);
                 var json = JsonSerializer.Serialize(sharePayload, options);
                 await File.WriteAllTextAsync(path, json);
                 Logger.Info($"Recovery share saved: {path}");
             }
+            
+            await SendToWebAsync("shares-saved", new { path = tokenSharesPath, count = shares.Count });
 
             return true;
         }
@@ -1070,8 +1092,9 @@ public partial class MainWindow : Window
         try
         {
             Logger.Debug("InitializeAuthenticationAsync - START");
-            _authService = new DesktopAuthenticationService(_vaultManager);
+            _authService = new DesktopAuthenticationService(_vaultManager, "Mint");
             Logger.Info($"Desktop App ID: {_authService.DesktopAppId}");
+            Logger.Info($"App Type: {_authService.AppType}");
 
             Logger.Debug("Showing lock overlay: Checking authorization...");
             ShowLockOverlay(LockReason.Checking, false);
@@ -1518,6 +1541,75 @@ public partial class MainWindow : Window
     }
 
     private record BridgeMessage(string? type, JsonElement? payload);
+
+    private async Task StoreDeploymentInformationAsync(
+        string tokenName,
+        string tokenSymbol,
+        int tokenDecimals,
+        string tokenSupply,
+        string contractAddress,
+        string treasuryAddress,
+        string? proxyAdminAddress,
+        int govShares,
+        int govThreshold,
+        int totalShares,
+        int clientShareCount,
+        string sharesPath,
+        string? encryptedMnemonic = null)
+    {
+        try
+        {
+            Logger.Info("Storing deployment information in backend for emergency recovery...");
+            
+            using var httpClient = new HttpClient();
+            httpClient.BaseAddress = new Uri("http://localhost:8000");
+            httpClient.Timeout = TimeSpan.FromSeconds(30);
+
+            var deploymentData = new
+            {
+                token_name = tokenName,
+                token_symbol = tokenSymbol,
+                token_decimals = tokenDecimals,
+                token_supply = tokenSupply,
+                network = _currentNetwork,
+                contract_address = contractAddress,
+                treasury_address = treasuryAddress,
+                proxy_admin_address = proxyAdminAddress,
+                gov_shares = govShares,
+                gov_threshold = govThreshold,
+                total_shares = totalShares,
+                client_share_count = clientShareCount,
+                safekeeping_share_count = govThreshold,
+                shares_path = sharesPath,
+                encrypted_mnemonic = encryptedMnemonic,
+                encryption_version = 1,
+                desktop_id = _authService?.DesktopAppId,
+                deployment_notes = $"Deployed from Aegis Mint desktop app on {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC"
+            };
+
+            var json = JsonSerializer.Serialize(deploymentData);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            var response = await httpClient.PostAsync("/api/token-deployments/", content);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var responseBody = await response.Content.ReadAsStringAsync();
+                Logger.Info($"✓ Deployment information stored in backend successfully");
+                Logger.Debug($"Backend response: {responseBody}");
+            }
+            else
+            {
+                var errorBody = await response.Content.ReadAsStringAsync();
+                Logger.Warning($"Failed to store deployment info in backend. Status: {response.StatusCode}, Error: {errorBody}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"Failed to store deployment information in backend: {ex.Message}");
+            // Don't throw - this is a non-critical operation for emergency recovery only
+        }
+    }
 
     private void LoadContractArtifacts()
     {
