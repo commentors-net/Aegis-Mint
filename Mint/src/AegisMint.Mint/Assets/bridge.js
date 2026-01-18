@@ -288,6 +288,9 @@
   window.receiveHostMessage = function (message) {
     const { type, payload } = message || {};
     switch (type) {
+      case "countdown-update":
+        updateCountdownTimer(payload);
+        break;
       case "host-info":
         logToHost("Connected to host");
         if (payload?.network) {
@@ -726,25 +729,4 @@
       timerElement.classList.add('warning');
     }
   }
-
-  // Message handler from host
-  window.receiveHostMessage = function(message) {
-    const { type, payload } = message || {};
-    switch (type) {
-      case 'countdown-update':
-        updateCountdownTimer(payload);
-        break;
-      case 'host-info':
-        logToHost('Host connected');
-        break;
-      case 'host-error':
-        if (payload?.message) {
-          showToast(payload.message, true, 5000);
-        }
-        break;
-      default:
-        // Handle other message types if needed
-        break;
-    }
-  };
 });
