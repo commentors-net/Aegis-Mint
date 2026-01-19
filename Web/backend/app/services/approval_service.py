@@ -24,24 +24,27 @@ def _expire_if_needed(session: ApprovalSession, db: Session | None = None) -> No
                 db.refresh(session)
 
 
-def _get_latest_session(db: Session, desktop_app_id: str) -> ApprovalSession | None:
+def _get_latest_session(db: Session, desktop_app_id: str, app_type: str) -> ApprovalSession | None:
     return (
         db.query(ApprovalSession)
-        .filter(ApprovalSession.desktop_app_id == desktop_app_id)
+        .filter(
+            ApprovalSession.desktop_app_id == desktop_app_id,
+            ApprovalSession.app_type == app_type
+        )
         .order_by(ApprovalSession.created_at_utc.desc())
         .first()
     )
 
 
-def get_latest_session(db: Session, desktop_app_id: str) -> ApprovalSession | None:
-    session = _get_latest_session(db, desktop_app_id)
+def get_latest_session(db: Session, desktop_app_id: str, app_type: str) -> ApprovalSession | None:
+    session = _get_latest_session(db, desktop_app_id, app_type)
     if session:
         _expire_if_needed(session, db)
     return session
 
 
 def get_or_create_active_session(db: Session, desktop: Desktop) -> ApprovalSession:
-    latest = _get_latest_session(db, desktop.desktop_app_id)
+    latest = _get_latest_session(db, desktop.desktop_app_id, desktop.app_type)
     if latest:
         _expire_if_needed(latest, db)
         if latest.status in (SessionStatus.PENDING, SessionStatus.UNLOCKED):
@@ -53,7 +56,9 @@ def get_or_create_active_session(db: Session, desktop: Desktop) -> ApprovalSessi
                 return latest
 
     session = ApprovalSession(
+        desktop_id=desktop.id,
         desktop_app_id=desktop.desktop_app_id,
+        app_type=desktop.app_type,
         required_approvals_snapshot=desktop.required_approvals_n,
         status=SessionStatus.PENDING,
     )

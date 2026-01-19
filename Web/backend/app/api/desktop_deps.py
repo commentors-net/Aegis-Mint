@@ -14,6 +14,7 @@ from app.services.auth_log_service import log_auth_attempt
 async def get_authenticated_desktop(
     request: Request,
     desktop_id: str = Header(None, alias="X-Desktop-Id"),
+    app_type: str = Header(None, alias="X-App-Type"),
     timestamp: str = Header(None, alias="X-Desktop-Timestamp"),
     signature: str = Header(None, alias="X-Desktop-Signature"),
     user_agent: str = Header(None, alias="User-Agent"),
@@ -48,8 +49,14 @@ async def get_authenticated_desktop(
             detail="Missing X-Desktop-Id header"
         )
     
-    # Get desktop from database
-    desktop = db.query(Desktop).filter(Desktop.desktop_app_id == desktop_id).first()
+    # Default to TokenControl for backward compatibility
+    app_type_value = app_type or "TokenControl"
+    
+    # Get desktop from database - filter by both app_id and app_type
+    desktop = db.query(Desktop).filter(
+        Desktop.desktop_app_id == desktop_id,
+        Desktop.app_type == app_type_value
+    ).first()
     if not desktop:
         log_auth_attempt(
             db=db,

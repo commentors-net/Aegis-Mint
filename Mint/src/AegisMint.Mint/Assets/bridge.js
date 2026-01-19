@@ -288,6 +288,9 @@
   window.receiveHostMessage = function (message) {
     const { type, payload } = message || {};
     switch (type) {
+      case "countdown-update":
+        updateCountdownTimer(payload);
+        break;
       case "host-info":
         logToHost("Connected to host");
         if (payload?.network) {
@@ -701,4 +704,29 @@
   logToHost("Bridge initialized");
   
   evaluateLockState();
+
+  // Countdown timer update function
+  function updateCountdownTimer(payload) {
+    const timerElement = document.getElementById('countdown-timer');
+    const valueElement = document.getElementById('countdown-value');
+    
+    if (!timerElement || !valueElement) return;
+
+    if (payload?.visible === false || !payload?.timeRemaining) {
+      timerElement.style.display = 'none';
+      return;
+    }
+
+    timerElement.style.display = 'inline-flex';
+    valueElement.textContent = payload.timeRemaining;
+
+    // Update styling based on time remaining
+    timerElement.classList.remove('warning', 'critical');
+    
+    if (payload.totalSeconds <= 60) {
+      timerElement.classList.add('critical');
+    } else if (payload.totalSeconds <= 300) {
+      timerElement.classList.add('warning');
+    }
+  }
 });

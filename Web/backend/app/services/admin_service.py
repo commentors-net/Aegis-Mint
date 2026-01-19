@@ -63,24 +63,33 @@ def list_desktops(db: Session):
     return db.query(Desktop).all()
 
 
-def admin_update_desktop(db: Session, desktop_app_id: str, body: DesktopUpdateRequest) -> Desktop:
-    desktop = update_desktop(db, desktop_app_id, body)
+def admin_update_desktop(db: Session, desktop_app_id: str, app_type: str, body: DesktopUpdateRequest) -> Desktop:
+    desktop = update_desktop(db, desktop_app_id, app_type, body)
     return desktop
 
 
 def get_user_assignments(db: Session, user_id: str) -> list[str]:
+    # Return list of desktop.id (UUID) values
     return [
-        row.desktop_app_id
-        for row in db.query(GovernanceAssignment.desktop_app_id)
+        row.desktop_id
+        for row in db.query(GovernanceAssignment.desktop_id)
         .filter(GovernanceAssignment.user_id == user_id)
         .all()
     ]
 
 
 def set_user_assignments(db: Session, user_id: str, desktop_ids: list[str]) -> list[str]:
+    # desktop_ids are now desktop.id (UUID) values, not desktop_app_id
     db.query(GovernanceAssignment).filter(GovernanceAssignment.user_id == user_id).delete()
     for desktop_id in desktop_ids:
-        db.add(GovernanceAssignment(user_id=user_id, desktop_app_id=desktop_id))
+        # Find the specific desktop by its UUID id
+        desktop = db.query(Desktop).filter(Desktop.id == desktop_id).first()
+        if desktop:
+            db.add(GovernanceAssignment(
+                user_id=user_id, 
+                desktop_id=desktop.id,
+                desktop_app_id=desktop.desktop_app_id
+            ))
     db.commit()
     return desktop_ids
 
@@ -92,6 +101,7 @@ def create_desktop(db: Session, body: AdminDesktopCreate) -> Desktop:
     desktop = Desktop(
         desktop_app_id=body.desktopAppId,
         name_label=body.nameLabel,
+        app_type=body.appType or "TokenControl",
         required_approvals_n=body.requiredApprovalsN or Desktop.required_approvals_n.default.arg,
         unlock_minutes=body.unlockMinutes or Desktop.unlock_minutes.default.arg,
         status=DesktopStatus.PENDING,
@@ -107,13 +117,17 @@ def create_desktop(db: Session, body: AdminDesktopCreate) -> Desktop:
             "requiredApprovalsN": desktop.required_approvals_n,
             "unlockMinutes": desktop.unlock_minutes,
             "nameLabel": desktop.name_label,
+            "appType": desktop.app_type,
         },
     )
     return desktop
 
 
-def approve_desktop(db: Session, desktop_app_id: str, body: AdminDesktopApprove) -> Desktop:
-    desktop = db.query(Desktop).filter(Desktop.desktop_app_id == desktop_app_id).first()
+def approve_desktop(db: Session, desktop_app_id: str, app_type: str, body: AdminDesktopApprove) -> Desktop:
+    desktop = db.query(Desktop).filter(
+        Desktop.desktop_app_id == desktop_app_id,
+        Desktop.app_type == app_type
+    ).first()
     if not desktop:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Desktop not found")
     desktop.status = DesktopStatus.ACTIVE
@@ -137,8 +151,11 @@ def approve_desktop(db: Session, desktop_app_id: str, body: AdminDesktopApprove)
     return desktop
 
 
-def reject_desktop(db: Session, desktop_app_id: str) -> Desktop:
-    desktop = db.query(Desktop).filter(Desktop.desktop_app_id == desktop_app_id).first()
+def reject_desktop(db: Session, desktop_app_id: str, app_type: str) -> Desktop:
+    desktop = db.query(Desktop).filter(
+        Desktop.desktop_app_id == desktop_app_id,
+        Desktop.app_type == app_type
+    ).first()
     if not desktop:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Desktop not found")
     desktop.status = DesktopStatus.DISABLED

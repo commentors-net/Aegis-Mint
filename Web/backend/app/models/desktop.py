@@ -17,8 +17,13 @@ class DesktopStatus(str, enum.Enum):
 
 class Desktop(Base):
     __tablename__ = "desktops"
+    __table_args__ = (
+        {'mysql_engine': 'InnoDB'}
+    )
 
+    id = Column(String(36), unique=True, nullable=False, default=lambda: str(uuid.uuid4()))
     desktop_app_id = Column(String(64), primary_key=True)
+    app_type = Column(String(50), primary_key=True, nullable=False, default="TokenControl")  # "Mint" or "TokenControl"
     name_label = Column(String(255), nullable=True)
     status = Column(Enum(DesktopStatus), default=DesktopStatus.PENDING, nullable=False)
     required_approvals_n = Column(Integer, default=lambda: get_settings().required_approvals_default, nullable=False)

@@ -78,7 +78,7 @@ export default function AssignDesktopsPage() {
       for (const user of allUsers) {
         try {
           const userAssignments = await adminApi.getUserAssignments(token, user.id);
-          if (userAssignments.includes(desktop.desktopAppId)) {
+          if (userAssignments.includes(desktop.id)) {
             assigned.push(user.id);
           }
         } catch (err) {
@@ -127,10 +127,10 @@ export default function AssignDesktopsPage() {
         const shouldBeAssigned = tempAssignments.includes(user.id);
         
         let newAssignments: string[];
-        if (shouldBeAssigned && !currentAssignments.includes(selectedDesktop.desktopAppId)) {
-          newAssignments = [...currentAssignments, selectedDesktop.desktopAppId];
-        } else if (!shouldBeAssigned && currentAssignments.includes(selectedDesktop.desktopAppId)) {
-          newAssignments = currentAssignments.filter((id) => id !== selectedDesktop.desktopAppId);
+        if (shouldBeAssigned && !currentAssignments.includes(selectedDesktop.id)) {
+          newAssignments = [...currentAssignments, selectedDesktop.id];
+        } else if (!shouldBeAssigned && currentAssignments.includes(selectedDesktop.id)) {
+          newAssignments = currentAssignments.filter((id) => id !== selectedDesktop.id);
         } else {
           continue;
         }
@@ -256,8 +256,9 @@ export default function AssignDesktopsPage() {
               </div>
             </div>
             
-            <div style={{ marginBottom: "0.5rem" }}>
+            <div style={{ marginBottom: "0.5rem", display: "flex", gap: "0.5rem" }}>
               {getDesktopStatusBadge(desktop)}
+              <Badge tone={desktop.appType === "Mint" ? "info" : "neutral"}>{desktop.appType || "TokenControl"}</Badge>
             </div>
 
             <div className="tile" style={{ fontSize: "12px" }}>

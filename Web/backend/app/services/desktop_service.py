@@ -24,12 +24,17 @@ def _make_aware(dt: datetime) -> datetime:
 
 
 def register_desktop(db: Session, body: DesktopRegisterRequest) -> Desktop:
-    desktop = db.query(Desktop).filter(Desktop.desktop_app_id == body.desktopAppId).first()
+    app_type = body.appType or "TokenControl"
+    desktop = db.query(Desktop).filter(
+        Desktop.desktop_app_id == body.desktopAppId,
+        Desktop.app_type == app_type
+    ).first()
     created = False
     if not desktop:
         desktop = Desktop(
             desktop_app_id=body.desktopAppId,
             status=DesktopStatus.PENDING,
+            app_type=app_type,
             secret_key=generate_secret_key()  # Generate secret key on first registration
         )
         created = True
@@ -45,7 +50,7 @@ def register_desktop(db: Session, body: DesktopRegisterRequest) -> Desktop:
     db.refresh(desktop)
 
     if created:
-        log_audit(db, action="REGISTERED", desktop_app_id=desktop.desktop_app_id, details={"nameLabel": desktop.name_label})
+        log_audit(db, action="REGISTERED", desktop_app_id=desktop.desktop_app_id, details={"nameLabel": desktop.name_label, "appType": desktop.app_type})
     else:
         log_audit(
             db,
@@ -66,6 +71,7 @@ def register_desktop(db: Session, body: DesktopRegisterRequest) -> Desktop:
 
 
 def heartbeat(db: Session, desktop_app_id: str, body: DesktopHeartbeatRequest) -> Desktop:
+    # Note: desktop is already filtered by app_type in get_authenticated_desktop dependency
     desktop = db.query(Desktop).filter(Desktop.desktop_app_id == desktop_app_id).first()
     if not desktop:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Desktop not found")
@@ -81,15 +87,18 @@ def heartbeat(db: Session, desktop_app_id: str, body: DesktopHeartbeatRequest) -
     return desktop
 
 
-def unlock_status(db: Session, desktop_app_id: str):
-    desktop = db.query(Desktop).filter(Desktop.desktop_app_id == desktop_app_id).first()
+def unlock_status(db: Session, desktop_app_id: str, app_type: str):
+    desktop = db.query(Desktop).filter(
+        Desktop.desktop_app_id == desktop_app_id,
+        Desktop.app_type == app_type
+    ).first()
     if not desktop:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Desktop not found")
 
     # Check if key rotation is needed and perform it
     rotated, new_key = check_and_rotate_if_needed(db, desktop)
 
-    session = get_latest_session(db, desktop.desktop_app_id)
+    session = get_latest_session(db, desktop.desktop_app_id, desktop.app_type)
     now = utcnow()
     session_status = session.status if session else SessionStatus.NONE
     unlocked_until = _make_aware(session.unlocked_until_utc) if session else None
@@ -114,8 +123,12 @@ def unlock_status(db: Session, desktop_app_id: str):
     return response
 
 
-def update_desktop(db: Session, desktop_app_id: str, body: DesktopUpdateRequest) -> Desktop:
-    desktop = db.query(Desktop).filter(Desktop.desktop_app_id == desktop_app_id).first()
+def update_desktop(db: Session, desktop_app_id: str, app_type: str, body: DesktopUpdateRequest) -> Desktop:
+    # Filter by both desktop_app_id and app_type to target specific desktop
+    desktop = db.query(Desktop).filter(
+        Desktop.desktop_app_id == desktop_app_id,
+        Desktop.app_type == app_type
+    ).first()
     if not desktop:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Desktop not found")
 
@@ -147,16 +160,16 @@ def update_desktop(db: Session, desktop_app_id: str, body: DesktopUpdateRequest)
 
 def assign_authorities(db: Session, desktop: Desktop, authority_ids: list[str]):
     # Remove existing
-    db.query(GovernanceAssignment).filter(GovernanceAssignment.desktop_app_id == desktop.desktop_app_id).delete()
+    db.query(GovernanceAssignment).filter(GovernanceAssignment.desktop_id == desktop.id).delete()
     for user_id in authority_ids:
-        db.add(GovernanceAssignment(user_id=user_id, desktop_app_id=desktop.desktop_app_id))
+        db.add(GovernanceAssignment(user_id=user_id, desktop_id=desktop.id, desktop_app_id=desktop.desktop_app_id))
     db.commit()
 
 
 def list_assigned_desktops(db: Session, user: User):
     rows = (
         db.query(Desktop)
-        .join(GovernanceAssignment, GovernanceAssignment.desktop_app_id == Desktop.desktop_app_id)
+        .join(GovernanceAssignment, GovernanceAssignment.desktop_id == Desktop.id)
         .filter(GovernanceAssignment.user_id == user.id)
         .all()
     )

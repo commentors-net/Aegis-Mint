@@ -8,8 +8,10 @@ export type User = {
 };
 
 export type Desktop = {
+  id: string;  // UUID for unique desktop identification
   desktopAppId: string;
   nameLabel?: string;
+  appType?: string;
   status: "Pending" | "Active" | "Disabled";
   requiredApprovalsN: number;
   unlockMinutes: number;
@@ -39,8 +41,10 @@ export type SystemSettings = {
 };
 
 const normalizeDesktop = (d: any): Desktop => ({
+  id: d.id,
   desktopAppId: d.desktopAppId ?? d.desktop_app_id,
   nameLabel: d.nameLabel ?? d.name_label,
+  appType: d.appType ?? d.app_type,
   status: d.status,
   requiredApprovalsN: d.requiredApprovalsN ?? d.required_approvals_n,
   unlockMinutes: d.unlockMinutes ?? d.unlock_minutes,
@@ -66,25 +70,26 @@ export function createDesktop(token: string, body: { desktopAppId: string; nameL
 export function updateDesktop(
   token: string,
   desktopAppId: string,
+  appType: string,
   body: Partial<{ nameLabel: string; requiredApprovalsN: number; unlockMinutes: number; status: Desktop["status"] }>,
 ) {
-  return apiFetch<any>(`/api/admin/desktops/${desktopAppId}`, {
+  return apiFetch<any>(`/api/admin/desktops/${desktopAppId}?app_type=${encodeURIComponent(appType)}`, {
     method: "PUT",
     token,
     body: JSON.stringify(body),
   }).then(normalizeDesktop);
 }
 
-export function approveDesktop(token: string, desktopAppId: string, body?: { requiredApprovalsN?: number; unlockMinutes?: number }) {
-  return apiFetch<any>(`/api/admin/desktops/${desktopAppId}/approve`, {
+export function approveDesktop(token: string, desktopAppId: string, appType: string, body?: { requiredApprovalsN?: number; unlockMinutes?: number }) {
+  return apiFetch<any>(`/api/admin/desktops/${desktopAppId}/approve?app_type=${appType}`, {
     method: "POST",
     token,
     body: JSON.stringify(body || {}),
   }).then(normalizeDesktop);
 }
 
-export function rejectDesktop(token: string, desktopAppId: string) {
-  return apiFetch<any>(`/api/admin/desktops/${desktopAppId}/reject`, {
+export function rejectDesktop(token: string, desktopAppId: string, appType: string) {
+  return apiFetch<any>(`/api/admin/desktops/${desktopAppId}/reject?app_type=${appType}`, {
     method: "POST",
     token,
   }).then(normalizeDesktop);

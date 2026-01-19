@@ -13,6 +13,7 @@ class DesktopRegisterRequest(BaseModel):
     tokenControlVersion: Optional[str] = None
     osUser: Optional[str] = None
     nameLabel: Optional[str] = None
+    appType: Optional[str] = "TokenControl"  # "Mint" or "TokenControl"
 
     model_config = {"populate_by_name": True}
 
@@ -49,8 +50,10 @@ class DesktopUpdateRequest(BaseModel):
 
 
 class DesktopAdminOut(BaseModel):
+    id: str  # UUID field for unique desktop identification
     desktopAppId: str = Field(alias="desktop_app_id")
     nameLabel: Optional[str] = Field(None, alias="name_label")
+    appType: str = Field(alias="app_type")
     status: DesktopStatus
     requiredApprovalsN: int = Field(alias="required_approvals_n")
     unlockMinutes: int = Field(alias="unlock_minutes")
@@ -62,6 +65,7 @@ class DesktopAdminOut(BaseModel):
 class AdminDesktopCreate(BaseModel):
     desktopAppId: str
     nameLabel: Optional[str] = None
+    appType: Optional[str] = "TokenControl"  # "Mint" or "TokenControl"
     requiredApprovalsN: Optional[int] = Field(None, ge=1)
     unlockMinutes: Optional[int] = Field(None, ge=1)
 

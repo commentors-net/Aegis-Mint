@@ -3,6 +3,7 @@ import { apiFetch } from "./client";
 export type AssignedDesktop = {
   desktopAppId: string;
   nameLabel?: string;
+  appType?: string;
   lastSeenAtUtc?: string;
   requiredApprovalsN: number;
   approvalsSoFar: number;
@@ -27,13 +28,13 @@ export function getAssignedDesktops(token: string) {
   return apiFetch<AssignedDesktop[]>("/api/governance/desktops", { token });
 }
 
-export function approveDesktop(desktopAppId: string, token: string) {
-  return apiFetch<ApprovalSummary>(`/api/governance/desktops/${desktopAppId}/approve`, {
+export function approveDesktop(desktopAppId: string, appType: string, token: string) {
+  return apiFetch<ApprovalSummary>(`/api/governance/desktops/${desktopAppId}/approve?app_type=${appType}`, {
     method: "POST",
     token,
   });
 }
 
-export function getDesktopHistory(desktopAppId: string, token: string) {
-  return apiFetch<ApprovalSummary | null>(`/api/governance/desktops/${desktopAppId}/history`, { token });
+export function getDesktopHistory(desktopAppId: string, appType: string, token: string) {
+  return apiFetch<ApprovalSummary | null>(`/api/governance/desktops/${desktopAppId}/history?app_type=${appType}`, { token });
 }
