@@ -13,6 +13,7 @@ import AuditLogsPage from "../pages/admin/AuditLogsPage";
 import SystemSettingsPage from "../pages/admin/SystemSettingsPage";
 import CertificateAuthorityPage from "../pages/admin/CertificateAuthorityPage";
 import RecoverSharesPage from "../pages/admin/RecoverSharesPage";
+import DownloadsPage from "../pages/admin/DownloadsPage";
 import AssignedDesktopsPage from "../pages/governance/AssignedDesktopsPage";
 import DesktopDetailPage from "../pages/governance/DesktopDetailPage";
 import VersionCheck from "../components/VersionCheck";
@@ -45,6 +46,7 @@ export default function App() {
         <Route path="settings" element={<SystemSettingsPage />} />
         <Route path="certificates" element={<CertificateAuthorityPage />} />
         <Route path="recover-shares" element={<RecoverSharesPage />} />
+        <Route path="downloads" element={<DownloadsPage />} />
       </Route>
 
       <Route

@@ -8,6 +8,7 @@ const tabs = [
   { path: "assign-desktops", label: "Assign Desktops" },
   { path: "certificates", label: "Certificates" },
   { path: "recover-shares", label: "Recover Shares" },
+  { path: "downloads", label: "Downloads" },
   { path: "audit", label: "Audit Logs" },
   { path: "settings", label: "System Settings" },
 ];
