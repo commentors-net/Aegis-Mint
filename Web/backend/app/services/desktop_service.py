@@ -31,10 +31,16 @@ def register_desktop(db: Session, body: DesktopRegisterRequest) -> Desktop:
     ).first()
     created = False
     if not desktop:
+        # Set Mint-specific defaults
+        required_approvals = 1 if app_type == "Mint" else Desktop.required_approvals_n.default.arg()
+        unlock_minutes = 15 if app_type == "Mint" else Desktop.unlock_minutes.default.arg()
+        
         desktop = Desktop(
             desktop_app_id=body.desktopAppId,
             status=DesktopStatus.PENDING,
             app_type=app_type,
+            required_approvals_n=required_approvals,
+            unlock_minutes=unlock_minutes,
             secret_key=generate_secret_key()  # Generate secret key on first registration
         )
         created = True

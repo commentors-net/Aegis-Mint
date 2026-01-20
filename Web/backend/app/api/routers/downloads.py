@@ -93,6 +93,10 @@ def download_file(
         path=file_path,
         filename=filename,
         media_type="application/octet-stream",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "X-Content-Type-Options": "nosniff",
+        },
     )
 
 

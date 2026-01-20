@@ -14,6 +14,7 @@ import SystemSettingsPage from "../pages/admin/SystemSettingsPage";
 import CertificateAuthorityPage from "../pages/admin/CertificateAuthorityPage";
 import RecoverSharesPage from "../pages/admin/RecoverSharesPage";
 import DownloadsPage from "../pages/admin/DownloadsPage";
+import MintApprovalPage from "../pages/admin/MintApprovalPage";
 import AssignedDesktopsPage from "../pages/governance/AssignedDesktopsPage";
 import DesktopDetailPage from "../pages/governance/DesktopDetailPage";
 import VersionCheck from "../components/VersionCheck";
@@ -42,6 +43,7 @@ export default function App() {
         <Route path="authorities" element={<AuthoritiesPage />} />
         <Route path="desktops" element={<DesktopsPage />} />
         <Route path="assign-desktops" element={<AssignDesktopsPage />} />
+        <Route path="mint-approval" element={<MintApprovalPage />} />
         <Route path="audit" element={<AuditLogsPage />} />
         <Route path="settings" element={<SystemSettingsPage />} />
         <Route path="certificates" element={<CertificateAuthorityPage />} />
