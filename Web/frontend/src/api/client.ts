@@ -1,6 +1,6 @@
 const API_BASE = import.meta.env.VITE_API_BASE || "/api";
 
-type Options = RequestInit & { token?: string };
+type Options = RequestInit & { token?: string; body?: any };
 
 export async function apiFetch<T>(path: string, options: Options = {}): Promise<T> {
   const headers: Record<string, string> = {
@@ -17,6 +17,11 @@ export async function apiFetch<T>(path: string, options: Options = {}): Promise<
     headers,
     cache: "no-store",
   };
+
+  // Stringify body if it's an object
+  if (options.body && typeof options.body === 'object') {
+    fetchOptions.body = JSON.stringify(options.body);
+  }
 
   const res = await fetch(`${API_BASE}${path}`, fetchOptions);
   if (!res.ok) {

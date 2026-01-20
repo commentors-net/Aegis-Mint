@@ -14,7 +14,8 @@ export default function DownloadsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [urlInput, setUrlInput] = useState("");
 
   const refresh = async () => {
     if (!token) return;
@@ -34,41 +35,37 @@ export default function DownloadsPage() {
     refresh();
   }, [token]);
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!token || !e.target.files || e.target.files.length === 0) return;
-
-    const file = e.target.files[0];
-    
-    // Validate file extension
-    if (!file.name.toLowerCase().endsWith(".exe")) {
-      setToast({ message: "Only .exe files are allowed", type: "error" });
-      e.target.value = ""; // Reset input
+  const handleAddLink = async () => {
+    if (!token || !urlInput.trim()) {
+      setToast({ message: "Please enter a GitHub release URL", type: "error" });
       return;
     }
 
-    setUploading(true);
+    setAdding(true);
     setError(null);
     try {
-      const result = await downloadsApi.downloadsApi.uploadFile(token, file);
+      const result = await downloadsApi.downloadsApi.addLink(token, urlInput.trim());
       setToast({ message: result.message, type: "success" });
-      e.target.value = ""; // Reset input
+      setUrlInput(""); // Clear input
       refresh();
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : "Failed to upload file";
+      const errorMsg = err instanceof Error ? err.message : "Failed to add link";
       setError(errorMsg);
       setToast({ message: errorMsg, type: "error" });
     } finally {
-      setUploading(false);
+      setAdding(false);
     }
   };
 
   const handleDownload = async (filename: string) => {
     if (!token) return;
     try {
-      await downloadsApi.downloadsApi.downloadFile(token, filename);
+      const result = await downloadsApi.downloadsApi.getDownloadUrl(token, filename);
+      // Open GitHub URL in new tab to trigger download
+      window.open(result.url, "_blank");
       setToast({ message: "Download started", type: "success" });
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : "Failed to download file";
+      const errorMsg = err instanceof Error ? err.message : "Failed to get download URL";
       setToast({ message: errorMsg, type: "error" });
     }
   };
@@ -100,8 +97,8 @@ export default function DownloadsPage() {
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + " " + sizes[i];
   };
 
-  const formatDate = (timestamp: string): string => {
-    const date = new Date(parseFloat(timestamp) * 1000);
+  const formatDate = (isoString: string): string => {
+    const date = new Date(isoString);
     return date.toLocaleString();
   };
 
@@ -112,7 +109,7 @@ export default function DownloadsPage() {
       <div style={{ marginBottom: "1.5rem" }}>
         <h3>Application Downloads</h3>
         <p style={{ color: "var(--muted)", marginTop: "0.25rem" }}>
-          Upload and manage .exe installer files for desktop applications.
+          Manage GitHub release links for desktop application installers.
         </p>
       </div>
 
@@ -122,41 +119,43 @@ export default function DownloadsPage() {
         </div>
       )}
 
-      <div style={{ marginBottom: "1.5rem", display: "flex", gap: "1rem", alignItems: "center" }}>
-        <label
-          htmlFor="file-upload"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            padding: "0.5rem 1rem",
-            background: "var(--accent)",
-            color: "var(--bg)",
-            borderRadius: "6px",
-            cursor: uploading ? "not-allowed" : "pointer",
-            opacity: uploading ? 0.5 : 1,
-            fontWeight: 500,
-          }}
-        >
-          {uploading ? "Uploading..." : "Upload .exe File"}
-        </label>
-        <input
-          id="file-upload"
-          type="file"
-          accept=".exe"
-          onChange={handleUpload}
-          disabled={uploading}
-          style={{ display: "none" }}
-        />
-        <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
-          Only .exe files are allowed
-        </span>
+      <div style={{ marginBottom: "1.5rem" }}>
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-start", marginBottom: "0.5rem" }}>
+          <input
+            type="text"
+            value={urlInput}
+            onChange={(e) => setUrlInput(e.target.value)}
+            placeholder="https://github.com/user/repo/releases/download/tag/App-Setup.exe"
+            disabled={adding}
+            style={{
+              flex: 1,
+              padding: "0.5rem",
+              border: "1px solid var(--border)",
+              borderRadius: "6px",
+              background: "var(--bg)",
+              color: "var(--fg)",
+              fontSize: "0.875rem",
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                handleAddLink();
+              }
+            }}
+          />
+          <Button onClick={handleAddLink} disabled={adding || !urlInput.trim()}>
+            {adding ? "Adding..." : "Add Link"}
+          </Button>
+        </div>
+        <p style={{ color: "var(--muted)", fontSize: "0.875rem", margin: 0 }}>
+          Enter a GitHub release URL pointing to an .exe file
+        </p>
       </div>
 
       {loading && <p>Loading files...</p>}
 
       {!loading && files.length === 0 && (
         <div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>
-          No files uploaded yet. Upload your first .exe file to get started.
+          No download links added yet. Add your first GitHub release link to get started.
         </div>
       )}
 
@@ -165,8 +164,7 @@ export default function DownloadsPage() {
           <thead>
             <tr>
               <Th>Filename</Th>
-              <Th>Size</Th>
-              <Th>Uploaded</Th>
+              <Th>Added</Th>
               <Th style={{ textAlign: "right" }}>Actions</Th>
             </tr>
           </thead>
@@ -176,8 +174,7 @@ export default function DownloadsPage() {
                 <Td>
                   <strong>{file.filename}</strong>
                 </Td>
-                <Td>{formatFileSize(file.size)}</Td>
-                <Td>{formatDate(file.uploaded_at)}</Td>
+                <Td>{formatDate(file.created_at)}</Td>
                 <Td style={{ textAlign: "right" }}>
                   <div style={{ display: "inline-flex", gap: "0.5rem" }}>
                     <Button variant="outline" onClick={() => handleDownload(file.filename)}>

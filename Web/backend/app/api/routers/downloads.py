@@ -1,131 +1,143 @@
-import os
-from pathlib import Path
+import re
+from datetime import datetime
 from typing import List
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, HttpUrl
+from sqlalchemy.orm import Session
 
-from app.api.deps import require_role
-from app.models import User, UserRole
+from app.api.deps import get_db, require_role
+from app.models import DownloadLink, User, UserRole
 
 router = APIRouter(prefix="/api/admin/downloads", tags=["downloads"])
 
-# Configure upload directory
-UPLOAD_DIR = Path("uploads/installers")
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+class AddLinkRequest(BaseModel):
+    url: str
 
 
 class FileInfo(BaseModel):
     filename: str
-    size: int
-    uploaded_at: str
+    url: str
+    created_at: str
+
+
+def extract_filename_from_url(url: str) -> str:
+    """Extract filename from GitHub release URL"""
+    # Extract filename from URL like: https://github.com/user/repo/releases/download/tag/filename.exe
+    match = re.search(r'/([^/]+\.exe)$', url)
+    if match:
+        return match.group(1)
+    raise ValueError("Could not extract filename from URL")
+
+
+def validate_github_url(url: str) -> bool:
+    """Validate that URL is a GitHub release URL pointing to .exe file"""
+    pattern = r'^https://github\.com/[^/]+/[^/]+/releases/download/[^/]+/[^/]+\.exe$'
+    return bool(re.match(pattern, url))
 
 
 @router.get("", response_model=List[FileInfo])
-def list_files(_: User = Depends(require_role(UserRole.SUPER_ADMIN))):
-    """List all uploaded .exe files"""
-    files = []
-    if UPLOAD_DIR.exists():
-        for file_path in UPLOAD_DIR.glob("*.exe"):
-            stat = file_path.stat()
-            files.append(
-                FileInfo(
-                    filename=file_path.name,
-                    size=stat.st_size,
-                    uploaded_at=stat.st_mtime.__str__(),
-                )
-            )
-    # Sort by upload time, newest first
-    files.sort(key=lambda x: x.uploaded_at, reverse=True)
-    return files
-
-
-@router.post("/upload")
-async def upload_file(
-    file: UploadFile = File(...),
+def list_files(
     _: User = Depends(require_role(UserRole.SUPER_ADMIN)),
+    db: Session = Depends(get_db),
 ):
-    """Upload a .exe file"""
-    # Validate file extension
-    if not file.filename or not file.filename.lower().endswith(".exe"):
+    """List all download links"""
+    links = db.query(DownloadLink).order_by(DownloadLink.created_at.desc()).all()
+    return [
+        FileInfo(
+            filename=link.filename,
+            url=link.url,
+            created_at=link.created_at.isoformat(),
+        )
+        for link in links
+    ]
+
+
+@router.post("/add")
+def add_link(
+    request: AddLinkRequest,
+    user: User = Depends(require_role(UserRole.SUPER_ADMIN)),
+    db: Session = Depends(get_db),
+):
+    """Add a new GitHub release download link"""
+    # Validate URL format
+    if not validate_github_url(request.url):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only .exe files are allowed",
+            detail="Invalid URL. Must be a GitHub release URL pointing to an .exe file.",
         )
-
-    # Save file
-    file_path = UPLOAD_DIR / file.filename
+    
+    # Extract filename
     try:
-        with open(file_path, "wb") as f:
-            content = await file.read()
-            f.write(content)
-    except Exception as e:
+        filename = extract_filename_from_url(request.url)
+    except ValueError as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to save file: {str(e)}",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
         )
+    
+    # Check if URL already exists
+    existing = db.query(DownloadLink).filter(DownloadLink.url == request.url).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This URL has already been added",
+        )
+    
+    # Check if filename already exists
+    existing_filename = db.query(DownloadLink).filter(DownloadLink.filename == filename).first()
+    if existing_filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"A link with filename '{filename}' already exists",
+        )
+    
+    # Create new link
+    link = DownloadLink(
+        url=request.url,
+        filename=filename,
+        created_by=user.email,
+    )
+    db.add(link)
+    db.commit()
+    db.refresh(link)
+    
+    return {"filename": filename, "message": "Download link added successfully"}
 
-    return {"filename": file.filename, "message": "File uploaded successfully"}
 
-
-@router.get("/download/{filename}")
-def download_file(
+@router.get("/url/{filename}")
+def get_download_url(
     filename: str,
     _: User = Depends(require_role(UserRole.SUPER_ADMIN)),
+    db: Session = Depends(get_db),
 ):
-    """Download a specific .exe file"""
-    # Validate filename to prevent directory traversal
-    if ".." in filename or "/" in filename or "\\" in filename:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid filename",
-        )
-
-    file_path = UPLOAD_DIR / filename
-    if not file_path.exists() or not file_path.is_file():
+    """Get the GitHub URL for a specific filename"""
+    link = db.query(DownloadLink).filter(DownloadLink.filename == filename).first()
+    if not link:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="File not found",
         )
-
-    return FileResponse(
-        path=file_path,
-        filename=filename,
-        media_type="application/octet-stream",
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
-            "X-Content-Type-Options": "nosniff",
-        },
-    )
+    
+    return {"url": link.url}
 
 
 @router.delete("/{filename}")
-def delete_file(
+def delete_link(
     filename: str,
     _: User = Depends(require_role(UserRole.SUPER_ADMIN)),
+    db: Session = Depends(get_db),
 ):
-    """Delete a specific .exe file"""
-    # Validate filename to prevent directory traversal
-    if ".." in filename or "/" in filename or "\\" in filename:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid filename",
-        )
-
-    file_path = UPLOAD_DIR / filename
-    if not file_path.exists() or not file_path.is_file():
+    """Delete a download link"""
+    link = db.query(DownloadLink).filter(DownloadLink.filename == filename).first()
+    if not link:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="File not found",
         )
-
-    try:
-        os.remove(file_path)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete file: {str(e)}",
-        )
-
-    return {"filename": filename, "message": "File deleted successfully"}
+    
+    db.delete(link)
+    db.commit()
+    
+    return {"filename": filename, "message": "Download link deleted successfully"}
