@@ -5,6 +5,7 @@ from typing import Optional, Tuple
 
 from app.core.time import utcnow
 from app.core.hmac_auth import generate_secret_key
+from app.core.config import get_settings
 from app.models import Desktop, DesktopStatus, GovernanceAssignment, SessionStatus, User
 from app.schemas.desktop import DesktopHeartbeatRequest, DesktopRegisterRequest, DesktopUpdateRequest
 from .approval_service import get_latest_session
@@ -32,8 +33,9 @@ def register_desktop(db: Session, body: DesktopRegisterRequest) -> Desktop:
     created = False
     if not desktop:
         # Set Mint-specific defaults
-        required_approvals = 1 if app_type == "Mint" else Desktop.required_approvals_n.default.arg()
-        unlock_minutes = 15 if app_type == "Mint" else Desktop.unlock_minutes.default.arg()
+        settings = get_settings()
+        required_approvals = 1 if app_type == "Mint" else settings.required_approvals_default
+        unlock_minutes = 15 if app_type == "Mint" else settings.unlock_minutes_default
         
         desktop = Desktop(
             desktop_app_id=body.desktopAppId,

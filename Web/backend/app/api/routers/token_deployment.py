@@ -1,5 +1,6 @@
 """API endpoints for token deployment tracking."""
 import logging
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -44,7 +45,7 @@ class TokenDeploymentCreate(BaseModel):
 class TokenDeploymentResponse(BaseModel):
     """Response model for token deployment."""
     id: str
-    created_at_utc: str
+    created_at_utc: datetime
     token_name: str
     token_symbol: str
     token_decimals: int

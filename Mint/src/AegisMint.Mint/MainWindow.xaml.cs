@@ -1561,8 +1561,16 @@ public partial class MainWindow : Window
         {
             Logger.Info("Storing deployment information in backend for emergency recovery...");
             
+            // Get API base URL from vault manager (reads from appsettings.json)
+            var apiBaseUrl = _vaultManager.GetApiBaseUrl();
+            Logger.Info($"API Base URL: {apiBaseUrl}");
+            
+            // Use same pattern as DesktopAuthenticationService - TrimEnd and concatenate
+            var endpoint = "/token-deployments/";
+            var fullUrl = apiBaseUrl.TrimEnd('/') + endpoint;
+            Logger.Info($"Full URL: {fullUrl}");
+            
             using var httpClient = new HttpClient();
-            httpClient.BaseAddress = new Uri("http://localhost:8000");
             httpClient.Timeout = TimeSpan.FromSeconds(30);
 
             var deploymentData = new
@@ -1590,7 +1598,7 @@ public partial class MainWindow : Window
             var json = JsonSerializer.Serialize(deploymentData);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            var response = await httpClient.PostAsync("/api/token-deployments/", content);
+            var response = await httpClient.PostAsync(fullUrl, content);
             
             if (response.IsSuccessStatusCode)
             {
