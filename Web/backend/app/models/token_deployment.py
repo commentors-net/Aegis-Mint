@@ -38,6 +38,7 @@ class TokenDeployment(Base):
     
     # Additional metadata
     encrypted_mnemonic = Column(Text, nullable=True)  # For additional backup reference
+    encrypted_shares = Column(Text, nullable=True)  # Encrypted share files for emergency recovery
     encryption_version = Column(Integer, default=1, nullable=False)
     
     # Deployment source

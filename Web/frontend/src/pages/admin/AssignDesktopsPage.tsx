@@ -22,8 +22,8 @@ export default function AssignDesktopsPage() {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   const filteredDesktops = useMemo(() => {
-    // Filter out disabled desktops
-    const activeDesktops = desktops.filter((d) => d.status !== "Disabled");
+    // Filter out disabled desktops and Mint type (auto-assigned to admins)
+    const activeDesktops = desktops.filter((d) => d.status !== "Disabled" && d.appType !== "Mint");
     if (!search) return activeDesktops;
     const q = search.toLowerCase();
     return activeDesktops.filter((d) => 

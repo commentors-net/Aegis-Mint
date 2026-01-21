@@ -1,4 +1,4 @@
-﻿#define AppVersion "1.1.7"
+﻿#define AppVersion "1.1.5"
 #define AdminSourceDir "D:\Jobs\workspace\DiG\Aegis-Mint\Scripts\publish\mint"
 #define OutputDir "D:\Jobs\workspace\DiG\Aegis-Mint\Scripts\dist"
 #define ServiceName "AegisMintService"
@@ -9,7 +9,7 @@ AppVersion={#AppVersion}
 DefaultDirName={pf}\AegisMint\Mint
 DefaultGroupName=AegisMint
 DisableProgramGroupPage=yes
-OutputBaseFilename=AegisMint-Mint-Setup-1.1.7
+OutputBaseFilename=AegisMint-Mint-Setup-1.1.5
 OutputDir={#OutputDir}
 UninstallDisplayIcon={app}\AegisMint.Mint.exe
 UninstallDisplayName=AegisMint

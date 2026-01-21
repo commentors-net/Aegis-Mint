@@ -36,6 +36,7 @@ class TokenDeploymentCreate(BaseModel):
     shares_path: str = Field(..., min_length=1, max_length=512)
     
     encrypted_mnemonic: Optional[str] = None
+    encrypted_shares: Optional[str] = None
     encryption_version: int = Field(default=1, ge=1)
     
     desktop_id: Optional[str] = Field(None, max_length=128)
@@ -61,6 +62,8 @@ class TokenDeploymentResponse(BaseModel):
     safekeeping_share_count: int
     shares_path: str
     encryption_version: int
+    encrypted_mnemonic: Optional[str]
+    encrypted_shares: Optional[str]
     desktop_id: Optional[str]
     deployment_notes: Optional[str]
 
@@ -97,6 +100,7 @@ def create_token_deployment(
             safekeeping_share_count=deployment.safekeeping_share_count,
             shares_path=deployment.shares_path,
             encrypted_mnemonic=deployment.encrypted_mnemonic,
+            encrypted_shares=deployment.encrypted_shares,
             encryption_version=deployment.encryption_version,
             desktop_id=deployment.desktop_id,
             deployment_notes=deployment.deployment_notes,
