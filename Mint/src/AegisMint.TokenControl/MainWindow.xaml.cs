@@ -1007,7 +1007,7 @@ public partial class MainWindow : Window
                         payload.Network ?? string.Empty);
                     encryptedMnemonic = payload.EncryptedMnemonic;
                     iv = payload.Iv;
-                    Logger.Info($"Share metadata loaded: {metadata.Description}, Network: {payload.Network ?? \"None\"}");
+                    Logger.Info($"Share metadata loaded: {metadata.Description}, Network: {payload.Network ?? "None"}");
                 }
                 else if (!metadata.IsCompatibleWith(payload))
                 {
