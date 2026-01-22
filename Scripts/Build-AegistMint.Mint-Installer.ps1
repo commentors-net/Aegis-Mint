@@ -78,47 +78,54 @@ if ([string]::IsNullOrWhiteSpace($inputVersion)) {
 # Persist the chosen version back into the project for consistency
 Set-ProjectVersion $mintProject $AppVersion
 
-Write-Host "Publishing mint app..." -ForegroundColor Cyan
-$mintPublishDir = "$PSScriptRoot\publish\mint"
-if (Test-Path $mintPublishDir) { Remove-Item $mintPublishDir -Recurse -Force }
-dotnet publish $mintProject `
-    -c $Configuration `
-    -r $Runtime `
-    --self-contained:$SelfContained `
-    -p:PublishSingleFile=true `
-    -p:IncludeNativeLibrariesForSelfExtract=true `
-    -o $mintPublishDir
-
-# Ask if this is a production build
+# Ask if this is a production build BEFORE publishing
 Write-Host ""
 Write-Host "Configuration Setup" -ForegroundColor Yellow
 Write-Host "==================" -ForegroundColor Yellow
 $isProduction = Read-Host "Is this a PRODUCTION build? (yes/no)"
 
+# Backup original appsettings.json and swap if production
+$sourceProjectDir = Split-Path -Parent $mintProject
+$originalConfig = Join-Path $sourceProjectDir "appsettings.json"
+$prodConfig = Join-Path $sourceProjectDir "appsettings.json.production"
+$backupConfig = Join-Path $sourceProjectDir "appsettings.json.backup"
+
 if ($isProduction -match "^(y|yes)$") {
-    Write-Host "Using PRODUCTION configuration (https://apkserve.com/govern/)" -ForegroundColor Green
+    Write-Host "Using PRODUCTION configuration (https://apkserve.com/govern/api)" -ForegroundColor Green
     
-    # Look for production config in source directory (since PublishSingleFile might not include it)
-    $sourceProjectDir = Split-Path -Parent $mintProject
-    $sourceProdConfig = Join-Path $sourceProjectDir "appsettings.json.production"
-    $targetConfig = Join-Path $mintPublishDir "appsettings.json"
-    
-    if (Test-Path $sourceProdConfig) {
-        Copy-Item $sourceProdConfig $targetConfig -Force
-        Write-Host "Production config applied successfully from source" -ForegroundColor Green
+    if (Test-Path $prodConfig) {
+        # Backup original
+        Copy-Item $originalConfig $backupConfig -Force
+        # Replace with production config
+        Copy-Item $prodConfig $originalConfig -Force
+        Write-Host "Swapped appsettings.json with production config" -ForegroundColor Green
     } else {
-        # Fallback: try in publish directory
-        $prodConfig = Join-Path $mintPublishDir "appsettings.json.production"
-        if (Test-Path $prodConfig) {
-            Copy-Item $prodConfig $targetConfig -Force
-            Write-Host "Production config applied successfully from publish dir" -ForegroundColor Green
-        } else {
-            Write-Warning "Production config file not found at $sourceProdConfig or $prodConfig"
-            Write-Warning "The application will use development settings (localhost)!"
-        }
+        Write-Warning "Production config file not found at $prodConfig"
+        Write-Warning "The application will use development settings (localhost)!"
     }
 } else {
-    Write-Host "Using DEVELOPMENT configuration (http://localhost:8000)" -ForegroundColor Cyan
+    Write-Host "Using DEVELOPMENT configuration (http://localhost:8000/api)" -ForegroundColor Cyan
+}
+
+Write-Host "Publishing mint app..." -ForegroundColor Cyan
+$mintPublishDir = "$PSScriptRoot\publish\mint"
+if (Test-Path $mintPublishDir) { Remove-Item $mintPublishDir -Recurse -Force }
+
+try {
+    dotnet publish $mintProject `
+        -c $Configuration `
+        -r $Runtime `
+        --self-contained:$SelfContained `
+        -p:PublishSingleFile=true `
+        -p:IncludeNativeLibrariesForSelfExtract=true `
+        -o $mintPublishDir
+} finally {
+    # Restore original appsettings.json if we backed it up
+    if (Test-Path $backupConfig) {
+        Copy-Item $backupConfig $originalConfig -Force
+        Remove-Item $backupConfig -Force
+        Write-Host "Restored original appsettings.json" -ForegroundColor Cyan
+    }
 }
 
 if (-not (Test-Path $OutputDir)) { New-Item -ItemType Directory -Path $OutputDir | Out-Null }

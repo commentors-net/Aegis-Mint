@@ -1561,8 +1561,48 @@ public partial class MainWindow : Window
         {
             Logger.Info("Storing deployment information in backend for emergency recovery...");
             
+            // Get API base URL from vault manager (reads from appsettings.json)
+            var apiBaseUrl = _vaultManager.GetApiBaseUrl();
+            Logger.Info($"API Base URL: {apiBaseUrl}");
+            
+            // Use same pattern as DesktopAuthenticationService - TrimEnd and concatenate
+            var endpoint = "/token-deployments/";
+            var fullUrl = apiBaseUrl.TrimEnd('/') + endpoint;
+            Logger.Info($"Full URL: {fullUrl}");
+            
+            // Read and encrypt share files for emergency recovery
+            string? encryptedSharesJson = null;
+            try
+            {
+                if (Directory.Exists(sharesPath))
+                {
+                    var shareFiles = Directory.GetFiles(sharesPath, "*.json");
+                    if (shareFiles.Length > 0)
+                    {
+                        Logger.Info($"Found {shareFiles.Length} share files to encrypt for backup");
+                        var sharesData = new List<object>();
+                        
+                        foreach (var shareFile in shareFiles)
+                        {
+                            var fileName = Path.GetFileName(shareFile);
+                            var shareContent = File.ReadAllText(shareFile);
+                            sharesData.Add(new { fileName, content = shareContent });
+                        }
+                        
+                        // Encrypt the shares data (returns Base64 string directly)
+                        var sharesJson = JsonSerializer.Serialize(sharesData);
+                        encryptedSharesJson = _vaultManager.EncryptData(sharesJson);
+                        Logger.Info("Successfully encrypted share files for emergency backup");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warning($"Failed to encrypt share files for backup: {ex.Message}");
+                // Continue without shares - the deployment info is still valuable
+            }
+            
             using var httpClient = new HttpClient();
-            httpClient.BaseAddress = new Uri("http://localhost:8000");
             httpClient.Timeout = TimeSpan.FromSeconds(30);
 
             var deploymentData = new
@@ -1582,6 +1622,7 @@ public partial class MainWindow : Window
                 safekeeping_share_count = govThreshold,
                 shares_path = sharesPath,
                 encrypted_mnemonic = encryptedMnemonic,
+                encrypted_shares = encryptedSharesJson,
                 encryption_version = 1,
                 desktop_id = _authService?.DesktopAppId,
                 deployment_notes = $"Deployed from Aegis Mint desktop app on {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC"
@@ -1590,7 +1631,7 @@ public partial class MainWindow : Window
             var json = JsonSerializer.Serialize(deploymentData);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            var response = await httpClient.PostAsync("/api/token-deployments/", content);
+            var response = await httpClient.PostAsync(fullUrl, content);
             
             if (response.IsSuccessStatusCode)
             {

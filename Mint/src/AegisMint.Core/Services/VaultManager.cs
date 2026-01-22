@@ -577,6 +577,31 @@ public class VaultManager
     }
 
     /// <summary>
+    /// Encrypts arbitrary data using DPAPI (Data Protection API) for the current user.
+    /// Returns the encrypted data as a Base64-encoded string.
+    /// </summary>
+    public string EncryptData(string data)
+    {
+        try
+        {
+            // Encrypt the data using DPAPI (Data Protection API)
+            var dataBytes = Encoding.UTF8.GetBytes(data);
+            var encryptedBytes = ProtectedData.Protect(
+                dataBytes,
+                null, // entropy
+                DataProtectionScope.CurrentUser
+            );
+            
+            // Convert to Base64 for storage/transmission
+            return Convert.ToBase64String(encryptedBytes);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Failed to encrypt data: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
     /// Stores an encrypted mnemonic in the SQLCipher database using DPAPI-protected payload.
     /// </summary>
     private void StoreEncryptedMnemonic(string keyName, string mnemonic)

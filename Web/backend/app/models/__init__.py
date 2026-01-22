@@ -8,6 +8,7 @@ from .setting import SystemSetting
 from .login_challenge import LoginChallenge
 from .share_recovery_log import ShareRecoveryLog
 from .token_deployment import TokenDeployment
+from .download_link import DownloadLink
 
 __all__ = [
     "User",
@@ -23,4 +24,5 @@ __all__ = [
     "LoginChallenge",
     "ShareRecoveryLog",
     "TokenDeployment",
+    "DownloadLink",
 ]

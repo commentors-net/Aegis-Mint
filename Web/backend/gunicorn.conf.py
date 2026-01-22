@@ -17,7 +17,7 @@ keepalive = 5
 
 # Logging
 accesslog = "/home/apkserve/logs/governance/access.log"
-errorlog = "/home/apkserve/logs/governance/error.log"
+errorlog = "/home/apkserve/logs/governance/access.log"
 loglevel = "info"
 access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s" %(D)s'
 

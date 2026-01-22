@@ -6,8 +6,10 @@ const tabs = [
   { path: "authorities", label: "Governance Authorities" },
   { path: "desktops", label: "Manage Desktops" },
   { path: "assign-desktops", label: "Assign Desktops" },
+  { path: "mint-approval", label: "Mint Approval" },
   { path: "certificates", label: "Certificates" },
   { path: "recover-shares", label: "Recover Shares" },
+  { path: "downloads", label: "Downloads" },
   { path: "audit", label: "Audit Logs" },
   { path: "settings", label: "System Settings" },
 ];

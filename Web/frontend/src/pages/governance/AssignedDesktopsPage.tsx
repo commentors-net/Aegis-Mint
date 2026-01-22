@@ -47,8 +47,8 @@ export default function AssignedDesktopsPage() {
   }, [token]);
 
   const filtered = useMemo(() => {
-    // Only show Active desktops
-    const activeRows = rows.filter((r) => r.status === "Active");
+    // Only show Active desktops, exclude Mint type (handled by admins only)
+    const activeRows = rows.filter((r) => r.status === "Active" && r.appType !== "Mint");
     if (!search) return activeRows;
     const q = search.toLowerCase();
     return activeRows.filter((r) => (r.nameLabel || "").toLowerCase().includes(q) || r.desktopAppId.toLowerCase().includes(q));
