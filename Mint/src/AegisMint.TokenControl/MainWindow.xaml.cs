@@ -42,6 +42,7 @@ public partial class MainWindow : Window
     private readonly VaultManager _vaultManager = new();
     private readonly TokenControlService _tokenControlService;
     private DesktopAuthenticationService? _authService;
+    private ShareOperationLogger? _shareLogger;
     private DispatcherTimer? _approvalCheckTimer;
     private DispatcherTimer? _countdownTimer;
     private DateTime? _unlockedUntilUtc;
@@ -319,6 +320,7 @@ public partial class MainWindow : Window
         {
             Logger.Debug("InitializeAuthenticationAsync - START");
             _authService = new DesktopAuthenticationService(_vaultManager, "TokenControl");
+            _shareLogger = new ShareOperationLogger(_authService);
             Logger.Info($"Desktop App ID: {_authService.DesktopAppId}");
             Logger.Info($"App Type: {_authService.AppType}");
 
@@ -958,6 +960,8 @@ public partial class MainWindow : Window
     {
         try
         {
+            Logger.Info("=== SHARE RETRIEVAL STARTED === User requested share recovery");
+            
             var dialog = new Microsoft.Win32.OpenFileDialog
             {
                 Title = "Select recovery share files",
@@ -969,9 +973,12 @@ public partial class MainWindow : Window
             var result = dialog.ShowDialog();
             if (result != true || dialog.FileNames.Length == 0)
             {
+                Logger.Info("Share retrieval cancelled - no files selected");
                 await SendToWebAsync("host-error", new { message = "Recovery cancelled. No files selected." });
                 return;
             }
+
+            Logger.Info($"Loading {dialog.FileNames.Length} share files");
 
             var shares = new List<ShareFilePayload>();
             ShareSetMetadata? metadata = null;
@@ -987,6 +994,7 @@ public partial class MainWindow : Window
 
             foreach (var file in dialog.FileNames)
             {
+                Logger.Info($"Parsing share file: {Path.GetFileName(file)}");
                 var payload = ParseShareFile(file, jsonOptions);
 
                 if (metadata is null)
@@ -999,6 +1007,7 @@ public partial class MainWindow : Window
                         payload.Network ?? string.Empty);
                     encryptedMnemonic = payload.EncryptedMnemonic;
                     iv = payload.Iv;
+                    Logger.Info($"Share metadata loaded: {metadata.Description}, Network: {payload.Network ?? \"None\"}");
                 }
                 else if (!metadata.IsCompatibleWith(payload))
                 {
@@ -1016,19 +1025,56 @@ public partial class MainWindow : Window
 
             if (metadata is null)
             {
+                Logger.Error("No valid shares were loaded");
                 throw new InvalidOperationException("No valid shares were loaded.");
+            }
+
+            Logger.Info($"Loaded {shares.Count} shares (threshold: {metadata.Threshold})");
+            
+            // Log to backend - retrieval started
+            if (_shareLogger != null)
+            {
+                await _shareLogger.LogShareRetrievalStartAsync(
+                    shares.Count, 
+                    metadata.Threshold,
+                    shares.FirstOrDefault()?.TokenAddress);
             }
 
             if (shares.Count < metadata.Threshold)
             {
-                throw new InvalidOperationException($"Need at least {metadata.Threshold} shares; only {shares.Count} provided.");
+                var errorMsg = $"Need at least {metadata.Threshold} shares; only {shares.Count} provided.";
+                Logger.Error(errorMsg);
+                
+                if (_shareLogger != null)
+                {
+                    await _shareLogger.LogShareRetrievalFailureAsync(
+                        shares.Count, 
+                        metadata.Threshold, 
+                        errorMsg,
+                        shares.FirstOrDefault()?.TokenAddress);
+                }
+                
+                throw new InvalidOperationException(errorMsg);
             }
 
             if (string.IsNullOrWhiteSpace(encryptedMnemonic) || string.IsNullOrWhiteSpace(iv))
             {
-                throw new InvalidOperationException("Missing encrypted mnemonic or IV in shares.");
+                var errorMsg = "Missing encrypted mnemonic or IV in shares.";
+                Logger.Error(errorMsg);
+                
+                if (_shareLogger != null)
+                {
+                    await _shareLogger.LogShareRetrievalFailureAsync(
+                        shares.Count, 
+                        metadata.Threshold, 
+                        errorMsg,
+                        shares.FirstOrDefault()?.TokenAddress);
+                }
+                
+                throw new InvalidOperationException(errorMsg);
             }
 
+            Logger.Info("Parsing share format and preparing for Shamir reconstruction");
             // Parse share format: "index-hexvalue"
             var parsedShares = shares
                 .Take(metadata.Threshold)
@@ -1040,10 +1086,12 @@ public partial class MainWindow : Window
                 })
                 .ToArray();
 
+            Logger.Info($"Reconstructing encryption key from {parsedShares.Length} shares using Shamir combine");
             // Reconstruct encryption key from shares
             var shamir = new ShamirSecretSharingService();
             var keyHexBytes = shamir.Combine(parsedShares, metadata.Threshold);
             var keyHex = Encoding.UTF8.GetString(keyHexBytes).Trim();
+            Logger.Info("Encryption key reconstructed successfully");
             
             // Convert hex string to bytes
             var encryptionKey = Enumerable.Range(0, keyHex.Length)
@@ -1051,26 +1099,55 @@ public partial class MainWindow : Window
                 .Select(x => Convert.ToByte(keyHex.Substring(x, 2), 16))
                 .ToArray();
 
+            Logger.Info("Decrypting mnemonic with reconstructed key");
             // Decrypt the mnemonic
             var mnemonic = DecryptMnemonicWithKey(encryptedMnemonic, iv, encryptionKey);
+            Logger.Info("Mnemonic decrypted successfully");
 
+            Logger.Info("Importing treasury mnemonic to vault");
             _vaultManager.ImportTreasuryMnemonic(mnemonic);
 
             if (!string.IsNullOrWhiteSpace(metadata.Network))
             {
+                Logger.Info($"Updating network to: {metadata.Network}");
                 _vaultManager.SaveLastNetwork(metadata.Network);
                 await UpdateNetworkAsync(metadata.Network);
             }
 
+            Logger.Info("Discovering and persisting contract information");
             await DiscoverAndPersistContractAsync();
             await SendVaultStatusAsync();
             await UpdateBalanceStatsAsync();
             await UpdatePauseStatusAsync();
+            
+            Logger.Info("=== SHARE RETRIEVAL COMPLETED === Treasury recovered successfully");
+            
+            // Log to backend - retrieval succeeded
+            if (_shareLogger != null)
+            {
+                await _shareLogger.LogShareRetrievalSuccessAsync(
+                    shares.Count, 
+                    metadata.Threshold,
+                    shares.FirstOrDefault()?.TokenAddress,
+                    metadata.Network);
+            }
+            
             await SendToWebAsync("recovery-result", new { ok = true, message = "Treasury recovered from shares." });
         }
         catch (Exception ex)
         {
-            Logger.Error("Failed to recover from shares", ex);
+            Logger.Error("=== SHARE RETRIEVAL FAILED ===", ex);
+            
+            // Try to log failure to backend
+            if (_shareLogger != null)
+            {
+                await _shareLogger.LogOperationAsync(
+                    ShareOperationType.Retrieval,
+                    success: false,
+                    operationStage: "Failed",
+                    errorMessage: ex.Message);
+            }
+            
             await SendToWebAsync("host-error", new { message = $"Recovery failed: {ex.Message}" });
         }
     }
