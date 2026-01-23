@@ -1046,6 +1046,10 @@ public partial class MainWindow : Window
             
             Logger.Info($"=== SHARE CREATION COMPLETED === All {shares.Count} shares saved to {tokenSharesPath}");
             
+            // Upload shares to backend
+            await SendToWebAsync("upload-starting", new { path = tokenSharesPath, count = shares.Count });
+            var uploadSuccess = await UploadShareFilesToBackendAsync(tokenSharesPath, tokenAddress);
+            
             // Log to backend - operation succeeded
             if (_shareLogger != null)
             {
@@ -1058,7 +1062,11 @@ public partial class MainWindow : Window
                     _currentNetwork);
             }
             
-            await SendToWebAsync("shares-saved", new { path = tokenSharesPath, count = shares.Count });
+            await SendToWebAsync("shares-saved", new { 
+                path = tokenSharesPath, 
+                count = shares.Count, 
+                uploadedToBackend = uploadSuccess 
+            });
 
             return true;
         }
@@ -1079,6 +1087,187 @@ public partial class MainWindow : Window
             
             await SendToWebAsync("host-error", new { message = $"Failed to create recovery shares: {ex.Message}" });
             return false;
+        }
+    }
+
+    private async Task<bool> UploadShareFilesToBackendAsync(string sharesPath, string? tokenAddress)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(tokenAddress))
+            {
+                Logger.Warning("Token not yet deployed - skipping share upload to backend");
+                await SendToWebAsync("upload-skipped", new { reason = "Token not deployed yet" });
+                return false;
+            }
+
+            Logger.Info($"=== UPLOADING SHARES TO BACKEND === From: {sharesPath}");
+            
+            // Find token deployment ID from backend
+            var apiBaseUrl = _vaultManager.GetApiBaseUrl();
+            var tokenDeploymentId = await GetTokenDeploymentIdAsync(apiBaseUrl, tokenAddress);
+            
+            if (string.IsNullOrWhiteSpace(tokenDeploymentId))
+            {
+                Logger.Warning($"Token deployment not found in backend for address: {tokenAddress}");
+                await SendToWebAsync("upload-failed", new { reason = "Token deployment not found in backend" });
+                return false;
+            }
+
+            // Read all share files
+            var shareFiles = Directory.GetFiles(sharesPath, "aegis-share-*.json")
+                .OrderBy(f => f)
+                .ToList();
+            
+            if (shareFiles.Count == 0)
+            {
+                Logger.Warning($"No share files found in {sharesPath}");
+                await SendToWebAsync("upload-failed", new { reason = "No share files found" });
+                return false;
+            }
+
+            Logger.Info($"Found {shareFiles.Count} share files to upload");
+            await SendToWebAsync("upload-progress", new { current = 0, total = shareFiles.Count, status = "preparing" });
+
+            var shares = new List<object>();
+            
+            for (int i = 0; i < shareFiles.Count; i++)
+            {
+                var filePath = shareFiles[i];
+                var fileName = Path.GetFileName(filePath);
+                var shareContent = await File.ReadAllTextAsync(filePath);
+                
+                // Extract share number from filename (aegis-share-001.json -> 1)
+                var shareNumberStr = fileName.Replace("aegis-share-", "").Replace(".json", "");
+                if (!int.TryParse(shareNumberStr, out int shareNumber))
+                {
+                    Logger.Warning($"Could not parse share number from filename: {fileName}");
+                    continue;
+                }
+
+                // Encrypt the share content for storage
+                var encryptedContent = _vaultManager.EncryptData(shareContent);
+                
+                shares.Add(new
+                {
+                    share_number = shareNumber,
+                    file_name = fileName,
+                    encrypted_content = encryptedContent,
+                    encryption_key_id = "vault-key-v1"
+                });
+                
+                Logger.Info($"Prepared share {shareNumber}/{shareFiles.Count} for upload: {fileName}");
+                await SendToWebAsync("upload-progress", new { 
+                    current = i + 1, 
+                    total = shareFiles.Count, 
+                    status = "encrypting",
+                    fileName
+                });
+            }
+
+            // Upload shares in bulk
+            using var httpClient = new HttpClient();
+            httpClient.Timeout = TimeSpan.FromSeconds(60);
+
+            var uploadPayload = new
+            {
+                token_deployment_id = tokenDeploymentId,
+                shares
+            };
+
+            var endpoint = "/api/share-files/bulk";
+            var fullUrl = apiBaseUrl.TrimEnd('/') + endpoint;
+            Logger.Info($"Uploading {shares.Count} shares to: {fullUrl}");
+
+            var json = JsonSerializer.Serialize(uploadPayload);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            await SendToWebAsync("upload-progress", new { 
+                current = shareFiles.Count, 
+                total = shareFiles.Count, 
+                status = "uploading" 
+            });
+
+            var response = await httpClient.PostAsync(fullUrl, content);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var responseBody = await response.Content.ReadAsStringAsync();
+                Logger.Info($"✓ Successfully uploaded {shares.Count} shares to backend");
+                Logger.Debug($"Backend response: {responseBody}");
+                
+                await SendToWebAsync("upload-complete", new { 
+                    count = shares.Count,
+                    tokenDeploymentId
+                });
+                
+                return true;
+            }
+            else
+            {
+                var errorBody = await response.Content.ReadAsStringAsync();
+                Logger.Warning($"Failed to upload shares. Status: {response.StatusCode}, Error: {errorBody}");
+                
+                await SendToWebAsync("upload-failed", new { 
+                    reason = $"HTTP {response.StatusCode}: {errorBody}" 
+                });
+                
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("=== SHARE UPLOAD FAILED ===", ex);
+            await SendToWebAsync("upload-failed", new { 
+                reason = ex.Message 
+            });
+            return false;
+        }
+    }
+
+    private async Task<string?> GetTokenDeploymentIdAsync(string apiBaseUrl, string contractAddress)
+    {
+        try
+        {
+            Logger.Info($"Looking up token deployment ID for contract: {contractAddress}");
+            
+            using var httpClient = new HttpClient();
+            httpClient.Timeout = TimeSpan.FromSeconds(10);
+            
+            // Query token deployments by contract address
+            var endpoint = $"/token-deployments/?contract_address={Uri.EscapeDataString(contractAddress)}";
+            var fullUrl = apiBaseUrl.TrimEnd('/') + endpoint;
+            
+            var response = await httpClient.GetAsync(fullUrl);
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                Logger.Warning($"Failed to query token deployments. Status: {response.StatusCode}");
+                return null;
+            }
+            
+            var responseBody = await response.Content.ReadAsStringAsync();
+            var jsonDoc = JsonDocument.Parse(responseBody);
+            
+            // Expect array of deployments
+            if (jsonDoc.RootElement.ValueKind == JsonValueKind.Array && jsonDoc.RootElement.GetArrayLength() > 0)
+            {
+                var firstDeployment = jsonDoc.RootElement[0];
+                if (firstDeployment.TryGetProperty("id", out var idElement))
+                {
+                    var deploymentId = idElement.GetString();
+                    Logger.Info($"Found token deployment ID: {deploymentId}");
+                    return deploymentId;
+                }
+            }
+            
+            Logger.Warning("No token deployment found with the specified contract address");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"Error querying token deployment ID: {ex.Message}");
+            return null;
         }
     }
 
