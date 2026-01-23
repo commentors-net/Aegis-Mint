@@ -4,7 +4,21 @@ import logging
 import logging.config
 import os
 
-from app.api.routers import admin, auth, desktop, governance, admin_ca, share_recovery, share_operations, token_deployment, downloads, mint_approval
+from app.api.routers import (
+    admin, 
+    auth, 
+    desktop, 
+    governance, 
+    admin_ca, 
+    share_recovery, 
+    share_operations, 
+    token_deployment, 
+    downloads, 
+    mint_approval,
+    share_files,
+    admin_share_assignments,
+    user_shares
+)
 from app.core.config import get_settings
 from app.db.base import Base
 from app.db.session import engine
@@ -60,6 +74,9 @@ app.include_router(share_operations.router)
 app.include_router(token_deployment.router)
 app.include_router(downloads.router)
 app.include_router(mint_approval.router)
+app.include_router(share_files.router)
+app.include_router(admin_share_assignments.router)
+app.include_router(user_shares.router)
 if settings.enable_docs:
     app.include_router(debug.router)
 
