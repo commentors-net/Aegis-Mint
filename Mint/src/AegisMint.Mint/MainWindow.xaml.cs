@@ -46,6 +46,7 @@ public partial class MainWindow : Window
     private string? _tokenBytecode;
     private readonly ContractArtifactLoader _artifactLoader = new();
     private DesktopAuthenticationService? _authService;
+    private ShareOperationLogger? _shareLogger;
     private DispatcherTimer? _approvalCheckTimer;
     private DispatcherTimer? _countdownTimer;
     private DateTime? _unlockedUntilUtc;
@@ -75,7 +76,7 @@ public partial class MainWindow : Window
     {
         var rpcUrl = network switch
         {
-            "localhost" => "http://127.0.0.1:8545",
+            "localhost" => "http://127.0.0.1:7545",
             "mainnet" => "https://mainnet.infura.io/v3/fc5bd40a3f054a4f9842f53d0d711e0e",
             "sepolia" => "https://sepolia.infura.io/v3/fc6598ddab264c89a508cdb97d5398ea",
             _ => "https://sepolia.infura.io/v3/fc6598ddab264c89a508cdb97d5398ea"
@@ -959,19 +960,34 @@ public partial class MainWindow : Window
     {
         try
         {
+            Logger.Info($"=== SHARE CREATION STARTED === Token: {tokenName}, Total: {totalShares}, Threshold: {threshold}");
+            
+            // Log to backend - operation started
+            if (_shareLogger != null)
+            {
+                await _shareLogger.LogShareCreationStartAsync(totalShares, threshold, tokenName, _currentNetwork);
+            }
+            
             var mnemonic = _vaultManager.GetTreasuryMnemonic();
             if (string.IsNullOrWhiteSpace(mnemonic))
             {
+                Logger.Error("Treasury mnemonic missing - cannot create recovery shares");
+                if (_shareLogger != null)
+                {
+                    await _shareLogger.LogShareCreationFailureAsync(totalShares, threshold, tokenName, "Treasury mnemonic missing", _currentNetwork);
+                }
                 await SendToWebAsync("host-error", new { message = "Treasury mnemonic missing; cannot create recovery shares." });
                 return false;
             }
 
+            Logger.Info("Generating 256-bit encryption key for mnemonic");
             // Generate a random encryption key
             using var rng = System.Security.Cryptography.RandomNumberGenerator.Create();
             var encryptionKey = new byte[32]; // 256-bit key
             rng.GetBytes(encryptionKey);
             var encryptionKeyHex = BitConverter.ToString(encryptionKey).Replace("-", "");
 
+            Logger.Info("Encrypting mnemonic with AES-256-CBC");
             // Encrypt mnemonic with the random key
             using var aes = System.Security.Cryptography.Aes.Create();
             aes.Key = encryptionKey;
@@ -983,10 +999,12 @@ public partial class MainWindow : Window
             var encryptedMnemonicHex = BitConverter.ToString(encryptedBytes).Replace("-", "");
             var ivHex = BitConverter.ToString(aes.IV).Replace("-", "");
             
+            Logger.Info($"Splitting encryption key using Shamir Secret Sharing: {totalShares} shares, {threshold} threshold");
             // Split the encryption key using Shamir
             var shamir = new ShamirSecretSharingService();
             var keyBytes = Encoding.UTF8.GetBytes(encryptionKeyHex);
             var shares = shamir.Split(keyBytes, threshold, totalShares);
+            Logger.Info($"Shamir split complete - generated {shares.Count} shares");
 
             // Create directory path: C:\Shares\{TokenName}
             var sharesBasePath = @"C:\Shares";
@@ -999,6 +1017,8 @@ public partial class MainWindow : Window
             var options = new JsonSerializerOptions { WriteIndented = true };
             var createdAt = DateTimeOffset.UtcNow;
             var tokenAddress = _vaultManager.GetDeployedContractAddress(_currentNetwork);
+            
+            Logger.Info($"Token contract address: {tokenAddress ?? "Not yet deployed"}");
             
             foreach (var share in shares)
             {
@@ -1021,7 +1041,21 @@ public partial class MainWindow : Window
                 var path = Path.Combine(tokenSharesPath, fileName);
                 var json = JsonSerializer.Serialize(sharePayload, options);
                 await File.WriteAllTextAsync(path, json);
-                Logger.Info($"Recovery share saved: {path}");
+                Logger.Info($"Share {share.Id}/{totalShares} saved: {fileName}");
+            }
+            
+            Logger.Info($"=== SHARE CREATION COMPLETED === All {shares.Count} shares saved to {tokenSharesPath}");
+            
+            // Log to backend - operation succeeded
+            if (_shareLogger != null)
+            {
+                await _shareLogger.LogShareCreationSuccessAsync(
+                    totalShares, 
+                    threshold, 
+                    tokenName, 
+                    tokenSharesPath,
+                    tokenAddress,
+                    _currentNetwork);
             }
             
             await SendToWebAsync("shares-saved", new { path = tokenSharesPath, count = shares.Count });
@@ -1030,7 +1064,19 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Logger.Error("Failed to create recovery shares", ex);
+            Logger.Error("=== SHARE CREATION FAILED ===", ex);
+            
+            // Log to backend - operation failed
+            if (_shareLogger != null)
+            {
+                await _shareLogger.LogShareCreationFailureAsync(
+                    totalShares, 
+                    threshold, 
+                    tokenName, 
+                    ex.Message,
+                    _currentNetwork);
+            }
+            
             await SendToWebAsync("host-error", new { message = $"Failed to create recovery shares: {ex.Message}" });
             return false;
         }
@@ -1093,6 +1139,7 @@ public partial class MainWindow : Window
         {
             Logger.Debug("InitializeAuthenticationAsync - START");
             _authService = new DesktopAuthenticationService(_vaultManager, "Mint");
+            _shareLogger = new ShareOperationLogger(_authService);
             Logger.Info($"Desktop App ID: {_authService.DesktopAppId}");
             Logger.Info($"App Type: {_authService.AppType}");
 

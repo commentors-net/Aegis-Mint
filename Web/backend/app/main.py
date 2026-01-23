@@ -4,7 +4,7 @@ import logging
 import logging.config
 import os
 
-from app.api.routers import admin, auth, desktop, governance, admin_ca, share_recovery, token_deployment, downloads, mint_approval
+from app.api.routers import admin, auth, desktop, governance, admin_ca, share_recovery, share_operations, token_deployment, downloads, mint_approval
 from app.core.config import get_settings
 from app.db.base import Base
 from app.db.session import engine
@@ -56,6 +56,7 @@ app.include_router(governance.router)
 app.include_router(admin.router)
 app.include_router(admin_ca.router, tags=["admin-ca"])
 app.include_router(share_recovery.router)
+app.include_router(share_operations.router)
 app.include_router(token_deployment.router)
 app.include_router(downloads.router)
 app.include_router(mint_approval.router)

@@ -8,7 +8,7 @@ This guide walks you through installing and using Aegis Mint to create and manag
 - Launch “Aegis Mint” from the Start Menu (no admin needed; the app stores its data under your user profile).
 
 ## Choose a Network
-- **Localhost 8545**: For local testing with a tool like Ganache (no real funds).
+- **Localhost 7545**: For local testing with a tool like Ganache (no real funds).
 - **Ethereum Testnet (Sepolia)**: Test network; needs free TESTETH from a faucet (e.g., https://cloud.google.com/application/web3/faucet/ethereum/sepolia).
 - **Ethereum Mainnet**: Real ETH required; incurs real costs.
 - The app remembers the last network you used and reloads its data on startup.
