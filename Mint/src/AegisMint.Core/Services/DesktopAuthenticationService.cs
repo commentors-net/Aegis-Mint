@@ -164,7 +164,7 @@ public class DesktopAuthenticationService
     /// <summary>
     /// Performs an authenticated GET request.
     /// </summary>
-    private async Task<T> GetAuthenticatedAsync<T>(string endpoint)
+    public async Task<T> GetAuthenticatedAsync<T>(string endpoint)
     {
         var url = _apiBaseUrl.TrimEnd('/') + endpoint;
         var timestamp = HmacSignature.GetUnixTimestamp();

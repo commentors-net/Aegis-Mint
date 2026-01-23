@@ -82,7 +82,7 @@ public partial class App : System.Windows.Application
     {
         return network switch
         {
-            "localhost" => "http://127.0.0.1:8545",
+            "localhost" => "http://127.0.0.1:7545",
             "mainnet" => "https://eth.llamarpc.com",
             "sepolia" => "https://ethereum-sepolia-rpc.publicnode.com",
             _ => "https://ethereum-sepolia-rpc.publicnode.com"

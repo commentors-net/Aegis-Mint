@@ -30,7 +30,7 @@ class ShareOperationLog(Base):
     machine_name = Column(String(255), nullable=True)
     
     # Operation details
-    operation_type = Column(Enum(ShareOperationType), nullable=False, index=True)
+    operation_type = Column(Enum(ShareOperationType, values_callable=lambda obj: [e.value for e in obj]), nullable=False, index=True)
     success = Column(Boolean, nullable=False, default=False)
     
     # Share metadata

@@ -1,16 +1,18 @@
 """API endpoints for share operation logging from desktop applications."""
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db, verify_desktop_auth
-from app.core.logging import logger
+from app.api.deps import get_db
+from app.api.desktop_deps import get_authenticated_desktop
 from app.models import Desktop, ShareOperationLog, ShareOperationType
 
 
-router = APIRouter()
+router = APIRouter(prefix="/api/share-operations", tags=["share-operations"])
+logger = logging.getLogger(__name__)
 
 
 class ShareOperationLogRequest(BaseModel):
@@ -46,7 +48,7 @@ class ShareOperationLogResponse(BaseModel):
 async def log_share_operation(
     request: Request,
     log_request: ShareOperationLogRequest,
-    desktop: Desktop = Depends(verify_desktop_auth),
+    desktop: Desktop = Depends(get_authenticated_desktop),
     db: Session = Depends(get_db),
 ):
     """
@@ -115,7 +117,7 @@ async def get_share_operation_logs(
     desktop_app_id: Optional[str] = None,
     operation_type: Optional[ShareOperationType] = None,
     limit: int = 100,
-    desktop: Desktop = Depends(verify_desktop_auth),
+    desktop: Desktop = Depends(get_authenticated_desktop),
     db: Session = Depends(get_db),
 ):
     """

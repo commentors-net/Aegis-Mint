@@ -76,7 +76,7 @@ public partial class MainWindow : Window
     {
         var rpcUrl = network switch
         {
-            "localhost" => "http://127.0.0.1:8545",
+            "localhost" => "http://127.0.0.1:7545",
             "mainnet" => "https://mainnet.infura.io/v3/fc5bd40a3f054a4f9842f53d0d711e0e",
             "sepolia" => "https://sepolia.infura.io/v3/fc6598ddab264c89a508cdb97d5398ea",
             _ => "https://sepolia.infura.io/v3/fc6598ddab264c89a508cdb97d5398ea"
