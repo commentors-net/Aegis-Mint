@@ -1,5 +1,15 @@
 # Aegis Mint - Share Management System
 
+**Version:** 1.1  
+**Created:** 2026-01-24  
+**Last Updated:** 2026-01-24
+
+---
+
+## 🎯 Purpose
+
+Create a secure web-based system for managing and distributing Shamir secret shares to governance authority users, with admin oversight and download tracking.
+
 ### Key Features
 - **Admin:** Assign shares to users, manage permissions, view audit logs
 - **User:** Download assigned shares (one-time by default), view history
@@ -12,6 +22,8 @@
 **Problem:** Desktop app generates shares as individual files (`C:\Shares\{TOKEN}\aegis-share-001.json`) but backend only stores them as one encrypted blob in `token_deployments.encrypted_shares`.
 
 **Solution:** Store each share separately in database with individual assignment tracking.
+
+**Database:** MySQL
 
 ---
 
@@ -92,6 +104,34 @@ graph TB
 2. User sees assigned shares
 3. User downloads share (auto-disabled after download)
 4. Download logged for audit
+
+---
+
+## 💾 Database Tables
+
+### New Tables (MySQL)
+
+**`share_files`** - Individual encrypted shares
+- Links to `token_deployments`
+- Each row = one share file
+- Stores encrypted content
+
+**`share_assignments`** - Who gets which share
+- Links share to user
+- Tracks download status and count
+- One share per user (UNIQUE constraint)
+
+**`share_download_log`** - Complete audit trail
+- Every download attempt logged
+- Stores IP, user agent, timestamp
+- Cannot be deleted (immutable audit)
+
+### Updated Table
+
+**`token_deployments`** - Added columns:
+- `shares_uploaded` - Boolean flag
+- `upload_completed_at_utc` - When shares were uploaded
+- `share_files_count` - Number of shares uploaded
 
 ---
 
@@ -247,3 +287,134 @@ sequenceDiagram
 6. User can now download the share again
 
 ---
+
+## 📝 Implementation Status
+4. A� Implementation Status
+
+### ✅ Phase 1: Database & Backend API (Completed)
+
+**Database:**
+- ✅ Created migration `010_add_share_management_tables`
+- ✅ Tables: `share_files`, `share_assignments`, `share_download_log`
+- ✅ Updated `token_deployments` with upload tracking
+- ✅ Migration applied to MySQL database
+
+**Backend APIs:**
+- ✅ `POST /api/share-files/bulk` - Bulk upload from desktop
+- ✅ `GET /api/share-files/token/{id}` - Get shares for token
+- ✅ `POST /api/admin/share-assignments` - Assign share to user
+- ✅ `GET /api/admin/share-assignments` - List assignments
+- ✅ `PATCH /api/admin/share-assignments/{id}` - Update assignment
+- ✅ `DELETE /api/admin/share-assignments/{id}` - Unassign share
+
+**SQLAlchemy Models:**
+- ✅ `ShareFile`, `ShareAssignment`, `ShareDownloadLog`
+- ✅ Relationships configured with cascade deletes
+
+### 🚧 Phase 2: User Download API (To Do)
+- [ ] `GET /api/my-shares` - List user's assigned shares
+- [ ] `GET /api/share-download/{id}` - Download share file
+- [ ] `GET /api/my-shares/history` - View download history
+
+### 🚧 Phase 3: Desktop App Integration (To Do)
+- [ ] Modify `MainWindow.xaml.cs` to call bulk upload API
+- [ ] Add progress indicator for upload
+- [ ] Handle upload errors gracefully
+
+### 🚧 Phase 4: Admin UI (To Do)
+- [ ] Token list view
+- [ ] Share assignment interface
+- [ ] User management
+
+### 🚧 Phase 5: User UI (To Do)
+- [ ] Login with MFA
+- [ ] My Shares dashboard
+- [ ] Download interface
+   - MFA verification before download
+   - IP address and user agent logged
+
+### Audit Trail
+- Every assignment: WHO assigned WHAT to WHOM and WHEN
+- Every download: WHO downloaded WHAT from WHERE and WHEN
+- Every status change: WHO enabled/disabled downloads WHEN
+- Immutable logs (no DELETE allowed)
+
+### Download Policies
+- **One-time Download (Default):** `download_allowed` set to FALSE after first download
+- **Re-enable:** Admin can set `download_allowed` back to TRUE
+- **Multi-download:** Admin can configure assignment to allow unlimited downloads
+- **Expiration:** (Future) Add `expires_at_utc` column for time-limited access
+
+---
+
+## 📅 Implementation Phases
+
+### Phase 1: Database & Core API ✅ (Current Phase)
+- [x] Design database schema
+- [x] Create flowchart document
+- [ ] Create Alembic migration for new tables
+- [ ] Implement share_files upload endpoint
+- [ ] Implement admin CRUD endpoints
+- [ ] Implement user download endpoints
+- [ ] Add unit tests
+
+### Phase 2: Desktop App Integration
+- [ ] Modify `MainWindow.xaml.cs` to upload shares individually
+- [ ] Add progress indicator for share upload
+- [ ] Add error handling for upload failures
+- [ ] Keep backward compatibility with encrypted_shares column
+
+### Phase 3: Admin Portal UI
+- [ ] Create token list view with filters
+- [ ] Create share assignment interface
+- [ ] Create user management interface
+- [ ] Create audit log viewer
+- [ ] Add real-time notifications
+
+### Phase 4: User Portal UI
+- [ ] Create user login with MFA
+- [ ] Create "My Shares" dashboard
+- [ ] Create download interface with confirmation
+- [ ] Create download history view
+- [ ] Add email notifications on assignment
+
+### Phase 5: Advanced Features
+- [ ] Share expiration dates
+- [ ] Bulk assignment operations
+- [ ] Share transfer between users (with approval)
+- [ ] Export audit reports
+- [ ] Telegram/Slack notifications
+- [ ] Emergency revocation (admin can instantly disable all shares)
+
+---
+
+## 📊 Metrics & Monitoring
+
+### Key Metrics to Track
+- Total tokens deployed
+- Total shares created
+- Assignment rate (assigned vs unassigned)
+- Download rate (downloaded vs available)
+- Average time between assignment and download
+- Failed download attempts
+- Admin actions per day
+
+### Alerts
+- Unassigned shares older than 7 days
+- Failed download attempts (potential attack)
+- High number of re-enable requests (suspicious)
+- Sh� Key Security Points
+
+1. **One-Time Download:** By default, shares can only be downloaded once
+2. **Admin Control:** Only SuperAdmin can manage assignments
+3. **Audit Trail:** Every action is logged (who, what, when, where)
+4. **MFA Required:** Both admin and user operations require MFA
+5. **Encrypted Storage:** Shares stored encrypted in database
+6. **Role-Based Access:** Users can only see/download their own shares
+
+---
+
+**Document Version:** 1.1  
+**Database:** MySQL  
+**Status:** Phase 1 Complete - Backend APIs implemented  
+**Next:** Implement user download endpoints and desktop app integra
