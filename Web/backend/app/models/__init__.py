@@ -10,6 +10,9 @@ from .share_recovery_log import ShareRecoveryLog
 from .share_operation_log import ShareOperationLog, ShareOperationType
 from .token_deployment import TokenDeployment
 from .download_link import DownloadLink
+from .share_file import ShareFile
+from .share_assignment import ShareAssignment
+from .share_download_log import ShareDownloadLog
 
 __all__ = [
     "User",
@@ -28,4 +31,7 @@ __all__ = [
     "ShareOperationType",
     "TokenDeployment",
     "DownloadLink",
+    "ShareFile",
+    "ShareAssignment",
+    "ShareDownloadLog",
 ]
