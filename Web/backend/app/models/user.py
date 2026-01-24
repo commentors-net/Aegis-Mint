@@ -21,6 +21,7 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     role = Column(Enum(UserRole), nullable=False)
     mfa_secret = Column(String(64), nullable=False)
+    phone = Column(String(20), nullable=True)
     is_active = Column(Boolean, default=True)
     created_at_utc = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 

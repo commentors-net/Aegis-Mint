@@ -15,6 +15,8 @@ import CertificateAuthorityPage from "../pages/admin/CertificateAuthorityPage";
 import RecoverSharesPage from "../pages/admin/RecoverSharesPage";
 import DownloadsPage from "../pages/admin/DownloadsPage";
 import MintApprovalPage from "../pages/admin/MintApprovalPage";
+import TokensListPage from "../pages/admin/TokensListPage";
+import ShareAssignmentPage from "../pages/admin/ShareAssignmentPage";
 import AssignedDesktopsPage from "../pages/governance/AssignedDesktopsPage";
 import DesktopDetailPage from "../pages/governance/DesktopDetailPage";
 import VersionCheck from "../components/VersionCheck";
@@ -49,6 +51,8 @@ export default function App() {
         <Route path="certificates" element={<CertificateAuthorityPage />} />
         <Route path="recover-shares" element={<RecoverSharesPage />} />
         <Route path="downloads" element={<DownloadsPage />} />
+        <Route path="tokens" element={<TokensListPage />} />
+        <Route path="tokens/:tokenId/shares" element={<ShareAssignmentPage />} />
       </Route>
 
       <Route

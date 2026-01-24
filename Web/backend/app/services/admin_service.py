@@ -24,6 +24,7 @@ def create_user(db: Session, body: UserCreate) -> User:
     user = User(
         email=body.email,
         role=body.role,
+        phone=body.phone,
         is_active=body.is_active,
         password_hash=security.hash_password(body.password),
         mfa_secret=mfa_secret,
@@ -43,6 +44,8 @@ def update_user(db: Session, user_id: str, body: UserUpdate) -> User:
         user.password_hash = security.hash_password(body.password)
     if body.role is not None:
         user.role = body.role
+    if body.phone is not None:
+        user.phone = body.phone
     if body.is_active is not None:
         user.is_active = body.is_active
     if body.mfa_secret is not None:
