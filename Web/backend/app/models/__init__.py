@@ -13,6 +13,7 @@ from .download_link import DownloadLink
 from .share_file import ShareFile
 from .share_assignment import ShareAssignment
 from .share_download_log import ShareDownloadLog
+from .token_share_user import TokenShareUser
 
 __all__ = [
     "User",

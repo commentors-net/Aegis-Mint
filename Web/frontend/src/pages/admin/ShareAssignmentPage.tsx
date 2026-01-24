@@ -15,7 +15,7 @@ export default function ShareAssignmentPage() {
 
   const [tokenInfo, setTokenInfo] = useState<sharesApi.TokenDeployment | null>(null);
   const [shares, setShares] = useState<sharesApi.ShareFile[]>([]);
-  const [users, setUsers] = useState<sharesApi.User[]>([]);
+  const [users, setUsers] = useState<sharesApi.TokenShareUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -36,13 +36,13 @@ export default function ShareAssignmentPage() {
       const [tokensData, sharesData, usersData] = await Promise.all([
         sharesApi.listTokenDeployments(token),
         sharesApi.getTokenShares(token, tokenId),
-        sharesApi.listUsers(token),
+        sharesApi.getTokenShareUsers(token, tokenId),
       ]);
 
       const tok = tokensData.find((t) => t.id === tokenId);
       setTokenInfo(tok || null);
       setShares(sharesData.sort((a, b) => a.share_number - b.share_number));
-      setUsers(usersData.filter((u) => u.is_active && u.role === "GovernanceAuthority"));
+      setUsers(usersData);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Failed to load data";
       setError(errorMsg);
@@ -147,16 +147,51 @@ export default function ShareAssignmentPage() {
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       {/* Header */}
-      <div className="mb-6">
-        <div className="mb-2 flex items-center gap-2">
-          <Button onClick={() => navigate("/admin/tokens")} variant="secondary" size="sm">
-            ← Back to Tokens
-          </Button>
+      <div className="mb-6 rounded-2xl border border-gray-200 bg-white/90 p-6 shadow-sm backdrop-blur">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div className="mb-4">
+              <Button onClick={() => navigate("/admin/tokens")} variant="secondary" size="sm">
+                ← Back to Tokens
+              </Button>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-3xl font-bold text-gray-900">
+                {tokenInfo ? tokenInfo.token_name : "Loading..."}
+              </h1>
+              {tokenInfo && (
+                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-gray-600">
+                  {tokenInfo.token_symbol}
+                </span>
+              )}
+            </div>
+            <p className="mt-2 text-sm text-gray-600">
+              Manage share assignments for token-specific users
+            </p>
+          </div>
+
+          {!loading && (
+            <div className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm lg:w-auto">
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center justify-between gap-6">
+                  <span className="font-medium text-gray-600">Total Shares</span>
+                  <span className="text-xs text-gray-400">&nbsp;&nbsp;&nbsp;&nbsp;•&nbsp;&nbsp;&nbsp;&nbsp;</span>
+                  <span className="font-semibold text-gray-900 tabular-nums">{shares.length}</span>
+                </div>
+                <div className="flex items-center justify-between gap-6">
+                  <span className="font-medium text-gray-600">Assigned</span>
+                  <span className="text-xs text-gray-400">&nbsp;&nbsp;•&nbsp;&nbsp;</span>
+                  <span className="font-semibold text-green-600 tabular-nums">{assignedCount}</span>
+                </div>
+                <div className="flex items-center justify-between gap-6">
+                  <span className="font-medium text-gray-600">Unassigned</span>
+                  <span className="text-xs text-gray-400">&nbsp;&nbsp;&nbsp;&nbsp;•&nbsp;&nbsp;&nbsp;&nbsp;</span>
+                  <span className="font-semibold text-orange-600 tabular-nums">{unassignedCount}</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-        <h1 className="text-2xl font-bold text-gray-900">
-          {tokenInfo ? `${tokenInfo.token_name} (${tokenInfo.token_symbol})` : "Loading..."}
-        </h1>
-        <p className="mt-2 text-sm text-gray-600">Manage share assignments for governance authority users</p>
       </div>
 
       {error && (
@@ -165,23 +200,6 @@ export default function ShareAssignmentPage() {
         </div>
       )}
 
-      {/* Summary Stats */}
-      {!loading && shares.length > 0 && (
-        <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-            <div className="text-2xl font-bold text-gray-900">{shares.length}</div>
-            <div className="text-sm text-gray-600">Total Shares</div>
-          </div>
-          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-            <div className="text-2xl font-bold text-green-600">{assignedCount}</div>
-            <div className="text-sm text-gray-600">Assigned</div>
-          </div>
-          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-            <div className="text-2xl font-bold text-orange-600">{unassignedCount}</div>
-            <div className="text-sm text-gray-600">Unassigned</div>
-          </div>
-        </div>
-      )}
 
       {/* Shares Table */}
       <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow">
@@ -207,8 +225,30 @@ export default function ShareAssignmentPage() {
 
             {!loading && shares.length === 0 && (
               <tr>
-                <td colSpan={6} className="text-center text-gray-500">
-                  No shares found for this token
+                <td colSpan={6} className="text-center">
+                  <div className="py-8 px-4">
+                    <div className="text-gray-600 mb-3 text-lg font-medium">
+                      No shares found for this token
+                    </div>
+                    <div className="text-gray-500 text-sm mb-4 max-w-2xl mx-auto">
+                      Shares are created when you mint a token using the <strong>AegisMint.Mint desktop application</strong>.
+                      The desktop app automatically generates and uploads recovery shares during the minting process.
+                    </div>
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left max-w-2xl mx-auto">
+                      <div className="font-semibold text-blue-900 mb-2">📋 To upload shares:</div>
+                      <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
+                        <li>Open the <strong>AegisMint.Mint</strong> desktop application</li>
+                        <li>Click the <strong>"Mint Token"</strong> button to create a new token</li>
+                        <li>Shares will be automatically generated and uploaded to this system</li>
+                        <li>Return here to assign shares to users</li>
+                      </ol>
+                    </div>
+                    <div className="mt-4">
+                      <Button onClick={() => navigate('/admin/tokens')} variant="secondary" size="sm">
+                        ← Back to Tokens List
+                      </Button>
+                    </div>
+                  </div>
                 </td>
               </tr>
             )}
@@ -247,7 +287,7 @@ export default function ShareAssignmentPage() {
                         </div>
                       </div>
                     ) : (
-                      <span className="text-gray-400">—</span>
+                      <span className="text-gray-500 text-sm">Not assigned yet</span>
                     )}
                   </Td>
                   <Td>
@@ -278,55 +318,67 @@ export default function ShareAssignmentPage() {
 
       {/* Assign Modal */}
       {showAssignModal && selectedShare && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-            <h2 className="mb-4 text-xl font-bold">Assign Share #{selectedShare.share_number}</h2>
-
-            <div className="mb-4">
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Assign to User <span className="text-red-500">*</span>
+        <div className="modal">
+          <div className="modal-card">
+            <div className="hd">
+              <h3>Assign Share #{selectedShare.share_number}</h3>
+              <Button variant="ghost" size="sm" onClick={() => setShowAssignModal(false)}>
+                Close
+              </Button>
+            </div>
+            <div className="bd stack">
+              <label className="field">
+                <div className="field-label">
+                  Assign to User <span className="text-red-500">*</span>
+                </div>
+                <select
+                  value={assignUserId}
+                  onChange={(e) => setAssignUserId(e.target.value)}
+                  className="input"
+                  style={{ color: '#1f2937' }}
+                  required
+                >
+                  <option value="" style={{ color: '#6b7280' }}>Select a user...</option>
+                  {users.map((user) => (
+                    <option key={user.id} value={user.id} style={{ color: '#1f2937' }}>
+                      {user.name} ({user.email})
+                    </option>
+                  ))}
+                </select>
+                {users.length === 0 && (
+                  <p className="mt-2 text-sm text-amber-600">
+                    No users found for this token. Please add users in the Tokens page first.
+                  </p>
+                )}
               </label>
-              <select
-                value={assignUserId}
-                onChange={(e) => setAssignUserId(e.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                required
-              >
-                <option value="">Select a user...</option>
-                {users.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.email}
-                  </option>
-                ))}
-              </select>
-            </div>
 
-            <div className="mb-6">
-              <label className="mb-1 block text-sm font-medium text-gray-700">Assignment Notes (Optional)</label>
-              <textarea
-                value={assignNotes}
-                onChange={(e) => setAssignNotes(e.target.value)}
-                rows={3}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                placeholder="Add any notes about this assignment..."
-              />
-            </div>
+              <label className="field">
+                <div className="field-label">Assignment Notes (Optional)</div>
+                <textarea
+                  value={assignNotes}
+                  onChange={(e) => setAssignNotes(e.target.value)}
+                  rows={3}
+                  className="input"
+                  placeholder="Add any notes about this assignment..."
+                />
+              </label>
 
-            <div className="flex justify-end gap-2">
-              <Button
-                onClick={() => setShowAssignModal(false)}
-                variant="secondary"
-                disabled={loading}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleAssignSubmit}
-                variant="primary"
-                disabled={loading || !assignUserId}
-              >
-                {loading ? "Assigning..." : "Assign Share"}
-              </Button>
+              <div className="flex justify-end gap-2">
+                <Button
+                  onClick={() => setShowAssignModal(false)}
+                  variant="secondary"
+                  disabled={loading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleAssignSubmit}
+                  variant="primary"
+                  disabled={loading || !assignUserId}
+                >
+                  {loading ? "Assigning..." : "Assign Share"}
+                </Button>
+              </div>
             </div>
           </div>
         </div>

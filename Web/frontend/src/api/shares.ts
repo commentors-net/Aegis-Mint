@@ -66,6 +66,16 @@ export type User = {
   is_active: boolean;
 };
 
+export type TokenShareUser = {
+  id: string;
+  token_deployment_id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  is_active: boolean;
+  created_at_utc: string;
+};
+
 /**
  * Get list of all token deployments with share upload status
  */
@@ -103,7 +113,7 @@ export function createShareAssignment(
     assignment_notes?: string;
   }
 ) {
-  return apiFetch<ShareAssignment>("/api/admin/share-assignments", {
+  return apiFetch<ShareAssignment>("/api/admin/share-assignments/", {
     method: "POST",
     token,
     body: JSON.stringify(body),
@@ -179,4 +189,64 @@ export function getShareOperationLogs(
   
   const queryString = query.toString() ? `?${query.toString()}` : "";
   return apiFetch<ShareOperationLog[]>(`/api/admin/share-operations${queryString}`, { token });
+}
+
+// ========== Token Share User APIs ==========
+
+/**
+ * Create a new token-specific share user
+ */
+export function createTokenShareUser(
+  token: string,
+  body: {
+    token_deployment_id: string;
+    name: string;
+    email: string;
+    phone?: string;
+    password: string;
+  }
+) {
+  return apiFetch<TokenShareUser>("/api/token-share-users/", {
+    method: "POST",
+    token,
+    body: JSON.stringify(body),
+  });
+}
+
+/**
+ * Get all share users for a specific token deployment
+ */
+export function getTokenShareUsers(token: string, tokenDeploymentId: string) {
+  return apiFetch<TokenShareUser[]>(`/api/token-share-users/token/${tokenDeploymentId}`, { token });
+}
+
+/**
+ * Update a token share user
+ */
+export function updateTokenShareUser(
+  token: string,
+  userId: string,
+  body: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    password?: string;
+    is_active?: boolean;
+  }
+) {
+  return apiFetch<TokenShareUser>(`/api/token-share-users/${userId}`, {
+    method: "PUT",
+    token,
+    body: JSON.stringify(body),
+  });
+}
+
+/**
+ * Delete a token share user
+ */
+export function deleteTokenShareUser(token: string, userId: string) {
+  return apiFetch<{ message: string }>(`/api/token-share-users/${userId}`, {
+    method: "DELETE",
+    token,
+  });
 }

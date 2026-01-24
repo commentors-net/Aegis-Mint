@@ -17,7 +17,8 @@ from app.api.routers import (
     mint_approval,
     share_files,
     admin_share_assignments,
-    user_shares
+    user_shares,
+    token_share_users
 )
 from app.core.config import get_settings
 from app.db.base import Base
@@ -77,6 +78,7 @@ app.include_router(mint_approval.router)
 app.include_router(share_files.router)
 app.include_router(admin_share_assignments.router)
 app.include_router(user_shares.router)
+app.include_router(token_share_users.router)
 if settings.enable_docs:
     app.include_router(debug.router)
 

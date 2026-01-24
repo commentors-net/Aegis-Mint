@@ -27,5 +27,4 @@ class User(Base):
 
     assignments = relationship("GovernanceAssignment", back_populates="user", cascade="all, delete-orphan")
     approvals = relationship("Approval", back_populates="approver")
-    share_assignments = relationship("ShareAssignment", foreign_keys="ShareAssignment.user_id", back_populates="user", cascade="all, delete-orphan")
     download_logs = relationship("ShareDownloadLog", back_populates="user", cascade="all, delete-orphan")

@@ -784,7 +784,7 @@ public partial class MainWindow : Window
                     if (!string.IsNullOrWhiteSpace(tokenName))
                     {
                         var sharesPath = Path.Combine(@"C:\Shares", tokenName);
-                        await StoreDeploymentInformationAsync(
+                        var deploymentId = await StoreDeploymentInformationAsync(
                             tokenName: tokenName,
                             tokenSymbol: tokenSymbol,
                             tokenDecimals: tokenDecimals,
@@ -797,6 +797,33 @@ public partial class MainWindow : Window
                             totalShares: totalShares,
                             clientShareCount: govShares,
                             sharesPath: sharesPath);
+                        
+                        // Upload individual share files to backend with retry logic
+                        if (!string.IsNullOrWhiteSpace(deploymentId))
+                        {
+                            var uploadSuccess = await UploadShareFilesAsync(deploymentId, sharesPath, totalShares);
+                            
+                            // Retry once if upload failed
+                            if (!uploadSuccess)
+                            {
+                                Logger.Warning("First share upload attempt failed, retrying...");
+                                await Task.Delay(2000); // Wait 2 seconds before retry
+                                uploadSuccess = await UploadShareFilesAsync(deploymentId, sharesPath, totalShares);
+                                
+                                if (!uploadSuccess)
+                                {
+                                    Logger.Error("Share upload failed after retry. Shares are stored locally but not uploaded to backend.");
+                                    await SendToWebAsync("host-warning", new 
+                                    { 
+                                        message = $"Token deployed successfully, but share upload failed. Shares are saved locally at: {sharesPath}" 
+                                    });
+                                }
+                            }
+                        }
+                        else
+                        {
+                            Logger.Warning("No deployment ID returned from backend, skipping share upload");
+                        }
                     }
 
                     await SendToWebAsync("contract-deployed", new
@@ -1778,7 +1805,7 @@ public partial class MainWindow : Window
 
     private record BridgeMessage(string? type, JsonElement? payload);
 
-    private async Task StoreDeploymentInformationAsync(
+    private async Task<string?> StoreDeploymentInformationAsync(
         string tokenName,
         string tokenSymbol,
         int tokenDecimals,
@@ -1874,17 +1901,122 @@ public partial class MainWindow : Window
                 var responseBody = await response.Content.ReadAsStringAsync();
                 Logger.Info($"✓ Deployment information stored in backend successfully");
                 Logger.Debug($"Backend response: {responseBody}");
+                
+                // Extract deployment ID from response
+                try
+                {
+                    using var doc = JsonDocument.Parse(responseBody);
+                    if (doc.RootElement.TryGetProperty("id", out var idProp))
+                    {
+                        return idProp.GetString();
+                    }
+                }
+                catch (Exception parseEx)
+                {
+                    Logger.Warning($"Failed to parse deployment ID from response: {parseEx.Message}");
+                }
+                
+                return null;
             }
             else
             {
                 var errorBody = await response.Content.ReadAsStringAsync();
                 Logger.Warning($"Failed to store deployment info in backend. Status: {response.StatusCode}, Error: {errorBody}");
+                return null;
             }
         }
         catch (Exception ex)
         {
             Logger.Warning($"Failed to store deployment information in backend: {ex.Message}");
             // Don't throw - this is a non-critical operation for emergency recovery only
+            return null;
+        }
+    }
+
+    private async Task<bool> UploadShareFilesAsync(string deploymentId, string sharesPath, int expectedShareCount)
+    {
+        try
+        {
+            Logger.Info($"Uploading {expectedShareCount} share files to backend...");
+            
+            if (!Directory.Exists(sharesPath))
+            {
+                Logger.Warning($"Shares directory not found: {sharesPath}");
+                return false;
+            }
+            
+            var shareFiles = Directory.GetFiles(sharesPath, "*.json")
+                .OrderBy(f => f)
+                .ToList();
+            
+            if (shareFiles.Count == 0)
+            {
+                Logger.Warning("No share files found to upload");
+                return false;
+            }
+            
+            if (shareFiles.Count != expectedShareCount)
+            {
+                Logger.Warning($"Expected {expectedShareCount} share files but found {shareFiles.Count}");
+            }
+            
+            var apiBaseUrl = _vaultManager.GetApiBaseUrl();
+            var fullUrl = apiBaseUrl.TrimEnd('/') + "/share-files/bulk";
+            
+            var shareItems = new List<object>();
+            for (int i = 0; i < shareFiles.Count; i++)
+            {
+                var shareFile = shareFiles[i];
+                var fileName = Path.GetFileName(shareFile);
+                var shareContent = File.ReadAllText(shareFile);
+                
+                // Encrypt the share file content
+                var encryptedContent = _vaultManager.EncryptData(shareContent);
+                
+                shareItems.Add(new
+                {
+                    share_number = i + 1,
+                    file_name = fileName,
+                    encrypted_content = encryptedContent,
+                    encryption_key_id = (string?)null
+                });
+                
+                Logger.Debug($"Prepared share #{i + 1}: {fileName}");
+            }
+            
+            var bulkUploadData = new
+            {
+                token_deployment_id = deploymentId,
+                shares = shareItems
+            };
+            
+            using var httpClient = new HttpClient();
+            httpClient.Timeout = TimeSpan.FromSeconds(60);
+            
+            var json = JsonSerializer.Serialize(bulkUploadData);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            
+            var response = await httpClient.PostAsync(fullUrl, content);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var responseBody = await response.Content.ReadAsStringAsync();
+                Logger.Info($"✓ Successfully uploaded {shareFiles.Count} share files to backend");
+                Logger.Debug($"Upload response: {responseBody}");
+                return true;
+            }
+            else
+            {
+                var errorBody = await response.Content.ReadAsStringAsync();
+                Logger.Warning($"Failed to upload share files. Status: {response.StatusCode}, Error: {errorBody}");
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"Failed to upload share files: {ex.Message}");
+            // Don't throw - deployment was successful, share upload is supplementary
+            return false;
         }
     }
 

@@ -67,11 +67,12 @@ class TokenDeploymentResponse(BaseModel):
     desktop_id: Optional[str]
     deployment_notes: Optional[str]
     shares_uploaded: bool = False
-    shares_uploaded_at: Optional[datetime] = None
-    shares_uploaded_count: int = 0
+    shares_uploaded_at: Optional[datetime] = Field(None, alias="upload_completed_at_utc")
+    shares_uploaded_count: int = Field(0, alias="share_files_count")
 
     class Config:
         from_attributes = True
+        populate_by_name = True  # Allow both field name and alias
 
 
 @router.post("/", response_model=TokenDeploymentResponse)

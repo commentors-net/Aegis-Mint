@@ -53,3 +53,4 @@ class TokenDeployment(Base):
 
     # Relationships
     share_files = relationship("ShareFile", back_populates="token_deployment", cascade="all, delete-orphan")
+    share_users = relationship("TokenShareUser", back_populates="token_deployment", cascade="all, delete-orphan")
