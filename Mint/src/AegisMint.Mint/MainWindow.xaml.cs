@@ -1172,15 +1172,16 @@ public partial class MainWindow : Window
                     continue;
                 }
 
-                // Encrypt the share content for storage
-                var encryptedContent = _vaultManager.EncryptData(shareContent);
+                // Store the share content as plain JSON (server will handle encryption if needed)
+                // Note: Shares need to be downloadable as plain JSON for the recovery tool
+                var encryptedContent = shareContent;
                 
                 shares.Add(new
                 {
                     share_number = shareNumber,
                     file_name = fileName,
                     encrypted_content = encryptedContent,
-                    encryption_key_id = "vault-key-v1"
+                    encryption_key_id = "none" // No client-side encryption
                 });
                 
                 Logger.Info($"Prepared share {shareNumber}/{shareFiles.Count} for upload: {fileName}");

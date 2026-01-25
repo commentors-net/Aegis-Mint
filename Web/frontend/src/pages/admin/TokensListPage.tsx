@@ -134,6 +134,38 @@ export default function TokensListPage() {
     
     try {
       if (userModal.mode === "add") {
+        // Check if email already exists for other tokens
+        console.log("Checking email:", userForm.email, "for token:", userModal.tokenId);
+        const checkResponse = await fetch(
+          `${import.meta.env.VITE_API_BASE_URL || ""}/api/token-share-users/check-email/${encodeURIComponent(userForm.email)}?token_deployment_id=${userModal.tokenId}`,
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        );
+        
+        console.log("Check response status:", checkResponse.status);
+        
+        if (checkResponse.ok) {
+          const checkData = await checkResponse.json();
+          console.log("Check data:", checkData);
+          if (checkData.exists && checkData.tokens.length > 0) {
+            const tokenNames = checkData.tokens.map((t: any) => t.token_name).join(", ");
+            const confirmed = confirm(
+              `This email is already registered for: ${tokenNames}\n\n` +
+              `Do you want to assign the same user to this token as well?`
+            );
+            if (!confirmed) {
+              console.log("User canceled adding duplicate email");
+              return; // User canceled
+            }
+            console.log("User confirmed adding duplicate email");
+          } else {
+            console.log("Email is unique, proceeding with creation");
+          }
+        } else {
+          console.error("Check email endpoint failed:", checkResponse.status);
+        }
+        
         await sharesApi.createTokenShareUser(token, {
           token_deployment_id: userModal.tokenId,
           name: userForm.name,
@@ -469,6 +501,9 @@ export default function TokensListPage() {
                   onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
                   placeholder="john@example.com"
                 />
+                <p className="mt-1 text-xs text-gray-600">
+                  ℹ️ Same email can be used across different tokens. Email must be unique within each token.
+                </p>
               </label>
               <label className="field">
                 <div className="field-label">Phone (optional)</div>

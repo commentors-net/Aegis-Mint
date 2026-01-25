@@ -1,4 +1,5 @@
 """API endpoints for user share download and history."""
+import json
 import logging
 from datetime import datetime
 from typing import List, Optional
@@ -8,13 +9,15 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, joinedload
 
-from app.api.deps import get_current_user, get_db
+from app.api.deps import get_current_token_user, get_db
+from app.core.encryption import decrypt_sensitive_data
 from app.core.time import utcnow
 from app.models.share_assignment import ShareAssignment
 from app.models.share_download_log import ShareDownloadLog
 from app.models.share_file import ShareFile
 from app.models.token_deployment import TokenDeployment
-from app.models.user import User
+from app.models.token_user import TokenUser
+from app.models.token_user_login_challenge import TokenUserLoginChallenge
 
 logger = logging.getLogger(__name__)
 
@@ -58,14 +61,14 @@ class DownloadHistoryItem(BaseModel):
 @router.get("", response_model=List[MyShareResponse])
 def get_my_shares(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: TokenUser = Depends(get_current_token_user)
 ):
     """
-    Get list of all shares assigned to the current user.
+    Get list of all shares assigned to the current token user.
     
     Returns active assignments with download status and metadata.
     """
-    logger.info(f"User {current_user.email} requesting their assigned shares")
+    logger.info(f"Token user {current_user.email} requesting their assigned shares")
     
     # Query assignments with related data
     assignments = (
@@ -109,10 +112,10 @@ def download_share(
     assignment_id: str,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: TokenUser = Depends(get_current_token_user)
 ):
     """
-    Download a share file assigned to the current user.
+    Download a share file assigned to the current token user.
     
     - Verifies assignment belongs to current user
     - Checks if download is allowed
@@ -124,12 +127,12 @@ def download_share(
         assignment_id: ID of the share assignment
         request: FastAPI request for IP/user-agent extraction
         db: Database session
-        current_user: Authenticated user
+        current_user: Authenticated token user
     
     Returns:
         JSON file with encrypted share content
     """
-    logger.info(f"User {current_user.email} attempting to download assignment {assignment_id}")
+    logger.info(f"Token user {current_user.email} attempting to download assignment {assignment_id}")
     
     # Get client info for audit log
     ip_address = request.client.host if request.client else None
@@ -214,7 +217,8 @@ def download_share(
         # Log successful download
         log_entry = ShareDownloadLog(
             share_assignment_id=assignment_id,
-            user_id=current_user.id,
+            user_id=None,  # Not a system user
+            token_user_id=current_user.id,  # Token share user
             downloaded_at_utc=now,
             ip_address=ip_address,
             user_agent=user_agent,
@@ -229,11 +233,38 @@ def download_share(
             f"for token {token.token_name} (assignment {assignment_id})"
         )
         
-        # Return file content with proper headers
+        # Return share content as JSON
+        # Shares are stored as plain JSON strings in the database
+        # and should be returned as downloadable JSON files for the recovery tool
+        try:
+            content_str = share_file.encrypted_content
+            
+            # Verify we have content
+            if not content_str:
+                raise HTTPException(status_code=500, detail="Share content is empty")
+            
+            # Validate it's valid JSON
+            try:
+                json.loads(content_str)
+            except json.JSONDecodeError:
+                logger.error(f"Share #{share_file.share_number} contains invalid JSON")
+                raise HTTPException(status_code=500, detail="Share content is corrupted")
+            
+            logger.info(f"Serving share #{share_file.share_number} as JSON ({len(content_str)} bytes)")
+        except HTTPException:
+            raise
+        except Exception as error:
+            logger.error(f"Failed to prepare share: {type(error).__name__}: {str(error)}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to prepare share file: {str(error)}"
+            )
+        
+        # Return share file as JSON
         filename = f"{share_file.file_name}"
         
         return Response(
-            content=share_file.encrypted_content,
+            content=content_str,  # Send plain JSON content
             media_type="application/json",
             headers={
                 "Content-Disposition": f'attachment; filename="{filename}"',
@@ -250,7 +281,8 @@ def download_share(
         # Log failed download
         log_entry = ShareDownloadLog(
             share_assignment_id=assignment_id,
-            user_id=current_user.id,
+            user_id=None,  # Not a system user
+            token_user_id=current_user.id,  # Token share user
             downloaded_at_utc=utcnow(),
             ip_address=ip_address,
             user_agent=user_agent,
@@ -269,14 +301,14 @@ def download_share(
 @router.get("/history", response_model=List[DownloadHistoryItem])
 def get_download_history(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: TokenUser = Depends(get_current_token_user)
 ):
     """
-    Get download history for the current user.
+    Get download history for the current token user.
     
     Returns all download attempts (successful and failed) with timestamps and details.
     """
-    logger.info(f"User {current_user.email} requesting download history")
+    logger.info(f"Token user {current_user.email} requesting download history")
     
     # Query download logs with related data
     logs = (
@@ -284,7 +316,7 @@ def get_download_history(
         .join(ShareAssignment, ShareDownloadLog.share_assignment_id == ShareAssignment.id)
         .join(ShareFile, ShareAssignment.share_file_id == ShareFile.id)
         .join(TokenDeployment, ShareFile.token_deployment_id == TokenDeployment.id)
-        .filter(ShareDownloadLog.user_id == current_user.id)
+        .filter(ShareDownloadLog.token_user_id == current_user.id)
         .order_by(ShareDownloadLog.downloaded_at_utc.desc())
         .all()
     )

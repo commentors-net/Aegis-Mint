@@ -49,14 +49,20 @@ def decode_token(token: str) -> Dict[str, Any]:
     )
 
 
-def create_access_token(user_id: str, role: str) -> str:
+def create_access_token(user_id: str, role: str, token_deployment_id: str | None = None) -> str:
     settings = get_settings()
-    return create_token({"sub": user_id, "role": role, "type": "access"}, settings.access_token_exp_minutes)
+    payload = {"sub": user_id, "role": role, "type": "access"}
+    if token_deployment_id:
+        payload["token_deployment_id"] = token_deployment_id
+    return create_token(payload, settings.access_token_exp_minutes)
 
 
-def create_refresh_token(user_id: str, role: str) -> str:
+def create_refresh_token(user_id: str, role: str, token_deployment_id: str | None = None) -> str:
     settings = get_settings()
-    return create_token({"sub": user_id, "role": role, "type": "refresh"}, settings.refresh_token_exp_minutes)
+    payload = {"sub": user_id, "role": role, "type": "refresh"}
+    if token_deployment_id:
+        payload["token_deployment_id"] = token_deployment_id
+    return create_token(payload, settings.refresh_token_exp_minutes)
 
 
 def verify_token(token: str) -> Dict[str, Any]:

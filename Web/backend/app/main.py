@@ -18,7 +18,8 @@ from app.api.routers import (
     share_files,
     admin_share_assignments,
     user_shares,
-    token_share_users
+    token_share_users,
+    token_user_auth
 )
 from app.core.config import get_settings
 from app.db.base import Base
@@ -79,6 +80,7 @@ app.include_router(share_files.router)
 app.include_router(admin_share_assignments.router)
 app.include_router(user_shares.router)
 app.include_router(token_share_users.router)
+app.include_router(token_user_auth.router)
 if settings.enable_docs:
     app.include_router(debug.router)
 

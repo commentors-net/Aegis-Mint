@@ -14,7 +14,7 @@ class ShareAssignment(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     share_file_id = Column(String(36), ForeignKey("share_files.id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(String(36), ForeignKey("token_share_users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(String(36), ForeignKey("token_users.id", ondelete="CASCADE"), nullable=False)
     assigned_by = Column(String(36), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     assigned_at_utc = Column(DateTime(timezone=True), default=utcnow, nullable=False)
     
@@ -32,6 +32,6 @@ class ShareAssignment(Base):
 
     # Relationships
     share_file = relationship("ShareFile", back_populates="assignments")
-    user = relationship("TokenShareUser", foreign_keys=[user_id], back_populates="share_assignments")
+    user = relationship("TokenUser", foreign_keys=[user_id], back_populates="share_assignments")
     assigner = relationship("User", foreign_keys=[assigned_by])
     download_logs = relationship("ShareDownloadLog", back_populates="assignment", cascade="all, delete-orphan")

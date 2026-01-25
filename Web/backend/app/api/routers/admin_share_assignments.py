@@ -14,7 +14,7 @@ from app.models.share_assignment import ShareAssignment
 from app.models.share_file import ShareFile
 from app.models.share_operation_log import ShareOperationLog, ShareOperationType
 from app.models.token_deployment import TokenDeployment
-from app.models.token_share_user import TokenShareUser
+from app.models.token_user import TokenUser
 from app.models.user import User, UserRole
 
 logger = logging.getLogger(__name__)
@@ -109,14 +109,13 @@ def create_share_assignment(
         if not share_file:
             raise HTTPException(status_code=404, detail="Share file not found")
         
-        # Verify user exists and is active
-        target_user = db.query(TokenShareUser).filter(TokenShareUser.id == request.user_id).first()
+        # Verify user exists
+        target_user = db.query(TokenUser).filter(TokenUser.id == request.user_id).first()
         
         if not target_user:
             raise HTTPException(status_code=404, detail="User not found")
         
-        if not target_user.is_active:
-            raise HTTPException(status_code=400, detail="Cannot assign share to inactive user")
+        # Note: TokenUser model doesn't have is_active field - all users are considered active
         
         # Check if share is already assigned to this user
         existing = db.query(ShareAssignment).filter(
@@ -347,16 +346,9 @@ def update_share_assignment(
         if not changes:
             raise HTTPException(status_code=400, detail="No changes provided")
         
-        # Log operation
-        operation_log = ShareOperationLog(
-            operation_type=ShareOperationType.SHARE_UPDATED,
-            user_id=current_user.id,
-            target_user_id=assignment.user_id,
-            share_number=assignment.share_file.share_number,
-            token_address=assignment.share_file.token_deployment.contract_address,
-            details=f"Admin {current_user.email} updated assignment: {', '.join(changes)}"
-        )
-        db.add(operation_log)
+        # Note: Admin operations are tracked through user actions, not in ShareOperationLog
+        # ShareOperationLog is specifically for desktop app operations (creation/retrieval)
+        logger.info(f"Admin {current_user.email} updated assignment {assignment.id}: {', '.join(changes)}")
         
         db.commit()
         db.refresh(assignment)

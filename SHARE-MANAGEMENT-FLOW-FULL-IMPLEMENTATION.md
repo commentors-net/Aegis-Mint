@@ -397,18 +397,57 @@ Created migration `013_add_password` for token user authentication
 - ✅ **Navigation** - Added "Share Management" tab in Admin Console sidebar
 - ✅ **Routes** - `/admin/tokens` and `/admin/tokens/:tokenId/shares`
 
-### 🚧 Phase 5: User UI (To Do)
-- [ ] Login with MFA
-- [ ] My Shares dashboard
-- [ ] Download interface
-   - MFA verification before download
-   - IP address and user agent logged
+### ✅ Phase 5: User UI (Completed)
+- ✅ **Separate Application**: ClientWeb (D:\Jobs\workspace\DiG\Aegis-Mint\ClientWeb)
+- ✅ **Token User Authentication Endpoints** (Main Backend):
+  - POST `/api/token-user-auth/login` - Email/password login
+  - POST `/api/token-user-auth/verify-otp` - MFA verification
+  - POST `/api/token-user-auth/refresh` - Token refresh
+- ✅ **ClientWeb Backend** (Port 8001 - Middleware/Proxy):
+  - FastAPI app that proxies requests to main backend
+  - Hides main backend URL from token users
+  - Auth endpoints: `/api/auth/login`, `/api/auth/verify-otp`, `/api/auth/refresh`
+  - Share endpoints: `/api/shares/my-shares`, `/api/shares/download/{id}`, `/api/shares/history`
+- ✅ **ClientWeb Frontend** (Port 5174 - React UI):
+  - Login page with email/password
+  - MFA page with QR code setup (first-time)
+  - Dashboard page showing assigned shares
+  - One-click download with automatic filename
+  - Auto token refresh on expiry
+- ✅ **Security Architecture**:
+  - Token users access separate ClientWeb application
+  - Middleware layer between user and main backend
+  - Can be deployed on different server/domain
+  - Complete isolation from admin portal
+
+### Important Architecture Notes
+
+**Application Separation:**
+- **Web** (D:\Jobs\workspace\DiG\Aegis-Mint\Web) - Admin Portal
+  - For system authorities (Super Admin, Admin)
+  - Manages tokens, token users, share assignments
+  - Backend Port: 8000, Frontend Port: 5173
+- **ClientWeb** (D:\Jobs\workspace\DiG\Aegis-Mint\ClientWeb) - Token User Portal
+  - For token share users (external users)
+  - Login, MFA, view shares, download
+  - Backend Port: 8001 (middleware), Frontend Port: 5174
+  - Completely separate deployment
+
+**Token User Flow:**
+1. Admin creates token user via Web admin UI
+2. Admin assigns share to token user
+3. Token user receives separate ClientWeb URL (e.g., https://shares.example.com)
+4. Token user logs in with email/password
+5. First-time: Scan QR code for MFA setup
+6. Token user views assigned shares
+7. Token user downloads share (one-time by default)
+8. Admin can re-enable download if needed
 
 ### Audit Trail
-- Every assignment: WHO assigned WHAT to WHOM and WHEN
-- Every download: WHO downloaded WHAT from WHERE and WHEN
-- Every status change: WHO enabled/disabled downloads WHEN
-- Immutable logs (no DELETE allowed)
+- Every assignment: WHO (admin email) assigned WHAT (share #) to WHOM (token user email) and WHEN
+- Every download: WHO (token user) downloaded WHAT (share #) from WHERE (IP) and WHEN
+- Every status change: WHO (admin) enabled/disabled downloads for WHOM and WHEN
+- All actions logged in share_download_log table
 
 ### Download Policies
 - **One-time Download (Default):** `download_allowed` set to FALSE after first download
@@ -492,7 +531,21 @@ Created migration `013_add_password` for token user authentication
 
 ---
 
-**Document Version:** 1.1  
+**Document Version:** 3.0  
 **Database:** MySQL  
-**Status:** Phase 1 Complete - Backend APIs implemented  
-**Next:** Implement user download endpoints and desktop app integra
+**Status:** Phase 1-5 Complete - Full share management system with token user portal  
+**Next:** Testing and production deployment  
+**Last Updated:** 2026-01-25  
+
+**Key Changes (v3.0):** 
+- Created separate ClientWeb application for token users
+- Implemented middleware architecture for security isolation  
+- Token user portal with login, MFA setup, and share download
+- Complete separation of admin (Web) and user (ClientWeb) applications
+
+**Previous Changes:**
+- Implemented token-specific user system (separate from authorities)
+- Added password authentication for token share users
+- Completed admin UI with share assignment and user management
+- Integrated desktop app with retry logic for share uploads
+- Applied database migrations 013 and 014 for user authentication

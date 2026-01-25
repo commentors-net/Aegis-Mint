@@ -386,33 +386,40 @@ export default function ShareAssignmentPage() {
 
       {/* Re-enable Modal */}
       {showReEnableModal && reEnableShare && reEnableShare.assigned_to && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-            <h2 className="mb-4 text-xl font-bold">Re-enable Download</h2>
-
-            <div className="mb-6 text-sm text-gray-700">
-              <p className="mb-2">
-                You are about to re-enable download for share <strong>#{reEnableShare.share_number}</strong> assigned to:
-              </p>
-              <div className="rounded-md bg-gray-50 p-3">
-                <p className="font-medium">{reEnableShare.assigned_to.user_email}</p>
-                <p className="mt-1 text-xs text-gray-600">
-                  Previously downloaded {reEnableShare.assigned_to.download_count} time(s)
-                </p>
-              </div>
-              <p className="mt-3 text-yellow-700">
-                ⚠️ This will allow the user to download the share again. Use this only if the user lost their file and needs
-                to re-download.
-              </p>
+        <div className="modal">
+          <div className="modal-card">
+            <div className="hd">
+              <h3>Re-enable Download</h3>
+              <Button variant="ghost" size="sm" onClick={() => setShowReEnableModal(false)}>
+                Close
+              </Button>
             </div>
+            <div className="bd stack">
+              <div className="text-sm text-gray-700">
+                <p className="mb-3">
+                  You are about to re-enable download for share <strong>#{reEnableShare.share_number}</strong> assigned to:
+                </p>
+                <div className="rounded-md bg-gray-50 p-3 border border-gray-200">
+                  <p className="font-medium text-gray-900">{reEnableShare.assigned_to.user_email}</p>
+                  <p className="mt-1 text-xs text-gray-600">
+                    Previously downloaded {reEnableShare.assigned_to.download_count} time(s)
+                  </p>
+                </div>
+                <div className="mt-4 rounded-md bg-yellow-50 border border-yellow-200 p-3">
+                  <p className="text-sm text-yellow-800">
+                    ⚠️ <strong>Warning:</strong> This will allow the user to download the share again. Use this only if the user lost their file and needs to re-download.
+                  </p>
+                </div>
+              </div>
 
-            <div className="flex justify-end gap-2">
-              <Button onClick={() => setShowReEnableModal(false)} variant="secondary" disabled={loading}>
-                Cancel
-              </Button>
-              <Button onClick={handleReEnableSubmit} variant="primary" disabled={loading}>
-                {loading ? "Enabling..." : "Re-enable Download"}
-              </Button>
+              <div className="flex justify-end gap-2">
+                <Button onClick={() => setShowReEnableModal(false)} variant="secondary" disabled={loading}>
+                  Cancel
+                </Button>
+                <Button onClick={handleReEnableSubmit} variant="primary" disabled={loading}>
+                  {loading ? "Enabling..." : "Re-enable Download"}
+                </Button>
+              </div>
             </div>
           </div>
         </div>

@@ -14,7 +14,8 @@ class ShareDownloadLog(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     share_assignment_id = Column(String(36), ForeignKey("share_assignments.id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=True)  # For system users
+    token_user_id = Column(String(36), ForeignKey("token_users.id", ondelete="CASCADE"), nullable=True)  # For token users
     downloaded_at_utc = Column(DateTime(timezone=True), default=utcnow, nullable=False)
     ip_address = Column(String(45), nullable=True)  # IPv4/IPv6
     user_agent = Column(Text, nullable=True)
@@ -24,3 +25,4 @@ class ShareDownloadLog(Base):
     # Relationships
     assignment = relationship("ShareAssignment", back_populates="download_logs")
     user = relationship("User", back_populates="download_logs")
+    token_user = relationship("TokenUser", back_populates="download_logs")

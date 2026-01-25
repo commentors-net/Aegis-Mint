@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.core.security import decode_token
 from app.db.session import SessionLocal
 from app.models import User, UserRole
+from app.models.token_user import TokenUser
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -48,3 +49,41 @@ def require_role(role: UserRole):
         return user
 
     return checker
+
+
+def get_current_token_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme), 
+    db: Session = Depends(get_db)
+) -> TokenUser:
+    """
+    Get current token share user from JWT token.
+    Used for external users accessing their assigned shares.
+    """
+    if credentials is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing bearer token")
+    
+    try:
+        payload = decode_token(credentials.credentials)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+    if payload.get("type") != "access":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
+    
+    # Check if this is a TokenShareUser token
+    role = payload.get("role")
+    if role != "TokenShareUser":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user type")
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
+
+    token_user = db.query(TokenUser).filter(
+        TokenUser.id == user_id
+    ).first()
+    
+    if not token_user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    
+    return token_user
