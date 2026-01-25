@@ -66,9 +66,13 @@ class TokenDeploymentResponse(BaseModel):
     encrypted_shares: Optional[str]
     desktop_id: Optional[str]
     deployment_notes: Optional[str]
+    shares_uploaded: bool = False
+    shares_uploaded_at: Optional[datetime] = Field(None, alias="upload_completed_at_utc")
+    shares_uploaded_count: int = Field(0, alias="share_files_count")
 
     class Config:
         from_attributes = True
+        populate_by_name = True  # Allow both field name and alias
 
 
 @router.post("/", response_model=TokenDeploymentResponse)
@@ -127,6 +131,7 @@ def create_token_deployment(
 def list_token_deployments(
     network: Optional[str] = None,
     token_name: Optional[str] = None,
+    shares_uploaded: Optional[bool] = None,
     limit: int = 100,
     db: Session = Depends(get_db)
 ):
@@ -144,6 +149,12 @@ def list_token_deployments(
         
         if token_name:
             query = query.filter(TokenDeployment.token_name.ilike(f"%{token_name}%"))
+        
+        if shares_uploaded is not None:
+            if shares_uploaded:
+                query = query.filter(TokenDeployment.shares_uploaded == True)
+            else:
+                query = query.filter(TokenDeployment.shares_uploaded == False)
         
         deployments = query.order_by(TokenDeployment.created_at_utc.desc()).limit(limit).all()
         

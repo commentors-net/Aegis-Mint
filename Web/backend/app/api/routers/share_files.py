@@ -5,10 +5,11 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_db
 from app.core.time import utcnow
+from app.models.share_assignment import ShareAssignment
 from app.models.share_file import ShareFile
 from app.models.token_deployment import TokenDeployment
 
@@ -31,6 +32,19 @@ class ShareFilesBulkCreate(BaseModel):
     shares: List[ShareFileItem] = Field(..., min_items=1, description="List of share files")
 
 
+class AssignedToInfo(BaseModel):
+    """Assignment information for a share."""
+    assignment_id: str
+    user_id: str
+    user_name: str
+    user_email: str
+    download_allowed: bool
+    download_count: int
+    
+    class Config:
+        from_attributes = True
+
+
 class ShareFileResponse(BaseModel):
     """Response model for a share file."""
     id: str
@@ -40,6 +54,7 @@ class ShareFileResponse(BaseModel):
     encryption_key_id: str | None
     created_at_utc: datetime
     is_assigned: bool = False
+    assigned_to: AssignedToInfo | None = None
 
     class Config:
         from_attributes = True
@@ -134,7 +149,7 @@ def create_share_files_bulk(
         db.commit()
         
         logger.info(
-            f"✓ Bulk uploaded {len(request.shares)} share files for token {deployment.token_name} "
+            f"[OK] Bulk uploaded {len(request.shares)} share files for token {deployment.token_name} "
             f"(deployment_id: {request.token_deployment_id})"
         )
         
@@ -174,14 +189,35 @@ def get_token_share_files(
             raise HTTPException(status_code=404, detail="Token deployment not found")
         
         # Get all share files with assignment status
-        shares = db.query(ShareFile).filter(
+        shares = db.query(ShareFile).options(
+            joinedload(ShareFile.assignments).joinedload(ShareAssignment.user)
+        ).filter(
             ShareFile.token_deployment_id == token_deployment_id
         ).order_by(ShareFile.share_number).all()
         
         # Build response with assignment status
         result = []
         for share in shares:
-            is_assigned = len(share.assignments) > 0
+            # Get active assignment if exists
+            active_assignment = None
+            for assignment in share.assignments:
+                if assignment.is_active:
+                    active_assignment = assignment
+                    break
+            
+            is_assigned = active_assignment is not None
+            assigned_to = None
+            
+            if active_assignment:
+                assigned_to = AssignedToInfo(
+                    assignment_id=active_assignment.id,
+                    user_id=active_assignment.user.id,
+                    user_name=active_assignment.user.name,
+                    user_email=active_assignment.user.email,
+                    download_allowed=active_assignment.download_allowed,
+                    download_count=active_assignment.download_count
+                )
+            
             share_dict = {
                 "id": share.id,
                 "token_deployment_id": share.token_deployment_id,
@@ -189,7 +225,8 @@ def get_token_share_files(
                 "file_name": share.file_name,
                 "encryption_key_id": share.encryption_key_id,
                 "created_at_utc": share.created_at_utc,
-                "is_assigned": is_assigned
+                "is_assigned": is_assigned,
+                "assigned_to": assigned_to
             }
             result.append(ShareFileResponse(**share_dict))
         

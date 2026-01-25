@@ -7,6 +7,7 @@ const tabs = [
   { path: "desktops", label: "Manage Desktops" },
   { path: "assign-desktops", label: "Assign Desktops" },
   { path: "mint-approval", label: "Mint Approval" },
+  { path: "tokens", label: "Share Management" },
   { path: "certificates", label: "Certificates" },
   { path: "recover-shares", label: "Recover Shares" },
   { path: "downloads", label: "Downloads" },

@@ -116,10 +116,17 @@ graph TB
 - Each row = one share file
 - Stores encrypted content
 
+**`token_share_users`** - Token-specific users for share access
+- Separate from system authorities (users table)
+- Each user bound to specific token
+- Fields: name, email, phone, password_hash, mfa_secret, is_active
+- Created via Admin UI when assigning shares
+
 **`share_assignments`** - Who gets which share
-- Links share to user
+- Links share to `token_share_users` (NOT system users)
 - Tracks download status and count
 - One share per user (UNIQUE constraint)
+- FK: `user_id` → `token_share_users.id`
 
 **`share_download_log`** - Complete audit trail
 - Every download attempt logged
@@ -132,6 +139,11 @@ graph TB
 - `shares_uploaded` - Boolean flag
 - `upload_completed_at_utc` - When shares were uploaded
 - `share_files_count` - Number of shares uploaded
+
+### Migrations Applied
+- **010_add_share_management_tables** - Initial share tables
+- **013_add_password** - Added password authentication to token_share_users
+- **014_update_fk_assignment** - Changed share_assignments FK from users to token_share_users
 
 ---
 
@@ -172,7 +184,7 @@ sequenceDiagram
 
 ---
 
-### Flow 2: Admin Assigns Share to User
+### Flow 2: Admin Assigns Share to Token User
 
 ```mermaid
 sequenceDiagram
@@ -180,7 +192,7 @@ sequenceDiagram
     participant API as Backend API
     participant DB as MySQL
     
-    Admin->>API: GET /api/admin/tokens
+    Admin->>API: GET /api/token-deployments
     API->>DB: SELECT token_deployments
     API-->>Admin: List of tokens
     
@@ -188,26 +200,31 @@ sequenceDiagram
     
     Admin->>API: GET /api/share-files/token/{id}
     API->>DB: SELECT share_files<br/>with assignment status
-    API-->>Admin: [Share #1 ✅ assigned]<br/>[Share #2 ⭕ unassigned]<br/>[Share #3 ⭕ unassigned]
+    API-->>Admin: [Share #1 ✅ user@example.com]<br/>[Share #2 ⭕ unassigned]<br/>[Share #3 ⭕ unassigned]
     
     Admin->>Admin: Select Share #2
-    Admin->>Admin: Select User Y
+    
+    Admin->>API: GET /api/token-share-users/token/{id}
+    API->>DB: SELECT token_share_users<br/>WHERE token_deployment_id={id}
+    API-->>Admin: [John (john@example.com)]<br/>[Jane (jane@example.com)]
+    
+    Admin->>Admin: Select User John
     
     Admin->>API: POST /api/admin/share-assignments<br/>{share_file_id, user_id}
     API->>DB: INSERT share_assignments
-    API->>DB: INSERT share_operation_log
-    API-->>Admin: ✅ Assigned
+    API-->>Admin: ✅ Assigned to john@example.com
     
-    Note over Admin,DB: Admin can also:<br/>- Unassign shares<br/>- Re-enable downloads<br/>- View assignment history
+    Note over Admin,DB: Admin can also:<br/>- Create new token users<br/>- Unassign shares<br/>- Re-enable downloads<br/>- View download history
 ```
 
 **Explanation:**
 1. Admin views all tokens in the system
 2. Admin selects a token to manage its shares
-3. API shows which shares are assigned/unassigned
-4. Admin picks unassigned share and target user
-5. System creates assignment and logs the action
-6. User can now see and download this share
+3. API shows which shares are assigned/unassigned with user emails
+4. Admin picks unassigned share
+5. Admin selects from token-specific users (or creates new user)
+6. System creates assignment linking share to token user
+7. Token user can now log in and download this share
 
 ---
 
@@ -290,21 +307,27 @@ sequenceDiagram
 
 ## 📝 Implementation Status
 4. A� Implementation Status
-
-### ✅ Phase 1: Database & Backend API (Completed)
-
-**Database:**
-- ✅ Created migration `010_add_share_management_tables`
-- ✅ Tables: `share_files`, `share_assignments`, `share_download_log`
+Created migration `013_add_password` for token user authentication
+- ✅ Created migration `014_update_fk_assignment` to link assignments to token_share_users
+- ✅ Tables: `share_files`, `token_share_users`, `share_assignments`, `share_download_log`
 - ✅ Updated `token_deployments` with upload tracking
-- ✅ Migration applied to MySQL database
+- ✅ All migrations applied to MySQL database
 
 **Backend APIs:**
 - ✅ `POST /api/share-files/bulk` - Bulk upload from desktop
-- ✅ `GET /api/share-files/token/{id}` - Get shares for token
-- ✅ `POST /api/admin/share-assignments` - Assign share to user
-- ✅ `GET /api/admin/share-assignments` - List assignments
-- ✅ `PATCH /api/admin/share-assignments/{id}` - Update assignment
+- ✅ `GET /api/share-files/token/{id}` - Get shares with assignment details (user email, download status)
+- ✅ `POST /api/admin/share-assignments` - Assign share to token user
+- ✅ `GET /api/admin/share-assignments` - List assignments with filters
+- ✅ `PATCH /api/admin/share-assignments/{id}` - Update assignment (re-enable downloads)
+- ✅ `DELETE /api/admin/share-assignments/{id}` - Unassign share
+- ✅ `GET /api/token-share-users/token/{id}` - List users for token
+- ✅ `POST /api/token-share-users/` - Create token user with password
+- ✅ `PATCH /api/token-share-users/{id}` - Update token user
+
+**SQLAlchemy Models:**
+- ✅ `ShareFile`, `TokenShareUser`, `ShareAssignment`, `ShareDownloadLog`
+- ✅ Relationships: ShareAssignment → TokenShareUser (not system User)
+- ✅ Cascade deletes configured properlypdate assignment
 - ✅ `DELETE /api/admin/share-assignments/{id}` - Unassign share
 
 **SQLAlchemy Models:**
@@ -313,34 +336,118 @@ sequenceDiagram
 
 ### ✅ Phase 2: User Download API (Completed)
 - ✅ `GET /api/my-shares` - List user's assigned shares
-- ✅ `GET /api/my-shares/download/{assignment_id}` - Download share file
-- ✅ `GET /api/my-shares/history` - View download history
-- ✅ Routers registered in main application
-
-### ✅ Phase 3: Desktop App Integration (Completed)
-- ✅ Modified `MainWindow.xaml.cs` to call bulk upload API after share generation
-- ✅ Added progress indicator for upload (WebView events: `upload-starting`, `upload-progress`, `upload-complete`)
-- ✅ Implemented error handling with detailed logging and user notifications
-- ✅ Auto-lookup of token deployment ID by contract address
+- ✅ `GET /retry logic: attempt upload → wait 2s → retry once if failed
+- ✅ `StoreDeploymentInformationAsync` returns deployment ID for upload
+- ✅ `UploadShareFilesAsync` returns bool success status
+- ✅ Error handling with user warnings via `host-warning` messages
 - ✅ Share encryption before upload using vault manager
+- ✅ Replaced Unicode ✓ with [OK] in logging for Windows console compatibility
 
-### 🚧 Phase 4: Admin UI (To Do)
-- [ ] Token list view
-- [ ] Share assignment interface
-- [ ] User management
-
-### 🚧 Phase 5: User UI (To Do)
-- [ ] Login with MFA
+### ✅ Phase 4: Admin UI (Completed)
+- ✅ **TokensListPage** - View all token deployments with:
+  - Share upload status (count, timestamp)
+  - Token-specific user management with accordion UI
+  - Create/edit users with password authentication
+  - Password visibility toggle (eye icon)
+  - "Upload Shares" button to launch Mint desktop app
+  - Filter and search capabilities
+- ✅ **ShareAssignmentPage** - Manage share assignments:
+  - View all shares for selected token with status
+  - Assign shares to token-specific users (dropdown selection)
+  - Unassign shares with confirmation
+  - ReToken user login portal (separate from admin login)
+- [ ] Password authentication for token share users
+- [ ] MFA setup and verification
 - [ ] My Shares dashboard
-- [ ] Download interface
-   - MFA verification before download
-   - IP address and user agent logged
+- [ ] Download interface with MFA verification
+- [ ] Download history view
+- [ ] IP address and user agent logged for all downloads
+
+### Important Architecture Notes
+
+**Token-Specific Users vs System Authorities:**
+- **System Users (authorities):** Admin users who manage the system (super admin, admin roles)
+- **Token Share Users:** Created per-token for share distribution, authenticate with email/password
+- Shares are assigned to `token_share_users`, NOT to system authorities
+- Each token has its own set of users, isolated from other tokens
+
+**Share Assignment Flow:**
+1. Admin creates token-specific user (name, email, phone, password)
+2. Admin assigns share to that token user
+3. Token user logs in with email/password + MFA
+4. Token user downloads assigned share
+5. Download automatically disabled after first download
+6. Admin can re-enable if user loses file
 
 ### Audit Trail
-- Every assignment: WHO assigned WHAT to WHOM and WHEN
-- Every download: WHO downloaded WHAT from WHERE and WHEN
-- Every status change: WHO enabled/disabled downloads WHEN
-- Immutable logs (no DELETE allowed)
+- Every assignment: WHO (admin email) assigned WHAT (share #) to WHOM (token user email) and WHEN
+- Every download: WHO (token user) downloaded WHAT (share #) from WHERE (IP) and WHEN
+- Every status change: WHO (admin) enabled/disabled downloads for WHOM and WHEN
+- Logs stored separately from operational data (future: immutable loggingent" in Admin Console sidebar
+- ✅ **Routes** - `/admin/tokens` and `/admin/tokens/:tokenId/shares`
+- ✅ **UI Improvements**:
+  - Modal consistency (className-based styling)
+  - Readable dropdown options (explicit text colors)
+  - Clean stat cards with separators
+  - Better text ("Not assigned yet" vs "—")
+### ✅ Phase 4: Admin UI (Completed)
+- ✅ **TokensListPage** - View all token deployments with share upload status, filter and search capabilities
+- ✅ **ShareAssignmentPage** - Manage share assignments: assign/unassign shares, re-enable downloads, view status
+- ✅ **API Integration** - Full TypeScript API client in `shares.ts` with all CRUD operations
+- ✅ **Navigation** - Added "Share Management" tab in Admin Console sidebar
+- ✅ **Routes** - `/admin/tokens` and `/admin/tokens/:tokenId/shares`
+
+### ✅ Phase 5: User UI (Completed)
+- ✅ **Separate Application**: ClientWeb (D:\Jobs\workspace\DiG\Aegis-Mint\ClientWeb)
+- ✅ **Token User Authentication Endpoints** (Main Backend):
+  - POST `/api/token-user-auth/login` - Email/password login
+  - POST `/api/token-user-auth/verify-otp` - MFA verification
+  - POST `/api/token-user-auth/refresh` - Token refresh
+- ✅ **ClientWeb Backend** (Port 8001 - Middleware/Proxy):
+  - FastAPI app that proxies requests to main backend
+  - Hides main backend URL from token users
+  - Auth endpoints: `/api/auth/login`, `/api/auth/verify-otp`, `/api/auth/refresh`
+  - Share endpoints: `/api/shares/my-shares`, `/api/shares/download/{id}`, `/api/shares/history`
+- ✅ **ClientWeb Frontend** (Port 5174 - React UI):
+  - Login page with email/password
+  - MFA page with QR code setup (first-time)
+  - Dashboard page showing assigned shares
+  - One-click download with automatic filename
+  - Auto token refresh on expiry
+- ✅ **Security Architecture**:
+  - Token users access separate ClientWeb application
+  - Middleware layer between user and main backend
+  - Can be deployed on different server/domain
+  - Complete isolation from admin portal
+
+### Important Architecture Notes
+
+**Application Separation:**
+- **Web** (D:\Jobs\workspace\DiG\Aegis-Mint\Web) - Admin Portal
+  - For system authorities (Super Admin, Admin)
+  - Manages tokens, token users, share assignments
+  - Backend Port: 8000, Frontend Port: 5173
+- **ClientWeb** (D:\Jobs\workspace\DiG\Aegis-Mint\ClientWeb) - Token User Portal
+  - For token share users (external users)
+  - Login, MFA, view shares, download
+  - Backend Port: 8001 (middleware), Frontend Port: 5174
+  - Completely separate deployment
+
+**Token User Flow:**
+1. Admin creates token user via Web admin UI
+2. Admin assigns share to token user
+3. Token user receives separate ClientWeb URL (e.g., https://shares.example.com)
+4. Token user logs in with email/password
+5. First-time: Scan QR code for MFA setup
+6. Token user views assigned shares
+7. Token user downloads share (one-time by default)
+8. Admin can re-enable download if needed
+
+### Audit Trail
+- Every assignment: WHO (admin email) assigned WHAT (share #) to WHOM (token user email) and WHEN
+- Every download: WHO (token user) downloaded WHAT (share #) from WHERE (IP) and WHEN
+- Every status change: WHO (admin) enabled/disabled downloads for WHOM and WHEN
+- All actions logged in share_download_log table
 
 ### Download Policies
 - **One-time Download (Default):** `download_allowed` set to FALSE after first download
@@ -374,10 +481,17 @@ sequenceDiagram
 - [ ] Create audit log viewer
 - [ ] Add real-time notifications
 
-### Phase 4: User Portal UI
-- [ ] Create user login with MFA
-- [ ] Create "My Shares" dashboard
-- [ ] Create download interface with confirmation
+### Phase 4: User Port2.0  
+**Database:** MySQL  
+**Status:** Phase 1-4 Complete - Backend APIs, Desktop Integration, and Admin UI fully implemented  
+**Next:** Phase 5 - Implement user login portal and download interface  
+**Last Updated:** 2026-01-25  
+**Key Changes:** 
+- Implemented token-specific user system (separate from authorities)
+- Added password authentication for token share users
+- Completed admin UI with share assignment and user management
+- Integrated desktop app with retry logic for share uploads
+- Applied database migrations 013 and 014 for user authentication
 - [ ] Create download history view
 - [ ] Add email notifications on assignment
 
@@ -417,7 +531,21 @@ sequenceDiagram
 
 ---
 
-**Document Version:** 1.1  
+**Document Version:** 3.0  
 **Database:** MySQL  
-**Status:** Phase 1 Complete - Backend APIs implemented  
-**Next:** Implement user download endpoints and desktop app integra
+**Status:** Phase 1-5 Complete - Full share management system with token user portal  
+**Next:** Testing and production deployment  
+**Last Updated:** 2026-01-25  
+
+**Key Changes (v3.0):** 
+- Created separate ClientWeb application for token users
+- Implemented middleware architecture for security isolation  
+- Token user portal with login, MFA setup, and share download
+- Complete separation of admin (Web) and user (ClientWeb) applications
+
+**Previous Changes:**
+- Implemented token-specific user system (separate from authorities)
+- Added password authentication for token share users
+- Completed admin UI with share assignment and user management
+- Integrated desktop app with retry logic for share uploads
+- Applied database migrations 013 and 014 for user authentication

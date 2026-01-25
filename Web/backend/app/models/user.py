@@ -21,10 +21,10 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     role = Column(Enum(UserRole), nullable=False)
     mfa_secret = Column(String(64), nullable=False)
+    phone = Column(String(20), nullable=True)
     is_active = Column(Boolean, default=True)
     created_at_utc = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
     assignments = relationship("GovernanceAssignment", back_populates="user", cascade="all, delete-orphan")
     approvals = relationship("Approval", back_populates="approver")
-    share_assignments = relationship("ShareAssignment", foreign_keys="ShareAssignment.user_id", back_populates="user", cascade="all, delete-orphan")
     download_logs = relationship("ShareDownloadLog", back_populates="user", cascade="all, delete-orphan")

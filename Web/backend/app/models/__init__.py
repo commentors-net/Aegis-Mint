@@ -13,6 +13,8 @@ from .download_link import DownloadLink
 from .share_file import ShareFile
 from .share_assignment import ShareAssignment
 from .share_download_log import ShareDownloadLog
+from .token_user import TokenUser, TokenUserAssignment
+from .token_user_login_challenge import TokenUserLoginChallenge
 
 __all__ = [
     "User",
@@ -34,4 +36,7 @@ __all__ = [
     "ShareFile",
     "ShareAssignment",
     "ShareDownloadLog",
+    "TokenUser",
+    "TokenUserAssignment",
+    "TokenUserLoginChallenge",
 ]

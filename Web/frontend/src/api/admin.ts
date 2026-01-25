@@ -4,6 +4,7 @@ export type User = {
   id: string;
   email: string;
   role: "SuperAdmin" | "GovernanceAuthority";
+  phone?: string;
   is_active: boolean;
 };
 

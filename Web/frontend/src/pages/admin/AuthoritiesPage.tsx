@@ -25,6 +25,7 @@ export default function AuthoritiesPage() {
     email: "",
     password: "",
     role: "GovernanceAuthority" as adminApi.User["role"],
+    phone: "",
     mfa_secret: "",
     is_active: true,
   });
@@ -55,14 +56,14 @@ export default function AuthoritiesPage() {
   }, [token]);
 
   const openAdd = () => {
-    setForm({ email: "", password: "", role: "GovernanceAuthority", mfa_secret: "", is_active: true });
+    setForm({ email: "", password: "", role: "GovernanceAuthority", phone: "", mfa_secret: "", is_active: true });
     setSelectedUser(null);
     setModalMode("add");
   };
 
   const openEdit = (user: adminApi.User) => {
     setSelectedUser(user);
-    setForm({ email: user.email, password: "", role: user.role, mfa_secret: "", is_active: user.is_active });
+    setForm({ email: user.email, password: "", role: user.role, phone: user.phone || "", mfa_secret: "", is_active: user.is_active });
     setModalMode("edit");
   };
 
@@ -80,6 +81,7 @@ export default function AuthoritiesPage() {
         email: form.email,
         password: form.password,
         role: form.role,
+        phone: form.phone || undefined,
         mfa_secret: form.mfa_secret,
       });
       setToast({ message: "User created successfully", type: "success" });
@@ -101,6 +103,7 @@ export default function AuthoritiesPage() {
     try {
       await adminApi.updateUser(token, selectedUser.id, {
         role: form.role,
+        phone: form.phone || undefined,
         is_active: form.is_active,
         ...(form.password ? { password: form.password } : {}),
         ...(form.mfa_secret ? { mfa_secret: form.mfa_secret } : {}),
@@ -217,6 +220,16 @@ export default function AuthoritiesPage() {
                     />
                   </label>
                   <label className="field">
+                    <div className="field-label">Phone (optional)</div>
+                    <input
+                      className="input"
+                      type="tel"
+                      value={form.phone}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      placeholder="+1234567890"
+                    />
+                  </label>
+                  <label className="field">
                     <div className="field-label">Role</div>
                     <select className="input" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as any })}>
                       <option value="GovernanceAuthority">GovernanceAuthority</option>
@@ -246,6 +259,16 @@ export default function AuthoritiesPage() {
                       value={form.password}
                       onChange={(e) => setForm({ ...form, password: e.target.value })}
                       placeholder="Leave blank to keep existing"
+                    />
+                  </label>
+                  <label className="field">
+                    <div className="field-label">Phone (optional)</div>
+                    <input
+                      className="input"
+                      type="tel"
+                      value={form.phone}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      placeholder="+1234567890"
                     />
                   </label>
                   <label className="field">

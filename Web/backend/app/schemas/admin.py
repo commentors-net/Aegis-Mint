@@ -9,6 +9,7 @@ from app.models.user import UserRole
 class UserBase(BaseModel):
     email: EmailStr
     role: UserRole
+    phone: Optional[str] = Field(None, max_length=20)
     is_active: bool = True
 
 
@@ -20,6 +21,7 @@ class UserCreate(UserBase):
 class UserUpdate(BaseModel):
     password: Optional[str] = Field(None, min_length=8)
     role: Optional[UserRole] = None
+    phone: Optional[str] = Field(None, max_length=20)
     is_active: Optional[bool] = None
     mfa_secret: Optional[str] = None
 
