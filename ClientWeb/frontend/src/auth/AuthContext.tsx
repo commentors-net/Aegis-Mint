@@ -43,7 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const data = response.data;
     
     setChallengeId(data.challenge_id);
-    user has access to multiple tokens, store them for selection
+    // User has access to multiple tokens; store them for selection.
     if (data.tokens && data.tokens.length > 0) {
       setAvailableTokens(data.tokens);
     } else {
@@ -66,8 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const response = await api.post("/auth/verify-otp", {
       challenge_id: challengeId,
       otp,
-      selected_token_id: selectedTokenIdllenge_id: challengeId,
-      otp,
+      selected_token_id: selectedTokenId,
     });
     const data = response.data;
     

@@ -93,7 +93,7 @@ export default function DashboardPage() {
                   <div className="share-info">
                     <div className="info-row">
                       <label>Token:</label>
-                      <span>{share.token_name} ({share.token_symbol})</span>
+                      <span className="token-highlight">{share.token_name} ({share.token_symbol})</span>
                     </div>
                     <div className="info-row">
                       <label>Contract:</label>

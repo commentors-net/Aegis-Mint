@@ -68,12 +68,24 @@ export type User = {
 
 export type TokenShareUser = {
   id: string;
+  assignment_id: string;
   token_deployment_id: string;
   name: string;
   email: string;
   phone: string | null;
   is_active: boolean;
   created_at_utc: string;
+};
+
+export type TokenShareUserCheck = {
+  exists: boolean;
+  already_assigned?: boolean;
+  tokens: {
+    token_id: string;
+    token_name: string;
+    contract_address: string;
+  }[];
+  message?: string;
 };
 
 /**
@@ -221,11 +233,23 @@ export function getTokenShareUsers(token: string, tokenDeploymentId: string) {
 }
 
 /**
+ * Check if a token share user email already exists
+ */
+export function checkTokenShareUserEmail(token: string, tokenDeploymentId: string, email: string) {
+  const encodedEmail = encodeURIComponent(email);
+  return apiFetch<TokenShareUserCheck>(
+    `/api/token-share-users/check-email/${encodedEmail}?token_deployment_id=${tokenDeploymentId}`,
+    { token }
+  );
+}
+
+/**
  * Update a token share user
  */
 export function updateTokenShareUser(
   token: string,
   userId: string,
+  tokenDeploymentId: string,
   body: {
     name?: string;
     email?: string;
@@ -234,11 +258,14 @@ export function updateTokenShareUser(
     is_active?: boolean;
   }
 ) {
-  return apiFetch<TokenShareUser>(`/api/token-share-users/${userId}`, {
-    method: "PUT",
-    token,
-    body: JSON.stringify(body),
-  });
+  return apiFetch<TokenShareUser>(
+    `/api/token-share-users/${userId}?token_deployment_id=${tokenDeploymentId}`,
+    {
+      method: "PUT",
+      token,
+      body: JSON.stringify(body),
+    }
+  );
 }
 
 /**
