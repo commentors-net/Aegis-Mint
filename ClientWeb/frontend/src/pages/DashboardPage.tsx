@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
-import { getMyShares, downloadShare, ShareItem } from "../api/client";
+import { getMyShares, downloadShare, getDownloadHistory, ShareItem, DownloadHistoryItem } from "../api/client";
 
 export default function DashboardPage() {
   const { user, logout } = useAuth();
@@ -8,9 +8,13 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [history, setHistory] = useState<DownloadHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState("");
 
   useEffect(() => {
     loadShares();
+    loadHistory();
   }, []);
 
   const loadShares = async () => {
@@ -44,11 +48,37 @@ export default function DashboardPage() {
       
       // Reload shares to update status
       await loadShares();
+      await loadHistory();
     } catch (err: any) {
       alert(err.response?.data?.detail || "Download failed");
     } finally {
       setDownloading(null);
     }
+  };
+
+  const loadHistory = async () => {
+    try {
+      setHistoryLoading(true);
+      setHistoryError("");
+      const response = await getDownloadHistory();
+      setHistory(response.data);
+    } catch (err: any) {
+      setHistoryError("Failed to load download history");
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const formatDateTime = (dateString: string) => {
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return dateString;
+    return date.toLocaleString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   return (
@@ -134,6 +164,54 @@ export default function DashboardPage() {
               ))}
             </div>
           )}
+
+          <div className="history-section">
+            <h2>Download History</h2>
+
+            {historyLoading && <div className="loading">Loading history...</div>}
+
+            {historyError && <div className="error-message">{historyError}</div>}
+
+            {!historyLoading && history.length === 0 && (
+              <div className="no-history">
+                <p>No download history yet.</p>
+              </div>
+            )}
+
+            {!historyLoading && history.length > 0 && (
+              <div className="history-table-wrap">
+                <table className="history-table">
+                  <thead>
+                    <tr>
+                      <th>Share</th>
+                      <th>Token</th>
+                      <th>Downloaded</th>
+                      <th>Status</th>
+                      <th>IP Address</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {history.map((entry) => (
+                      <tr key={entry.id}>
+                        <td>#{entry.share_number}</td>
+                        <td>{entry.token_name}</td>
+                        <td>{formatDateTime(entry.downloaded_at_utc)}</td>
+                        <td>
+                          <span className={`history-status ${entry.success ? "ok" : "fail"}`}>
+                            {entry.success ? "Success" : "Failed"}
+                          </span>
+                          {!entry.success && entry.failure_reason && (
+                            <div className="history-failure">{entry.failure_reason}</div>
+                          )}
+                        </td>
+                        <td>{entry.ip_address || "Unknown"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       </main>
     </div>

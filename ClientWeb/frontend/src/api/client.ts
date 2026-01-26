@@ -90,6 +90,17 @@ export interface ShareItem {
   last_downloaded_at_utc: string | null;
 }
 
+export interface DownloadHistoryItem {
+  id: string;
+  assignment_id: string;
+  share_number: number;
+  token_name: string;
+  downloaded_at_utc: string;
+  ip_address: string | null;
+  success: boolean;
+  failure_reason: string | null;
+}
+
 // Auth API
 export const login = (data: LoginRequest) =>
   api.post<LoginResponse>("/auth/login", data);
@@ -110,6 +121,6 @@ export const downloadShare = (assignmentId: string) =>
   });
 
 export const getDownloadHistory = () =>
-  api.get("/shares/history");
+  api.get<DownloadHistoryItem[]>("/shares/history");
 
 export default api;
