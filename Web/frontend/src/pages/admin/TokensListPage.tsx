@@ -136,34 +136,29 @@ export default function TokensListPage() {
       if (userModal.mode === "add") {
         // Check if email already exists for other tokens
         console.log("Checking email:", userForm.email, "for token:", userModal.tokenId);
-        const checkResponse = await fetch(
-          `${import.meta.env.VITE_API_BASE_URL || ""}/api/token-share-users/check-email/${encodeURIComponent(userForm.email)}?token_deployment_id=${userModal.tokenId}`,
-          {
-            headers: { Authorization: `Bearer ${token}` }
-          }
+        const checkData = await sharesApi.checkTokenShareUserEmail(
+          token,
+          userModal.tokenId,
+          userForm.email
         );
-        
-        console.log("Check response status:", checkResponse.status);
-        
-        if (checkResponse.ok) {
-          const checkData = await checkResponse.json();
-          console.log("Check data:", checkData);
-          if (checkData.exists && checkData.tokens.length > 0) {
-            const tokenNames = checkData.tokens.map((t: any) => t.token_name).join(", ");
-            const confirmed = confirm(
-              `This email is already registered for: ${tokenNames}\n\n` +
-              `Do you want to assign the same user to this token as well?`
-            );
-            if (!confirmed) {
-              console.log("User canceled adding duplicate email");
-              return; // User canceled
-            }
-            console.log("User confirmed adding duplicate email");
-          } else {
-            console.log("Email is unique, proceeding with creation");
+        console.log("Check data:", checkData);
+        if (checkData.exists && checkData.already_assigned) {
+          setToast({ message: checkData.message || "User is already assigned to this token", type: "error" });
+          return;
+        }
+        if (checkData.exists && checkData.tokens.length > 0) {
+          const tokenNames = checkData.tokens.map((t) => t.token_name).join(", ");
+          const confirmed = confirm(
+            `This email is already registered for: ${tokenNames}\n\n` +
+            `Do you want to assign the same user to this token as well?`
+          );
+          if (!confirmed) {
+            console.log("User canceled adding duplicate email");
+            return; // User canceled
           }
+          console.log("User confirmed adding duplicate email");
         } else {
-          console.error("Check email endpoint failed:", checkResponse.status);
+          console.log("Email is unique, proceeding with creation");
         }
         
         await sharesApi.createTokenShareUser(token, {
@@ -175,7 +170,7 @@ export default function TokensListPage() {
         });
         setToast({ message: "User created successfully", type: "success" });
       } else if (userModal.mode === "edit" && userModal.user) {
-        await sharesApi.updateTokenShareUser(token, userModal.user.id, {
+        await sharesApi.updateTokenShareUser(token, userModal.user.id, userModal.tokenId, {
           name: userForm.name,
           email: userForm.email,
           phone: userForm.phone || undefined,
@@ -192,11 +187,11 @@ export default function TokensListPage() {
     }
   };
 
-  const handleDeleteUser = async (tokenId: string, userId: string) => {
+  const handleDeleteUser = async (tokenId: string, assignmentId: string) => {
     if (!token || !confirm("Are you sure you want to delete this user?")) return;
     
     try {
-      await sharesApi.deleteTokenShareUser(token, userId);
+      await sharesApi.deleteTokenShareUser(token, assignmentId);
       setToast({ message: "User deleted successfully", type: "success" });
       await loadUsers(tokenId);
     } catch (err) {
@@ -427,7 +422,7 @@ export default function TokensListPage() {
                                               Edit
                                             </Button>
                                             <Button
-                                              onClick={() => handleDeleteUser(tok.id, user.id)}
+                                              onClick={() => handleDeleteUser(tok.id, user.assignment_id)}
                                               size="sm"
                                               variant="danger"
                                             >
