@@ -53,3 +53,4 @@ build/
 aegis-governance-mock.html
 base-context.txt.md
 Resources/AegisMint-Checklist - Worklog.csv
+.env.production

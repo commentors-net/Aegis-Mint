@@ -1,4 +1,5 @@
 """API endpoints for user share download and history."""
+import base64
 import json
 import logging
 from datetime import datetime
@@ -22,6 +23,26 @@ from app.models.token_user_login_challenge import TokenUserLoginChallenge
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/my-shares", tags=["user-shares"])
+
+
+def _is_json(content: str) -> bool:
+    try:
+        json.loads(content)
+        return True
+    except Exception:
+        return False
+
+
+def _maybe_decrypt_share_content(content: str) -> str:
+    if _is_json(content):
+        return content
+    try:
+        decrypted = decrypt_sensitive_data(base64.b64decode(content)).decode("utf-8")
+        if _is_json(decrypted):
+            return decrypted
+    except Exception:
+        pass
+    return content
 
 
 class MyShareResponse(BaseModel):
@@ -237,7 +258,7 @@ def download_share(
         # Shares are stored as plain JSON strings in the database
         # and should be returned as downloadable JSON files for the recovery tool
         try:
-            content_str = share_file.encrypted_content
+            content_str = _maybe_decrypt_share_content(share_file.encrypted_content)
             
             # Verify we have content
             if not content_str:
