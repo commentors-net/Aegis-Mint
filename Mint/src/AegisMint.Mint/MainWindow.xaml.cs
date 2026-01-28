@@ -1971,8 +1971,8 @@ public partial class MainWindow : Window
                 var fileName = Path.GetFileName(shareFile);
                 var shareContent = File.ReadAllText(shareFile);
                 
-                // Encrypt the share file content
-                var encryptedContent = _vaultManager.EncryptData(shareContent);
+                // Upload plain JSON; backend encrypts at rest
+                var encryptedContent = shareContent;
                 
                 shareItems.Add(new
                 {

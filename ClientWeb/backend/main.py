@@ -10,17 +10,66 @@ and the main Aegis Mint backend. It provides:
 - Rate limiting (future)
 """
 import logging
+import logging.config
+import logging.handlers
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import auth, shares
 from app.core.config import settings
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO if not settings.debug else logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+def _configure_logging() -> None:
+    """Configure console + file logging in ~/logs/shares/access.log."""
+    log_level = "DEBUG" if settings.debug else "INFO"
+    log_dir = Path.home() / "logs" / "shares"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / "access.log"
+
+    logging.config.dictConfig({
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "standard": {
+                "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            }
+        },
+        "handlers": {
+            "console": {
+                "class": "logging.StreamHandler",
+                "formatter": "standard",
+                "level": log_level,
+            },
+            "file": {
+                "class": "logging.handlers.RotatingFileHandler",
+                "formatter": "standard",
+                "level": log_level,
+                "filename": str(log_file),
+                "maxBytes": 10 * 1024 * 1024,
+                "backupCount": 5,
+                "encoding": "utf-8",
+            },
+        },
+        "root": {
+            "handlers": ["console", "file"],
+            "level": log_level,
+        },
+        "loggers": {
+            "uvicorn.access": {
+                "handlers": ["console", "file"],
+                "level": log_level,
+                "propagate": False,
+            },
+            "uvicorn.error": {
+                "handlers": ["console", "file"],
+                "level": log_level,
+                "propagate": False,
+            },
+        },
+    })
+
+
+_configure_logging()
 
 logger = logging.getLogger(__name__)
 
@@ -69,4 +118,5 @@ if __name__ == "__main__":
         host=settings.host,
         port=settings.port,
         reload=settings.debug,
+        log_config=None,
     )

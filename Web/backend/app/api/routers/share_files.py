@@ -1,4 +1,6 @@
 """API endpoints for share file management (bulk upload from desktop app)."""
+import base64
+import json
 import logging
 from datetime import datetime
 from typing import List
@@ -8,6 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_db
+from app.core.encryption import encrypt_sensitive_data
 from app.core.time import utcnow
 from app.models.share_assignment import ShareAssignment
 from app.models.share_file import ShareFile
@@ -16,6 +19,14 @@ from app.models.token_deployment import TokenDeployment
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/share-files", tags=["share-files"])
+
+
+def _is_json(content: str) -> bool:
+    try:
+        json.loads(content)
+        return True
+    except Exception:
+        return False
 
 
 class ShareFileItem(BaseModel):
@@ -128,11 +139,21 @@ def create_share_files_bulk(
                     detail=f"Share #{share_item.share_number} already exists"
                 )
             
+            content_str = share_item.encrypted_content
+            stored_content = content_str
+            if _is_json(content_str):
+                encrypted_bytes = encrypt_sensitive_data(content_str.encode("utf-8"))
+                stored_content = base64.b64encode(encrypted_bytes).decode("ascii")
+            else:
+                logger.warning(
+                    f"Share #{share_item.share_number} content is not valid JSON; storing as-is"
+                )
+
             share_file = ShareFile(
                 token_deployment_id=request.token_deployment_id,
                 share_number=share_item.share_number,
                 file_name=share_item.file_name,
-                encrypted_content=share_item.encrypted_content,
+                encrypted_content=stored_content,
                 encryption_key_id=share_item.encryption_key_id,
                 created_at_utc=now
             )
