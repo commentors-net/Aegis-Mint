@@ -1,6 +1,4 @@
 """API endpoints for share file management (bulk upload from desktop app)."""
-import base64
-import json
 import logging
 from datetime import datetime
 from typing import List
@@ -10,7 +8,6 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_db
-from app.core.encryption import encrypt_sensitive_data
 from app.core.time import utcnow
 from app.models.share_assignment import ShareAssignment
 from app.models.share_file import ShareFile
@@ -21,19 +18,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/share-files", tags=["share-files"])
 
 
-def _is_json(content: str) -> bool:
-    try:
-        json.loads(content)
-        return True
-    except Exception:
-        return False
-
-
 class ShareFileItem(BaseModel):
     """Individual share file in bulk upload."""
     share_number: int = Field(..., ge=1, description="Share number (1, 2, 3, etc.)")
     file_name: str = Field(..., min_length=1, max_length=255, description="Original filename")
-    encrypted_content: str = Field(..., min_length=1, description="Base64 encrypted share JSON")
+    encrypted_content: str = Field(..., min_length=1, description="Base64 encrypted share payload")
     encryption_key_id: str | None = Field(None, max_length=128, description="Key ID used for encryption")
 
 
@@ -139,15 +128,7 @@ def create_share_files_bulk(
                     detail=f"Share #{share_item.share_number} already exists"
                 )
             
-            content_str = share_item.encrypted_content
-            stored_content = content_str
-            if _is_json(content_str):
-                encrypted_bytes = encrypt_sensitive_data(content_str.encode("utf-8"))
-                stored_content = base64.b64encode(encrypted_bytes).decode("ascii")
-            else:
-                logger.warning(
-                    f"Share #{share_item.share_number} content is not valid JSON; storing as-is"
-                )
+            stored_content = share_item.encrypted_content
 
             share_file = ShareFile(
                 token_deployment_id=request.token_deployment_id,

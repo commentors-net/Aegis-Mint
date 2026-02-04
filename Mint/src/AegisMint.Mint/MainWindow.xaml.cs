@@ -1064,10 +1064,11 @@ public partial class MainWindow : Window
                     tokenAddress = tokenAddress
                 };
 
-                var fileName = $"aegis-share-{share.Id:D3}.json";
+                var fileName = $"aegis-share-{share.Id:D3}{ShareFileCrypto.FileExtension}";
                 var path = Path.Combine(tokenSharesPath, fileName);
                 var json = JsonSerializer.Serialize(sharePayload, options);
-                await File.WriteAllTextAsync(path, json);
+                var encryptedPayload = ShareFileCrypto.EncryptShareJson(json);
+                await File.WriteAllTextAsync(path, encryptedPayload);
                 Logger.Info($"Share {share.Id}/{totalShares} saved: {fileName}");
             }
             
@@ -1142,7 +1143,7 @@ public partial class MainWindow : Window
             }
 
             // Read all share files
-            var shareFiles = Directory.GetFiles(sharesPath, "aegis-share-*.json")
+            var shareFiles = Directory.GetFiles(sharesPath, $"aegis-share-*{ShareFileCrypto.FileExtension}")
                 .OrderBy(f => f)
                 .ToList();
             
@@ -1164,16 +1165,16 @@ public partial class MainWindow : Window
                 var fileName = Path.GetFileName(filePath);
                 var shareContent = await File.ReadAllTextAsync(filePath);
                 
-                // Extract share number from filename (aegis-share-001.json -> 1)
-                var shareNumberStr = fileName.Replace("aegis-share-", "").Replace(".json", "");
+                // Extract share number from filename (aegis-share-001.aegisshare -> 1)
+                var shareNumberStr = Path.GetFileNameWithoutExtension(fileName)
+                    .Replace("aegis-share-", "");
                 if (!int.TryParse(shareNumberStr, out int shareNumber))
                 {
                     Logger.Warning($"Could not parse share number from filename: {fileName}");
                     continue;
                 }
 
-                // Store the share content as plain JSON (server will handle encryption if needed)
-                // Note: Shares need to be downloadable as plain JSON for the recovery tool
+                // Share content is already encrypted by AegisMint for portability.
                 var encryptedContent = shareContent;
                 
                 shares.Add(new
@@ -1181,7 +1182,7 @@ public partial class MainWindow : Window
                     share_number = shareNumber,
                     file_name = fileName,
                     encrypted_content = encryptedContent,
-                    encryption_key_id = "none" // No client-side encryption
+                    encryption_key_id = ShareFileCrypto.EncryptionKeyId
                 });
                 
                 Logger.Info($"Prepared share {shareNumber}/{shareFiles.Count} for upload: {fileName}");
@@ -1840,7 +1841,7 @@ public partial class MainWindow : Window
             {
                 if (Directory.Exists(sharesPath))
                 {
-                    var shareFiles = Directory.GetFiles(sharesPath, "*.json");
+                    var shareFiles = Directory.GetFiles(sharesPath, $"*{ShareFileCrypto.FileExtension}");
                     if (shareFiles.Length > 0)
                     {
                         Logger.Info($"Found {shareFiles.Length} share files to encrypt for backup");
@@ -1946,7 +1947,7 @@ public partial class MainWindow : Window
                 return false;
             }
             
-            var shareFiles = Directory.GetFiles(sharesPath, "*.json")
+            var shareFiles = Directory.GetFiles(sharesPath, $"*{ShareFileCrypto.FileExtension}")
                 .OrderBy(f => f)
                 .ToList();
             
@@ -1971,7 +1972,7 @@ public partial class MainWindow : Window
                 var fileName = Path.GetFileName(shareFile);
                 var shareContent = File.ReadAllText(shareFile);
                 
-                // Upload plain JSON; backend encrypts at rest
+                // Upload encrypted share payload as-is.
                 var encryptedContent = shareContent;
                 
                 shareItems.Add(new
@@ -1979,7 +1980,7 @@ public partial class MainWindow : Window
                     share_number = i + 1,
                     file_name = fileName,
                     encrypted_content = encryptedContent,
-                    encryption_key_id = (string?)null
+                    encryption_key_id = ShareFileCrypto.EncryptionKeyId
                 });
                 
                 Logger.Debug($"Prepared share #{i + 1}: {fileName}");

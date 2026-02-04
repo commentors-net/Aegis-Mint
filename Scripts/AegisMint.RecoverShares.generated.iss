@@ -1,18 +1,18 @@
-﻿#define AppVersion "1.1.8"
-#define AdminSourceDir "D:\Jobs\workspace\DiG\Aegis-Mint\Scripts\publish\mint"
+﻿#define AppVersion "1.1.0"
+#define AdminSourceDir "D:\Jobs\workspace\DiG\Aegis-Mint\Scripts\publish\recovershares"
 #define OutputDir "D:\Jobs\workspace\DiG\Aegis-Mint\Scripts\dist"
 #define ServiceName "AegisMintService"
 
 [Setup]
-AppName=AegisMint
+AppName=AegisMint Recover Shares
 AppVersion={#AppVersion}
-DefaultDirName={pf}\AegisMint\Mint
+DefaultDirName={pf}\AegisMint\RecoverShares
 DefaultGroupName=AegisMint
 DisableProgramGroupPage=yes
-OutputBaseFilename=AegisMint-Mint-Setup-1.1.8
+OutputBaseFilename=AegisMint-RecoverShares-Setup-1.1.0
 OutputDir={#OutputDir}
-UninstallDisplayIcon={app}\AegisMint.Mint.exe
-UninstallDisplayName=AegisMint
+UninstallDisplayIcon={app}\AegisMint.RecoverShares.exe
+UninstallDisplayName=AegisMint Recover Shares
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 PrivilegesRequired=admin
@@ -23,14 +23,14 @@ SolidCompression=yes
 Source: "{#AdminSourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
 
 [Icons]
-Name: "{group}\Aegis Mint"; Filename: "{app}\AegisMint.Mint.exe"; WorkingDir: "{app}"
-Name: "{commondesktop}\Aegis Mint"; Filename: "{app}\AegisMint.Mint.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{group}\Aegis Mint Recover Shares"; Filename: "{app}\AegisMint.RecoverShares.exe"; WorkingDir: "{app}"
+Name: "{commondesktop}\Aegis Mint Recover Shares"; Filename: "{app}\AegisMint.RecoverShares.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Tasks]
-Name: "desktopicon"; Description: "Create a desktop icon for Aegis Mint"
+Name: "desktopicon"; Description: "Create a desktop icon for Aegis Mint Recover Shares"
 
 [Run]
-Filename: "{app}\AegisMint.Mint.exe"; Description: "Launch Aegis Mint"; WorkingDir: "{app}"; Flags: postinstall nowait skipifsilent
+Filename: "{app}\AegisMint.RecoverShares.exe"; Description: "Launch Aegis Mint Recover Shares"; WorkingDir: "{app}"; Flags: postinstall nowait skipifsilent
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"
@@ -244,7 +244,7 @@ begin
         begin
           PID := StrToIntDef(Copy(ProcessInfo, 1, SepPos - 1), 0);
           ProcessName := Copy(ProcessInfo, SepPos + 1, Length(ProcessInfo));
-          LockedMessage := LockedMessage + '  â€¢ ' + ProcessName + ' (PID: ' + IntToStr(PID) + ')' + #13#10;
+          LockedMessage := LockedMessage + '  * ' + ProcessName + ' (PID: ' + IntToStr(PID) + ')' + #13#10;
         end;
       end;
       LockedMessage := LockedMessage + #13#10 + 'These processes must be closed before uninstalling.' + #13#10 + 'Click OK to automatically close them, or Cancel to abort uninstallation.';

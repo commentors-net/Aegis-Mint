@@ -1,6 +1,4 @@
 """API endpoints for user share download and history."""
-import base64
-import json
 import logging
 from datetime import datetime
 from typing import List, Optional
@@ -11,7 +9,6 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_current_token_user, get_db
-from app.core.encryption import decrypt_sensitive_data
 from app.core.time import utcnow
 from app.models.share_assignment import ShareAssignment
 from app.models.share_download_log import ShareDownloadLog
@@ -23,26 +20,6 @@ from app.models.token_user_login_challenge import TokenUserLoginChallenge
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/my-shares", tags=["user-shares"])
-
-
-def _is_json(content: str) -> bool:
-    try:
-        json.loads(content)
-        return True
-    except Exception:
-        return False
-
-
-def _maybe_decrypt_share_content(content: str) -> str:
-    if _is_json(content):
-        return content
-    try:
-        decrypted = decrypt_sensitive_data(base64.b64decode(content)).decode("utf-8")
-        if _is_json(decrypted):
-            return decrypted
-    except Exception:
-        pass
-    return content
 
 
 class MyShareResponse(BaseModel):
@@ -254,39 +231,18 @@ def download_share(
             f"for token {token.token_name} (assignment {assignment_id})"
         )
         
-        # Return share content as JSON
-        # Shares are stored as plain JSON strings in the database
-        # and should be returned as downloadable JSON files for the recovery tool
-        try:
-            content_str = _maybe_decrypt_share_content(share_file.encrypted_content)
-            
-            # Verify we have content
-            if not content_str:
-                raise HTTPException(status_code=500, detail="Share content is empty")
-            
-            # Validate it's valid JSON
-            try:
-                json.loads(content_str)
-            except json.JSONDecodeError:
-                logger.error(f"Share #{share_file.share_number} contains invalid JSON")
-                raise HTTPException(status_code=500, detail="Share content is corrupted")
-            
-            logger.info(f"Serving share #{share_file.share_number} as JSON ({len(content_str)} bytes)")
-        except HTTPException:
-            raise
-        except Exception as error:
-            logger.error(f"Failed to prepare share: {type(error).__name__}: {str(error)}", exc_info=True)
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to prepare share file: {str(error)}"
-            )
+        # Return share content as encrypted payload
+        content_str = share_file.encrypted_content
+        if not content_str:
+            raise HTTPException(status_code=500, detail="Share content is empty")
+        logger.info(f"Serving share #{share_file.share_number} as encrypted payload ({len(content_str)} bytes)")
         
-        # Return share file as JSON
+        # Return share file as encrypted payload
         filename = f"{share_file.file_name}"
         
         return Response(
-            content=content_str,  # Send plain JSON content
-            media_type="application/json",
+            content=content_str,
+            media_type="application/octet-stream",
             headers={
                 "Content-Disposition": f'attachment; filename="{filename}"',
                 "X-Share-Number": str(share_file.share_number),
