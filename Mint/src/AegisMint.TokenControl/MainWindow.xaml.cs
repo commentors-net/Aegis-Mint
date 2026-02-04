@@ -965,7 +965,7 @@ public partial class MainWindow : Window
             var dialog = new Microsoft.Win32.OpenFileDialog
             {
                 Title = "Select recovery share files",
-                Filter = "Share files (*.json)|*.json|All files (*.*)|*.*",
+                Filter = $"Share files (*{ShareFileCrypto.FileExtension})|*{ShareFileCrypto.FileExtension}|All files (*.*)|*.*",
                 Multiselect = true,
                 CheckFileExists = true
             };
@@ -1154,7 +1154,8 @@ public partial class MainWindow : Window
 
     private ShareFilePayload ParseShareFile(string path, JsonSerializerOptions options)
     {
-        var json = File.ReadAllText(path);
+        var encryptedPayload = File.ReadAllText(path);
+        var json = ShareFileCrypto.DecryptSharePayload(encryptedPayload);
         var payload = JsonSerializer.Deserialize<ShareFilePayload>(json, options)
             ?? throw new InvalidOperationException("File did not contain a share payload.");
 

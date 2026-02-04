@@ -1,18 +1,136 @@
-﻿#define AppVersion "1.1.8"
-#define AdminSourceDir "D:\Jobs\workspace\DiG\Aegis-Mint\Scripts\publish\mint"
-#define OutputDir "D:\Jobs\workspace\DiG\Aegis-Mint\Scripts\dist"
-#define ServiceName "AegisMintService"
+param(
+    [string]$Configuration = "Release",
+    [string]$Runtime = "win-x64",
+    [string]$AppVersion = "0.1.0",
+    [string]$ServiceName = "AegisMintService", # retained for backward compat, unused now
+    [string]$PublishDir = "$PSScriptRoot\publish\service", # unused now
+    [string]$OutputDir = "$PSScriptRoot\dist",
+    [bool]$SelfContained = $true
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+
+$repoRoot = Split-Path -Parent $PSScriptRoot
+$recoverProject = Join-Path $repoRoot "Mint\src\AegisMint.RecoverShares\AegisMint.RecoverShares.csproj"
+
+if (-not (Test-Path $recoverProject)) {
+    throw "Cannot find recover shares app project at $recoverProject"
+}
+
+# Helpers: version management
+function Get-ProjectVersion([string]$csprojPath) {
+    $xml = [xml](Get-Content $csprojPath)
+    $pgs = $xml.Project.PropertyGroup
+    if (-not $pgs) { throw "No PropertyGroup found in $csprojPath" }
+
+    $verNode = $pgs | ForEach-Object { $_.SelectSingleNode("Version") } | Where-Object { $_ } | Select-Object -First 1
+    if ($verNode -and -not [string]::IsNullOrWhiteSpace($verNode.InnerText)) {
+        return $verNode.InnerText.Trim()
+    }
+    return "0.1.0"
+}
+
+function Set-ProjectVersion([string]$csprojPath, [string]$version) {
+    $xml = [xml](Get-Content $csprojPath)
+    $pg = $xml.Project.PropertyGroup | Select-Object -First 1
+    if (-not $pg) {
+        $pg = $xml.CreateElement("PropertyGroup")
+        $null = $xml.Project.AppendChild($pg)
+    }
+    $verNode = $pg.SelectSingleNode("Version")
+    if (-not $verNode) {
+        $verNode = $xml.CreateElement("Version")
+        $null = $pg.AppendChild($verNode)
+    }
+    $verNode.InnerText = $version
+    $xml.Save($csprojPath)
+}
+
+function Bump-Patch([string]$version) {
+    try {
+        $v = [version]$version
+        $patch = if ($v.Build -lt 0) { 1 } else { $v.Build + 1 }
+        return "{0}.{1}.{2}" -f $v.Major, $v.Minor, $patch
+    } catch {
+        throw "Invalid version format: $version"
+    }
+}
+
+$currentVersion = Get-ProjectVersion $recoverProject
+Write-Host "Current AegisMint.RecoverShares version: $currentVersion" -ForegroundColor Yellow
+$inputVersion = Read-Host "Enter new version (blank to bump patch)"
+
+if ([string]::IsNullOrWhiteSpace($inputVersion)) {
+    $AppVersion = Bump-Patch $currentVersion
+    Write-Host "No version entered. Bumping patch to $AppVersion" -ForegroundColor Cyan
+} else {
+    # validate
+    try {
+        $null = [version]$inputVersion
+        $AppVersion = $inputVersion.Trim()
+    } catch {
+        throw "Provided version '$inputVersion' is not valid."
+    }
+    Write-Host "Using provided version: $AppVersion" -ForegroundColor Cyan
+}
+
+# Persist the chosen version back into the project for consistency
+Set-ProjectVersion $recoverProject $AppVersion
+
+Write-Host "Publishing recover shares app..." -ForegroundColor Cyan
+$recoverPublishDir = "$PSScriptRoot\publish\recovershares"
+if (Test-Path $recoverPublishDir) { Remove-Item $recoverPublishDir -Recurse -Force }
+dotnet publish $recoverProject `
+    -c $Configuration `
+    -r $Runtime `
+    --self-contained:$SelfContained `
+    -p:PublishSingleFile=true `
+    -p:IncludeNativeLibrariesForSelfExtract=true `
+    -o $recoverPublishDir
+
+if (-not (Test-Path $OutputDir)) { New-Item -ItemType Directory -Path $OutputDir | Out-Null }
+
+$innoCandidates = @(
+    $env:INNOSETUP_PATH,
+    (Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"),
+    (Join-Path ${env:ProgramFiles} "Inno Setup 6\ISCC.exe")
+) | Where-Object { $_ -and (Test-Path $_) }
+$innoCandidates = @($innoCandidates) # force array even if single result
+
+if (-not $innoCandidates) {
+    throw "Inno Setup 6 (ISCC.exe) not found. Set INNOSETUP_PATH or install Inno Setup."
+}
+
+$issPath = Join-Path $PSScriptRoot "AegisMint.RecoverShares.generated.iss"
+
+$recoverPublishDir = "$PSScriptRoot\publish\recovershares"
+$outputBase = "AegisMint-RecoverShares-Setup-$AppVersion"
+
+$filesSection = @"
+Source: "{#AdminSourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
+"@
+
+$runSection = @"
+Filename: "{app}\AegisMint.RecoverShares.exe"; Description: "Launch Aegis Mint Recover Shares"; WorkingDir: "{app}"; Flags: postinstall nowait skipifsilent
+"@
+
+$iss = @"
+#define AppVersion "$AppVersion"
+#define AdminSourceDir "$recoverPublishDir"
+#define OutputDir "$OutputDir"
+#define ServiceName "$ServiceName"
 
 [Setup]
-AppName=AegisMint
+AppName=AegisMint Recover Shares
 AppVersion={#AppVersion}
-DefaultDirName={pf}\AegisMint\Mint
+DefaultDirName={pf}\AegisMint\RecoverShares
 DefaultGroupName=AegisMint
 DisableProgramGroupPage=yes
-OutputBaseFilename=AegisMint-Mint-Setup-1.1.8
+OutputBaseFilename=$outputBase
 OutputDir={#OutputDir}
-UninstallDisplayIcon={app}\AegisMint.Mint.exe
-UninstallDisplayName=AegisMint
+UninstallDisplayIcon={app}\AegisMint.RecoverShares.exe
+UninstallDisplayName=AegisMint Recover Shares
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 PrivilegesRequired=admin
@@ -20,24 +138,24 @@ Compression=lzma2
 SolidCompression=yes
 
 [Files]
-Source: "{#AdminSourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
+$filesSection
 
 [Icons]
-Name: "{group}\Aegis Mint"; Filename: "{app}\AegisMint.Mint.exe"; WorkingDir: "{app}"
-Name: "{commondesktop}\Aegis Mint"; Filename: "{app}\AegisMint.Mint.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{group}\Aegis Mint Recover Shares"; Filename: "{app}\AegisMint.RecoverShares.exe"; WorkingDir: "{app}"
+Name: "{commondesktop}\Aegis Mint Recover Shares"; Filename: "{app}\AegisMint.RecoverShares.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Tasks]
-Name: "desktopicon"; Description: "Create a desktop icon for Aegis Mint"
+Name: "desktopicon"; Description: "Create a desktop icon for Aegis Mint Recover Shares"
 
 [Run]
-Filename: "{app}\AegisMint.Mint.exe"; Description: "Launch Aegis Mint"; WorkingDir: "{app}"; Flags: postinstall nowait skipifsilent
+$runSection
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"
 
 [Code]
 const
-  MOVEFILE_DELAY_UNTIL_REBOOT = $00000004;
+  MOVEFILE_DELAY_UNTIL_REBOOT = `$00000004;
 
 type
   TProcessInfo = record
@@ -244,7 +362,7 @@ begin
         begin
           PID := StrToIntDef(Copy(ProcessInfo, 1, SepPos - 1), 0);
           ProcessName := Copy(ProcessInfo, SepPos + 1, Length(ProcessInfo));
-          LockedMessage := LockedMessage + '  â€¢ ' + ProcessName + ' (PID: ' + IntToStr(PID) + ')' + #13#10;
+          LockedMessage := LockedMessage + '  * ' + ProcessName + ' (PID: ' + IntToStr(PID) + ')' + #13#10;
         end;
       end;
       LockedMessage := LockedMessage + #13#10 + 'These processes must be closed before uninstalling.' + #13#10 + 'Click OK to automatically close them, or Cancel to abort uninstallation.';
@@ -332,3 +450,13 @@ begin
   if Assigned(GlobalDeletePaths) then
     GlobalDeletePaths.Free;
 end;
+"@
+
+$iss | Set-Content -Path $issPath -Encoding UTF8
+
+Write-Host "Building installer with Inno Setup..." -ForegroundColor Cyan
+$iscc = $innoCandidates | Select-Object -First 1
+Write-Host "Using ISCC: $iscc" -ForegroundColor Gray
+& "$iscc" "/Q" $issPath
+
+Write-Host "Installer build complete. Output: $OutputDir" -ForegroundColor Green
