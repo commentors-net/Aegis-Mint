@@ -36,12 +36,16 @@ export default function DashboardPage() {
     setDownloading(assignmentId);
     try {
       const response = await downloadShare(assignmentId);
+      const disposition = response.headers?.["content-disposition"];
+      const match = disposition ? /filename="?([^"]+)"?/i.exec(disposition) : null;
+      const fallbackName = `share-${String(shareNumber).padStart(2, "0")}.aegisshare`;
+      const filename = match?.[1] || fallbackName;
       
       // Create download link
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute("download", `aegis-share-${String(shareNumber).padStart(3, "0")}.aegisshare`);
+      link.setAttribute("download", filename);
       document.body.appendChild(link);
       link.click();
       link.parentNode?.removeChild(link);
