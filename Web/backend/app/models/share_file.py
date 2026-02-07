@@ -1,7 +1,7 @@
 """Model for individual share files storage."""
 import uuid
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from app.core.time import utcnow
@@ -19,6 +19,8 @@ class ShareFile(Base):
     encrypted_content = Column(Text, nullable=False)
     encryption_key_id = Column(String(128), nullable=True)
     created_at_utc = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    replaced_at_utc = Column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     token_deployment = relationship("TokenDeployment", back_populates="share_files")

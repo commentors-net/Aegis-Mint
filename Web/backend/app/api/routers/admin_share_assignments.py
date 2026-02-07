@@ -104,7 +104,10 @@ def create_share_assignment(
         # Verify share file exists
         share_file = db.query(ShareFile).options(
             joinedload(ShareFile.token_deployment)
-        ).filter(ShareFile.id == request.share_file_id).first()
+        ).filter(
+            ShareFile.id == request.share_file_id,
+            ShareFile.is_active.is_(True)
+        ).first()
         
         if not share_file:
             raise HTTPException(status_code=404, detail="Share file not found")

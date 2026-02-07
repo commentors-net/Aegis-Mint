@@ -645,9 +645,9 @@ public partial class MainWindow : Window
                 await SendToWebAsync("host-error", new { message = "Threshold must be at least 2 to create recovery shares." });
                 return;
             }
-            if (totalShares > 255)
+            if (totalShares > 99)
             {
-                await SendToWebAsync("host-error", new { message = "Total share count cannot exceed 255." });
+                await SendToWebAsync("host-error", new { message = "Total share count cannot exceed 99." });
                 return;
             }
 
@@ -1064,7 +1064,7 @@ public partial class MainWindow : Window
                     tokenAddress = tokenAddress
                 };
 
-                var fileName = BuildShareFileName(createdAt, tokenName, share.Id, totalShares);
+                var fileName = ShareFileCrypto.BuildFileName(createdAt, tokenName, share.Id, totalShares);
                 var path = Path.Combine(tokenSharesPath, fileName);
                 var json = JsonSerializer.Serialize(sharePayload, options);
                 var encryptedPayload = ShareFileCrypto.EncryptShareJson(json);
@@ -2027,40 +2027,6 @@ public partial class MainWindow : Window
             // Don't throw - deployment was successful, share upload is supplementary
             return false;
         }
-    }
-
-    private static string BuildShareFileName(DateTimeOffset createdAtUtc, string tokenName, int shareNumber, int totalShares)
-    {
-        if (shareNumber > 99 || totalShares > 99)
-        {
-            Logger.Warning($"Share filename format expects 2-digit counts. Share {shareNumber}, Total {totalShares} may exceed format.");
-        }
-
-        var datePart = createdAtUtc.ToString("MMddyy", CultureInfo.InvariantCulture);
-        var tokenPart = NormalizeTokenName(tokenName);
-        var sharePart = shareNumber.ToString("D2", CultureInfo.InvariantCulture);
-        var totalPart = totalShares.ToString("D2", CultureInfo.InvariantCulture);
-
-        return $"{datePart}{tokenPart}{sharePart}{totalPart}{ShareFileCrypto.FileExtension}";
-    }
-
-    private static string NormalizeTokenName(string tokenName)
-    {
-        if (string.IsNullOrWhiteSpace(tokenName))
-        {
-            return "TOKEN";
-        }
-
-        var builder = new StringBuilder(tokenName.Length);
-        foreach (var ch in tokenName)
-        {
-            if (char.IsLetterOrDigit(ch))
-            {
-                builder.Append(char.ToUpperInvariant(ch));
-            }
-        }
-
-        return builder.Length > 0 ? builder.ToString() : "TOKEN";
     }
 
     private static bool TryParseShareMetaFromFileName(string fileName, out int shareNumber, out int totalShares)
