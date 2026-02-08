@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Numerics;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
@@ -16,7 +17,10 @@ using AegisMint.Core.Models;
 using AegisMint.Core.Security;
 using AegisMint.Core.Services;
 using NBitcoin;
+using Nethereum.Hex.HexConvertors.Extensions;
+using Nethereum.RLP;
 using Nethereum.Util;
+using Nethereum.Web3;
 using WinForms = System.Windows.Forms;
 
 namespace AegisMint.ShareManager;
@@ -36,6 +40,8 @@ public partial class MainWindow : Window
     private readonly VaultManager _vaultManager = new();
     private readonly DesktopAuthenticationService _authService;
     private bool _desktopRegistered;
+    private const int MaxContractScan = 20;
+    private const string Erc20NameAbi = @"[{""constant"":true,""inputs"":[],""name"":""name"",""outputs"":[{""name"":"""",""type"":""string""}],""stateMutability"":""view"",""type"":""function""}]";
 
     public MainWindow()
     {
@@ -116,10 +122,12 @@ public partial class MainWindow : Window
         MnemonicValidationText.Text = string.Empty;
         TokenNameBox.Text = string.Empty;
         TokenAddressBox.Text = string.Empty;
+        TreasuryAddressBox.Text = string.Empty;
         DeploymentIdBox.Text = string.Empty;
         NewTotalSharesBox.Text = string.Empty;
         NewThresholdBox.Text = string.Empty;
         OutputFolderBox.Text = string.Empty;
+        SetSelectedNetwork("sepolia");
         UpdateThresholdText();
         UpdateStatus("Cleared loaded shares.", false);
     }
@@ -146,6 +154,7 @@ public partial class MainWindow : Window
                         payload.Network ?? string.Empty,
                         payload.TokenAddress,
                         shareLength);
+                    SetSelectedNetwork(payload.Network);
                 }
                 else if (!_metadata.IsCompatibleWith(payload, shareLength))
                 {
@@ -264,6 +273,7 @@ public partial class MainWindow : Window
             ThresholdText.Text = "Threshold: waiting for shares.";
             RecoverButton.IsEnabled = false;
             ReconfigureButton.IsEnabled = false;
+            LookupTokenButton.IsEnabled = false;
             return;
         }
 
@@ -271,6 +281,7 @@ public partial class MainWindow : Window
         ThresholdText.Text = $"{_metadata.Threshold}-of-{_metadata.TotalShares} needed. Loaded {_shares.Count}.";
         RecoverButton.IsEnabled = ready;
         ReconfigureButton.IsEnabled = ready;
+        LookupTokenButton.IsEnabled = _shares.Count > 0;
     }
 
     private void OnRecoverClick(object sender, RoutedEventArgs e)
@@ -288,6 +299,10 @@ public partial class MainWindow : Window
             var secondary = TryDeriveAddress(normalizedMnemonic, 1);
             PrimaryAddressText.Text = primary ?? "Unable to derive address";
             SecondaryAddressText.Text = secondary ?? "Unable to derive address";
+            if (!string.IsNullOrWhiteSpace(primary))
+            {
+                TreasuryAddressBox.Text = primary;
+            }
 
             UpdateStatus($"Mnemonic recovered using {_metadata.Threshold} of {_metadata.TotalShares} shares.", false);
         }
@@ -367,25 +382,120 @@ public partial class MainWindow : Window
         if (string.IsNullOrWhiteSpace(tokenAddress))
         {
             UpdateStatus("Token address is required to look up deployment ID.", true);
+            AddLog("ERROR: Token address is required");
+            return;
+        }
+
+        if (!new AddressUtil().IsValidEthereumAddressHexFormat(tokenAddress))
+        {
+            UpdateStatus("Token address is not a valid Ethereum address.", true);
+            AddLog($"ERROR: Invalid token address format: {tokenAddress}");
             return;
         }
 
         try
         {
+            ShowProgress("Looking up deployment ID...");
+            UpdateStatus("Looking up deployment ID...", false);
+            AddLog("Starting deployment ID lookup");
+            AddLog($"Token address: {tokenAddress}");
+
+            var apiBaseUrl = _vaultManager.GetApiBaseUrl();
+            AddLog($"API base URL: {apiBaseUrl}");
+
             var deploymentId = await GetTokenDeploymentIdAsync(tokenAddress);
             if (string.IsNullOrWhiteSpace(deploymentId))
             {
+                HideProgress();
                 UpdateStatus("No deployment found for the provided token address.", true);
+                AddLog("ERROR: No deployment found for this token address");
                 return;
             }
 
             DeploymentIdBox.Text = deploymentId;
+            AddLog($"Found deployment ID: {deploymentId}");
+            
+            HideProgress();
             UpdateStatus("Deployment ID loaded from backend.", false);
+            AddLog("✓ Deployment ID lookup completed successfully");
         }
         catch (Exception ex)
         {
+            HideProgress();
             Logger.Error("Failed to look up deployment ID", ex);
             UpdateStatus($"Lookup failed: {ex.Message}", true);
+            AddLog($"ERROR: {ex.Message}");
+            AddLog($"Stack trace: {ex.StackTrace}");
+        }
+    }
+
+    private async void OnLookupTokenByTreasuryClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var network = GetSelectedNetwork();
+            var treasuryAddress = TreasuryAddressBox.Text.Trim();
+
+            if (string.IsNullOrWhiteSpace(treasuryAddress))
+            {
+                UpdateStatus("Treasury address is required. Recover the mnemonic first or enter it manually.", true);
+                AddLog("ERROR: Treasury address is required");
+                return;
+            }
+
+            if (!new AddressUtil().IsValidEthereumAddressHexFormat(treasuryAddress))
+            {
+                UpdateStatus("Treasury address is not a valid Ethereum address.", true);
+                AddLog($"ERROR: Invalid treasury address format: {treasuryAddress}");
+                return;
+            }
+
+            ShowProgress($"Looking up token on {network}...");
+            UpdateStatus($"Looking up token on {network}...", false);
+            AddLog($"Starting token lookup on {network} network");
+            AddLog($"Treasury address: {treasuryAddress}");
+
+            var rpcUrl = GetRpcUrlForNetwork(network);
+            AddLog($"RPC URL: {rpcUrl}");
+            
+            var rpc = new JsonRpcClient(rpcUrl);
+            AddLog("Scanning for contracts...");
+            
+            var contractAddress = await DiscoverLatestContractAsync(rpc, treasuryAddress);
+            if (string.IsNullOrWhiteSpace(contractAddress))
+            {
+                HideProgress();
+                UpdateStatus($"No contract found for treasury on {network}.", true);
+                AddLog($"ERROR: No contract found for treasury on {network}");
+                return;
+            }
+
+            AddLog($"Found contract: {contractAddress}");
+            AddLog("Fetching token name...");
+
+            var tokenName = await FetchTokenNameAsync(rpcUrl, contractAddress);
+            TokenAddressBox.Text = contractAddress;
+            if (!string.IsNullOrWhiteSpace(tokenName))
+            {
+                TokenNameBox.Text = tokenName;
+                AddLog($"Token name: {tokenName}");
+            }
+            else
+            {
+                AddLog("Token name not available");
+            }
+
+            HideProgress();
+            UpdateStatus($"Loaded token info from {network}.", false);
+            AddLog($"✓ Token lookup completed successfully");
+        }
+        catch (Exception ex)
+        {
+            HideProgress();
+            Logger.Error("Failed to lookup token by treasury", ex);
+            UpdateStatus($"Lookup failed: {ex.Message}", true);
+            AddLog($"ERROR: {ex.Message}");
+            AddLog($"Stack trace: {ex.StackTrace}");
         }
     }
 
@@ -415,42 +525,49 @@ public partial class MainWindow : Window
             if (_metadata is null)
             {
                 UpdateStatus("Load the existing shares before reconfiguring.", true);
+                AddLog("ERROR: No shares loaded");
                 return;
             }
 
             if (_shares.Count < _metadata.Threshold)
             {
                 UpdateStatus($"Need at least {_metadata.Threshold} shares; only {_shares.Count} loaded.", true);
+                AddLog($"ERROR: Need at least {_metadata.Threshold} shares; only {_shares.Count} loaded");
                 return;
             }
 
             if (!int.TryParse(NewTotalSharesBox.Text, NumberStyles.None, CultureInfo.InvariantCulture, out var newTotal) || newTotal < 2)
             {
                 UpdateStatus("Enter a valid new total share count (>= 2).", true);
+                AddLog("ERROR: Invalid new total share count");
                 return;
             }
 
             if (!int.TryParse(NewThresholdBox.Text, NumberStyles.None, CultureInfo.InvariantCulture, out var newThreshold) || newThreshold < 2)
             {
                 UpdateStatus("Enter a valid new threshold (>= 2).", true);
+                AddLog("ERROR: Invalid new threshold");
                 return;
             }
 
             if (newThreshold > newTotal)
             {
                 UpdateStatus("Threshold cannot exceed total shares.", true);
+                AddLog("ERROR: Threshold cannot exceed total shares");
                 return;
             }
 
             if (newTotal - newThreshold < 1)
             {
                 UpdateStatus("Total shares must exceed threshold to keep at least one distributable share.", true);
+                AddLog("ERROR: Total shares must exceed threshold");
                 return;
             }
 
             if (newTotal > 99 || newThreshold > 99)
             {
                 UpdateStatus("Share naming supports up to 99 total/threshold shares.", true);
+                AddLog("ERROR: Share count exceeds maximum of 99");
                 return;
             }
 
@@ -458,6 +575,7 @@ public partial class MainWindow : Window
             if (string.IsNullOrWhiteSpace(tokenName))
             {
                 UpdateStatus("Token name is required for new share filenames.", true);
+                AddLog("ERROR: Token name is required");
                 return;
             }
 
@@ -465,20 +583,33 @@ public partial class MainWindow : Window
             if (string.IsNullOrWhiteSpace(outputDir))
             {
                 UpdateStatus("Select an output folder for the new shares.", true);
+                AddLog("ERROR: Output folder is required");
                 return;
             }
 
             Directory.CreateDirectory(outputDir);
+            AddLog($"Output directory: {outputDir}");
 
             var deploymentId = DeploymentIdBox.Text.Trim();
             if (string.IsNullOrWhiteSpace(deploymentId))
             {
                 UpdateStatus("Deployment ID is required to update the backend.", true);
+                AddLog("ERROR: Deployment ID is required");
                 return;
             }
 
+            ShowProgress("Generating and uploading new shares...");
+            AddLog("Starting share reconfiguration");
+            AddLog($"Deployment ID: {deploymentId}");
+            AddLog($"New configuration: {newThreshold}-of-{newTotal} shares");
+            AddLog($"Token: {tokenName}");
+
             var mnemonic = RecoverMnemonic();
+            AddLog("✓ Mnemonic recovered from existing shares");
+
             var tokenAddress = TokenAddressBox.Text.Trim();
+            AddLog($"Generating {newTotal} new shares...");
+            
             var generatedShares = GenerateNewShares(
                 mnemonic,
                 tokenName,
@@ -487,29 +618,233 @@ public partial class MainWindow : Window
                 _metadata.Network,
                 string.IsNullOrWhiteSpace(tokenAddress) ? null : tokenAddress);
 
+            AddLog($"✓ Generated {generatedShares.Count} share files");
+
             foreach (var share in generatedShares)
             {
                 var path = Path.Combine(outputDir, share.FileName);
                 File.WriteAllText(path, share.EncryptedContent);
+                AddLog($"Saved: {share.FileName}");
             }
 
+            AddLog("✓ All share files written to disk");
+            AddLog("Registering desktop authentication...");
+
             await EnsureDesktopRegistrationAsync();
+            AddLog("✓ Desktop authentication registered");
+            
+            AddLog("Uploading shares to backend...");
             await UploadShareRotationAsync(deploymentId, generatedShares, newTotal, newThreshold, outputDir);
 
+            HideProgress();
             UpdateStatus("New shares generated and uploaded. Old shares are inactive in backend.", false);
+            AddLog("✓ Share reconfiguration completed successfully");
         }
         catch (Exception ex)
         {
+            HideProgress();
             Logger.Error("Failed to reconfigure shares", ex);
             UpdateStatus($"Reconfiguration failed: {ex.Message}", true);
+            AddLog($"ERROR: {ex.Message}");
+            if (ex.InnerException != null)
+            {
+                AddLog($"Inner exception: {ex.InnerException.Message}");
+            }
+            AddLog($"Stack trace: {ex.StackTrace}");
             System.Windows.MessageBox.Show(this, $"Reconfiguration failed: {ex.Message}", "Share reconfiguration error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
         }
+    }
+
+    private string GetSelectedNetwork()
+    {
+        if (NetworkBox.SelectedItem is System.Windows.Controls.ComboBoxItem item)
+        {
+            var tag = item.Tag as string;
+            if (!string.IsNullOrWhiteSpace(tag))
+            {
+                return tag.Trim().ToLowerInvariant();
+            }
+
+            var content = item.Content?.ToString();
+            if (!string.IsNullOrWhiteSpace(content))
+            {
+                return content.Trim().ToLowerInvariant();
+            }
+        }
+
+        return "sepolia";
+    }
+
+    private void SetSelectedNetwork(string? network)
+    {
+        if (string.IsNullOrWhiteSpace(network))
+        {
+            return;
+        }
+
+        var target = network.Trim().ToLowerInvariant();
+        foreach (var item in NetworkBox.Items)
+        {
+            if (item is System.Windows.Controls.ComboBoxItem comboItem)
+            {
+                var tag = (comboItem.Tag as string ?? comboItem.Content?.ToString() ?? string.Empty).Trim().ToLowerInvariant();
+                if (target.Contains(tag) || tag.Contains(target))
+                {
+                    NetworkBox.SelectedItem = comboItem;
+                    return;
+                }
+            }
+        }
+    }
+
+    private string GetRpcUrlForNetwork(string network)
+    {
+        return network.ToLowerInvariant() switch
+        {
+            "localhost" => "http://127.0.0.1:7545",
+            "mainnet" => "https://mainnet.infura.io/v3/fc5bd40a3f054a4f9842f53d0d711e0e",
+            "sepolia" => "https://sepolia.infura.io/v3/fc6598ddab264c89a508cdb97d5398ea",
+            _ => "http://127.0.0.1:7545"
+        };
+    }
+
+    private async Task<string?> DiscoverLatestContractAsync(JsonRpcClient rpc, string treasuryAddress)
+    {
+        try
+        {
+            var txCountHex = await rpc.GetTransactionCountAsync(treasuryAddress, "latest");
+            var txCount = HexToBigInteger(txCountHex);
+            AddLog($"Treasury transaction count: {txCount}");
+
+            var attempts = (int)Math.Min((long)txCount, MaxContractScan);
+            AddLog($"Scanning last {attempts} transactions for contracts...");
+            
+            for (var i = 0; i < attempts; i++)
+            {
+                var nonce = txCount - 1 - i;
+                if (nonce < 0) break;
+
+                var candidate = ComputeContractAddress(treasuryAddress, nonce);
+                AddLog($"Checking nonce {nonce}: {candidate}");
+                
+                var codeElement = await rpc.SendRequestAsync("eth_getCode", candidate, "latest");
+                var code = codeElement.GetString() ?? "0x";
+                if (!string.Equals(code, "0x", StringComparison.OrdinalIgnoreCase))
+                {
+                    Logger.Info($"Discovered deployed contract at {candidate} (nonce {nonce})");
+                    AddLog($"✓ Found deployed contract at nonce {nonce}");
+                    return candidate;
+                }
+            }
+            
+            AddLog($"No contract found after scanning {attempts} transactions");
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"Contract discovery failed: {ex.Message}");
+            AddLog($"ERROR during contract discovery: {ex.Message}");
+        }
+
+        return null;
+    }
+
+    private async Task<string?> FetchTokenNameAsync(string rpcUrl, string contractAddress)
+    {
+        try
+        {
+            var web3 = new Web3(rpcUrl);
+            var contract = web3.Eth.GetContract(Erc20NameAbi, contractAddress);
+            var nameFn = contract.GetFunction("name");
+            return await nameFn.CallAsync<string>();
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"Failed to fetch token name from {contractAddress}: {ex.Message}");
+            return null;
+        }
+    }
+
+    private static BigInteger HexToBigInteger(string hex)
+    {
+        if (string.IsNullOrEmpty(hex) || hex == "0x" || hex == "0x0")
+            return BigInteger.Zero;
+
+        if (hex.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+            hex = hex.Substring(2);
+
+        return BigInteger.Parse("0" + hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+    }
+
+    private static string ComputeContractAddress(string sender, BigInteger nonce)
+    {
+        var addressBytes = sender.Replace("0x", string.Empty).HexToByteArray();
+        var nonceBytesLe = nonce.ToByteArray();
+        var nonceBytes = nonceBytesLe.Reverse().SkipWhile(b => b == 0).ToArray();
+
+        var encoded = RLP.EncodeList(RLP.EncodeElement(addressBytes), RLP.EncodeElement(nonceBytes));
+        var hash = new Sha3Keccack().CalculateHash(encoded);
+        var contractBytes = hash.Skip(hash.Length - 20).ToArray();
+        return "0x" + BitConverter.ToString(contractBytes).Replace("-", "").ToLowerInvariant();
     }
 
     private void UpdateStatus(string message, bool isError)
     {
         StatusText.Text = message;
         StatusText.Foreground = isError ? System.Windows.Media.Brushes.Tomato : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(203, 213, 225));
+    }
+
+    private void AddLog(string message)
+    {
+        var timestamp = DateTime.Now.ToString("HH:mm:ss");
+        var logEntry = $"[{timestamp}] {message}\n";
+        LogTextBlock.Text += logEntry;
+        
+        // Auto-scroll to bottom
+        if (LogTextBlock.Parent is System.Windows.Controls.ScrollViewer scrollViewer)
+        {
+            scrollViewer.ScrollToEnd();
+        }
+    }
+
+    private void OnClearLog(object sender, RoutedEventArgs e)
+    {
+        LogTextBlock.Text = string.Empty;
+    }
+
+    private void OnCopyLog(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(LogTextBlock.Text))
+            {
+                System.Windows.Clipboard.SetText(LogTextBlock.Text);
+                UpdateStatus("Operation log copied to clipboard.", false);
+            }
+            else
+            {
+                UpdateStatus("Log is empty, nothing to copy.", true);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("Failed to copy log to clipboard", ex);
+            UpdateStatus($"Failed to copy log: {ex.Message}", true);
+        }
+    }
+
+    private void ShowProgress(string message)
+    {
+        ProgressIndicator.Visibility = Visibility.Visible;
+        OperationStatusText.Visibility = Visibility.Visible;
+        OperationStatusText.Text = message;
+        AddLog(message);
+    }
+
+    private void HideProgress()
+    {
+        ProgressIndicator.Visibility = Visibility.Collapsed;
+        OperationStatusText.Visibility = Visibility.Collapsed;
+        OperationStatusText.Text = string.Empty;
     }
 
     private async Task EnsureDesktopRegistrationAsync()
@@ -536,23 +871,40 @@ public partial class MainWindow : Window
         var endpoint = $"/token-deployments/?contract_address={Uri.EscapeDataString(contractAddress)}";
         var fullUrl = apiBaseUrl.TrimEnd('/') + endpoint;
 
+        AddLog($"Querying API: {endpoint}");
         var response = await httpClient.GetAsync(fullUrl);
+        AddLog($"Response status: {response.StatusCode}");
+        
         if (!response.IsSuccessStatusCode)
         {
             Logger.Warning($"Failed to query token deployments. Status: {response.StatusCode}");
+            AddLog($"ERROR: API returned status {response.StatusCode}");
             return null;
         }
 
         var responseBody = await response.Content.ReadAsStringAsync();
+        AddLog($"Response body length: {responseBody.Length} characters");
+
         using var jsonDoc = JsonDocument.Parse(responseBody);
 
         if (jsonDoc.RootElement.ValueKind == JsonValueKind.Array && jsonDoc.RootElement.GetArrayLength() > 0)
         {
+            AddLog($"Found {jsonDoc.RootElement.GetArrayLength()} deployment(s)");
             var firstDeployment = jsonDoc.RootElement[0];
             if (firstDeployment.TryGetProperty("id", out var idElement))
             {
-                return idElement.GetString();
+                var deploymentId = idElement.GetString();
+                AddLog($"Extracted deployment ID from response");
+                return deploymentId;
             }
+            else
+            {
+                AddLog("WARNING: Deployment found but 'id' property missing");
+            }
+        }
+        else
+        {
+            AddLog("No deployments found in API response");
         }
 
         return null;
@@ -566,52 +918,86 @@ public partial class MainWindow : Window
         string network,
         string? tokenAddress)
     {
-        var keyBytes = RandomNumberGenerator.GetBytes(32);
-        var keyHex = Convert.ToHexString(keyBytes);
-
-        using var aes = Aes.Create();
-        aes.Key = keyBytes;
-        aes.GenerateIV();
-
-        using var encryptor = aes.CreateEncryptor();
-        var mnemonicBytes = Encoding.UTF8.GetBytes(mnemonic);
-        var encryptedBytes = encryptor.TransformFinalBlock(mnemonicBytes, 0, mnemonicBytes.Length);
-        var encryptedMnemonicHex = Convert.ToHexString(encryptedBytes);
-        var ivHex = Convert.ToHexString(aes.IV);
-
-        var shamir = new ShamirSecretSharingService();
-        var shareSeed = Encoding.UTF8.GetBytes(keyHex);
-        var shares = shamir.Split(shareSeed, threshold, totalShares);
-
-        var createdAt = DateTimeOffset.UtcNow;
-        var payloadOptions = new JsonSerializerOptions { WriteIndented = true };
-        var result = new List<GeneratedShareFile>(shares.Count);
-
-        foreach (var share in shares)
+        try
         {
-            var payload = new
+            AddLog($"Generating encryption key...");
+            var keyBytes = RandomNumberGenerator.GetBytes(32);
+            var keyHex = Convert.ToHexString(keyBytes);
+
+            using var aes = Aes.Create();
+            aes.Key = keyBytes;
+            aes.GenerateIV();
+
+            AddLog("Encrypting mnemonic...");
+            using var encryptor = aes.CreateEncryptor();
+            var mnemonicBytes = Encoding.UTF8.GetBytes(mnemonic);
+            var encryptedBytes = encryptor.TransformFinalBlock(mnemonicBytes, 0, mnemonicBytes.Length);
+            var encryptedMnemonicHex = Convert.ToHexString(encryptedBytes);
+            var ivHex = Convert.ToHexString(aes.IV);
+
+            AddLog($"Splitting key into {totalShares} shares with threshold {threshold}...");
+            var shamir = new ShamirSecretSharingService();
+            var shareSeed = Encoding.UTF8.GetBytes(keyHex);
+            var shares = shamir.Split(shareSeed, threshold, totalShares);
+            
+            AddLog($"Shamir split created {shares.Count} shares");
+            
+            if (shares.Count != totalShares)
             {
-                createdAtUtc = createdAt,
-                network,
-                totalShares,
-                threshold,
-                clientShareCount = totalShares - threshold,
-                safekeepingShareCount = threshold,
-                share = $"{share.Id}-{share.Value}",
-                encryptedMnemonic = encryptedMnemonicHex,
-                iv = ivHex,
-                encryptionVersion = 1,
-                tokenAddress = string.IsNullOrWhiteSpace(tokenAddress) ? null : tokenAddress
-            };
+                throw new InvalidOperationException($"Shamir split produced {shares.Count} shares but expected {totalShares}");
+            }
 
-            var json = JsonSerializer.Serialize(payload, payloadOptions);
-            var encryptedPayload = ShareFileCrypto.EncryptShareJson(json);
-            var fileName = ShareFileCrypto.BuildFileName(createdAt, tokenName, share.Id, totalShares);
+            var createdAt = DateTimeOffset.UtcNow;
+            var payloadOptions = new JsonSerializerOptions { WriteIndented = true };
+            var sharesList = shares.ToList();
+            var result = new List<GeneratedShareFile>(sharesList.Count);
 
-            result.Add(new GeneratedShareFile(share.Id, fileName, encryptedPayload));
+            AddLog("Building share files...");
+            for (int i = 0; i < sharesList.Count; i++)
+            {
+                var share = sharesList[i];
+                AddLog($"Processing share {i + 1}/{sharesList.Count}: ID={share.Id}, TotalShares={totalShares}");
+                
+                if (share.Id > 99 || totalShares > 99)
+                {
+                    throw new InvalidOperationException($"Share ID {share.Id} or total shares {totalShares} exceeds maximum of 99");
+                }
+                
+                var payload = new
+                {
+                    createdAtUtc = createdAt,
+                    network,
+                    totalShares,
+                    threshold,
+                    clientShareCount = totalShares - threshold,
+                    safekeepingShareCount = threshold,
+                    share = $"{share.Id}-{share.Value}",
+                    encryptedMnemonic = encryptedMnemonicHex,
+                    iv = ivHex,
+                    encryptionVersion = 1,
+                    tokenAddress = string.IsNullOrWhiteSpace(tokenAddress) ? null : tokenAddress
+                };
+
+                var json = JsonSerializer.Serialize(payload, payloadOptions);
+                var encryptedPayload = ShareFileCrypto.EncryptShareJson(json);
+                
+                var dateFormatted = createdAt.ToString("MMddyy", CultureInfo.InvariantCulture);
+                AddLog($"Building filename: date={dateFormatted}, token={tokenName}, shareNum={share.Id}, total={totalShares}");
+                var fileName = ShareFileCrypto.BuildFileName(createdAt, tokenName, share.Id, totalShares);
+                AddLog($"Generated filename: {fileName}");
+
+                result.Add(new GeneratedShareFile(share.Id, fileName, encryptedPayload));
+            }
+
+            AddLog($"✓ Successfully generated {result.Count} share files");
+            return result;
         }
-
-        return result;
+        catch (Exception ex)
+        {
+            AddLog($"ERROR in GenerateNewShares: {ex.Message}");
+            AddLog($"Stack trace: {ex.StackTrace}");
+            throw;
+        }
     }
 
     private async Task UploadShareRotationAsync(
@@ -621,6 +1007,8 @@ public partial class MainWindow : Window
         int threshold,
         string outputDir)
     {
+        AddLog($"Preparing upload payload for {shares.Count} shares");
+        
         var shareItems = shares.Select(s => new
         {
             share_number = s.ShareNumber,
@@ -628,6 +1016,8 @@ public partial class MainWindow : Window
             encrypted_content = s.EncryptedContent,
             encryption_key_id = ShareFileCrypto.EncryptionKeyId
         }).ToList();
+
+        AddLog($"Share numbers: {string.Join(", ", shareItems.Select(s => s.share_number))}");
 
         var payload = new
         {
@@ -642,7 +1032,21 @@ public partial class MainWindow : Window
             shares = shareItems
         };
 
+        AddLog($"Payload details:");
+        AddLog($"  token_deployment_id: {deploymentId}");
+        AddLog($"  replace_existing: true");
+        AddLog($"  total_shares: {totalShares}");
+        AddLog($"  gov_threshold: {threshold}");
+        AddLog($"  gov_shares: {totalShares - threshold}");
+        AddLog($"  client_share_count: {totalShares - threshold}");
+        AddLog($"  safekeeping_share_count: {threshold}");
+        AddLog($"  shares_path: {outputDir}");
+        AddLog($"  shares count: {shareItems.Count}");
+        AddLog("Sending POST request to /share-files/bulk");
+
         var response = await _authService.PostAuthenticatedAsync<ShareFilesBulkResponse>("/share-files/bulk", payload);
+        
+        AddLog($"✓ API response: Created {response.CreatedCount} shares");
         Logger.Info($"Share rotation upload complete. Created {response.CreatedCount} shares.");
     }
 

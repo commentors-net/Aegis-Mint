@@ -5,17 +5,161 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="Aegis Mint - Share Manager"
-        Height="720"
+        Height="980"
         Width="1080"
         Background="#0b1020"
         WindowStartupLocation="CenterScreen"
-        MinHeight="640"
+        MinHeight="960"
         MinWidth="960">
+    <Window.Resources>
+        <Style x:Key="ButtonBase" TargetType="Button">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Background" Value="#1f2937" />
+            <Setter Property="BorderBrush" Value="#374151" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              RecognizesAccessKey="True" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#334155" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#111827" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Border" Property="Background" Value="#111827" />
+                                <Setter TargetName="Border" Property="BorderBrush" Value="#1f2937" />
+                                <Setter Property="Foreground" Value="#9ca3af" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ButtonPrimary" TargetType="Button" BasedOn="{StaticResource ButtonBase}">
+            <Setter Property="Background" Value="#2563eb" />
+            <Setter Property="BorderBrush" Value="#1d4ed8" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#1d4ed8" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="ButtonSuccess" TargetType="Button" BasedOn="{StaticResource ButtonBase}">
+            <Setter Property="Background" Value="#16a34a" />
+            <Setter Property="BorderBrush" Value="#15803d" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#15803d" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="ButtonSubtle" TargetType="Button" BasedOn="{StaticResource ButtonBase}">
+            <Setter Property="Background" Value="#111827" />
+            <Setter Property="BorderBrush" Value="#374151" />
+            <Setter Property="Foreground" Value="#e5e7eb" />
+        </Style>
+
+        <Style x:Key="ComboBoxDark" TargetType="ComboBox">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Background" Value="#0b1220" />
+            <Setter Property="BorderBrush" Value="#1f2937" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton x:Name="ToggleButton"
+                                          Background="{TemplateBinding Background}"
+                                          BorderBrush="{TemplateBinding BorderBrush}"
+                                          BorderThickness="{TemplateBinding BorderThickness}"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                          ClickMode="Press"
+                                          Focusable="False">
+                                <Grid>
+                                    <ContentPresenter Margin="{TemplateBinding Padding}"
+                                                      VerticalAlignment="Center"
+                                                      HorizontalAlignment="Left"
+                                                      Content="{TemplateBinding SelectionBoxItem}"
+                                                      ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                      TextElement.Foreground="{TemplateBinding Foreground}"
+                                                      RecognizesAccessKey="True" />
+                                    <Path Data="M 0 0 L 4 4 L 8 0 Z"
+                                          Fill="White"
+                                          HorizontalAlignment="Right"
+                                          VerticalAlignment="Center"
+                                          Margin="0,0,8,0" />
+                                </Grid>
+                            </ToggleButton>
+                            <Popup x:Name="Popup"
+                                   Placement="Bottom"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   AllowsTransparency="True"
+                                   Focusable="False"
+                                   PopupAnimation="Fade">
+                                <Border Background="#0b1220"
+                                        BorderBrush="#1f2937"
+                                        BorderThickness="1"
+                                        CornerRadius="2">
+                                    <ScrollViewer Margin="0"
+                                                  SnapsToDevicePixels="True">
+                                        <StackPanel IsItemsHost="True" />
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#9ca3af" />
+                                <Setter TargetName="ToggleButton" Property="Background" Value="#111827" />
+                                <Setter TargetName="ToggleButton" Property="BorderBrush" Value="#374151" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ToggleButton" Property="Background" Value="#111827" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Background" Value="#0b1220" />
+            <Setter Property="Padding" Value="6,4" />
+            <Style.Triggers>
+                <Trigger Property="IsHighlighted" Value="True">
+                    <Setter Property="Background" Value="#1f2937" />
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#1f2937" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
     <Grid Margin="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -35,28 +179,28 @@
         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,14,0,12">
             <Button x:Name="BrowseButton"
                     Content="Load share files..."
+                    Height="32"
+                    MinWidth="140"
                     Margin="0,0,8,0"
-                    Padding="14,8"
+                    Padding="14,6"
                     Click="OnBrowseClick"
-                    Background="#1f2937"
-                    Foreground="White"
-                    BorderBrush="#374151" />
+                    Style="{StaticResource ButtonBase}" />
             <Button x:Name="ClearButton"
                     Content="Clear"
+                    Height="32"
+                    MinWidth="80"
                     Margin="0,0,8,0"
-                    Padding="12,8"
+                    Padding="12,6"
                     Click="OnClearClick"
-                    Background="#111827"
-                    Foreground="#e5e7eb"
-                    BorderBrush="#374151" />
+                    Style="{StaticResource ButtonSubtle}" />
             <Button x:Name="RecoverButton"
                     Content="Recover mnemonic"
-                    Padding="16,8"
+                    Height="32"
+                    MinWidth="140"
+                    Padding="16,6"
                     Click="OnRecoverClick"
                     IsEnabled="False"
-                    Background="#2563eb"
-                    Foreground="White"
-                    BorderBrush="#1d4ed8" />
+                    Style="{StaticResource ButtonPrimary}" />
             <TextBlock x:Name="ThresholdText"
                        VerticalAlignment="Center"
                        Margin="8,0,0,0"
@@ -133,6 +277,44 @@
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                    <TextBlock Text="Treasury Address"
+                               Width="120"
+                               Foreground="#cbd5e1"
+                               VerticalAlignment="Center" />
+                    <TextBox x:Name="TreasuryAddressBox"
+                             Width="360"
+                             Background="#0b1220"
+                             Foreground="White"
+                             BorderBrush="#1f2937"
+                             BorderThickness="1"
+                             Padding="6" />
+                    <TextBlock Text="Network"
+                               Width="120"
+                               Margin="16,0,0,0"
+                               Foreground="#cbd5e1"
+                               VerticalAlignment="Center" />
+                    <ComboBox x:Name="NetworkBox"
+                              Height="28"
+                              Width="140"
+                              BorderThickness="1"
+                              Padding="6,4"
+                              VerticalContentAlignment="Center"
+                              Style="{StaticResource ComboBoxDark}">
+                        <ComboBoxItem Content="Sepolia" Tag="sepolia" IsSelected="True" />
+                        <ComboBoxItem Content="Mainnet" Tag="mainnet" />
+                        <ComboBoxItem Content="Localhost" Tag="localhost" />
+                    </ComboBox>
+                    <Button x:Name="LookupTokenButton"
+                            Content="Lookup by treasury"
+                            Height="28"
+                            MinWidth="140"
+                            Margin="8,0,0,0"
+                            Padding="10,4"
+                            Click="OnLookupTokenByTreasuryClick"
+                            Style="{StaticResource ButtonBase}" />
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                     <TextBlock Text="Deployment ID"
                                Width="120"
                                Foreground="#cbd5e1"
@@ -146,12 +328,12 @@
                              Padding="6" />
                     <Button x:Name="LookupDeploymentButton"
                             Content="Lookup by address"
+                            Height="28"
+                            MinWidth="140"
                             Margin="8,0,0,0"
-                            Padding="10,6"
+                            Padding="10,4"
                             Click="OnLookupDeploymentClick"
-                            Background="#1f2937"
-                            Foreground="#e5e7eb"
-                            BorderBrush="#374151" />
+                            Style="{StaticResource ButtonBase}" />
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
@@ -194,27 +376,104 @@
                              Padding="6" />
                     <Button x:Name="BrowseOutputButton"
                             Content="Browse"
+                            Height="28"
+                            MinWidth="80"
                             Margin="8,0,0,0"
-                            Padding="10,6"
+                            Padding="10,4"
                             Click="OnBrowseOutputClick"
-                            Background="#1f2937"
-                            Foreground="#e5e7eb"
-                            BorderBrush="#374151" />
+                            Style="{StaticResource ButtonBase}" />
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                     <Button x:Name="ReconfigureButton"
                             Content="Generate &amp; Upload New Shares"
-                            Padding="16,8"
+                            Height="34"
+                            MinWidth="220"
+                            Padding="16,6"
                             Click="OnReconfigureClick"
-                            Background="#16a34a"
-                            Foreground="White"
-                            BorderBrush="#15803d" />
+                            Style="{StaticResource ButtonSuccess}" />
+                    <StackPanel Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center">
+                        <TextBlock x:Name="ProgressIndicator"
+                                   Text="●"
+                                   FontSize="16"
+                                   Foreground="#3b82f6"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0"
+                                   Visibility="Collapsed">
+                            <TextBlock.RenderTransform>
+                                <RotateTransform x:Name="SpinnerTransform" CenterX="8" CenterY="8" />
+                            </TextBlock.RenderTransform>
+                            <TextBlock.Triggers>
+                                <EventTrigger RoutedEvent="TextBlock.Loaded">
+                                    <BeginStoryboard x:Name="SpinnerStoryboard">
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="SpinnerTransform"
+                                                           Storyboard.TargetProperty="Angle"
+                                                           From="0"
+                                                           To="360"
+                                                           Duration="0:0:1"
+                                                           RepeatBehavior="Forever" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </EventTrigger>
+                            </TextBlock.Triggers>
+                        </TextBlock>
+                        <TextBlock x:Name="OperationStatusText"
+                                   Foreground="#94a3b8"
+                                   FontSize="12"
+                                   VerticalAlignment="Center"
+                                   Visibility="Collapsed" />
+                    </StackPanel>
                 </StackPanel>
             </StackPanel>
         </Border>
 
-        <Grid Grid.Row="4" Margin="0,12,0,12">
+        <Border Grid.Row="4"
+                Background="#0f172a"
+                BorderBrush="#1f2937"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="12"
+                Margin="0,12,0,12"
+                x:Name="LogViewerBorder"
+                MaxHeight="120"
+                Visibility="Visible">
+            <StackPanel>
+                <DockPanel Margin="0,0,0,8">
+                    <TextBlock Text="Operation Log"
+                               FontWeight="SemiBold"
+                               Foreground="#e5e7eb"
+                               FontSize="13"
+                               DockPanel.Dock="Left" />
+                    <Button Content="Copy"
+                            Height="24"
+                            MinWidth="60"
+                            Padding="8,4"
+                            Margin="0,0,8,0"
+                            DockPanel.Dock="Right"
+                            Click="OnCopyLog"
+                            Style="{StaticResource ButtonSubtle}" />
+                    <Button Content="Clear"
+                            Height="24"
+                            MinWidth="60"
+                            Padding="8,4"
+                            DockPanel.Dock="Right"
+                            Click="OnClearLog"
+                            Style="{StaticResource ButtonSubtle}" />
+                </DockPanel>
+                <ScrollViewer MaxHeight="80" VerticalScrollBarVisibility="Auto">
+                    <TextBlock x:Name="LogTextBlock"
+                               Foreground="#cbd5e1"
+                               FontSize="11"
+                               FontFamily="Consolas"
+                               TextWrapping="Wrap"
+                               Background="#0b1220"
+                               Padding="8" />
+                </ScrollViewer>
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="5" Margin="0,12,0,12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="2*" />
                 <ColumnDefinition Width="*" />
@@ -235,12 +494,12 @@
                                    DockPanel.Dock="Left" />
                         <Button Content="Copy"
                                 DockPanel.Dock="Right"
+                                Height="28"
+                                MinWidth="70"
                                 Padding="10,4"
                                 Margin="8,0,0,0"
                                 Click="OnCopyMnemonic"
-                                Background="#1f2937"
-                                Foreground="#e5e7eb"
-                                BorderBrush="#374151" />
+                                Style="{StaticResource ButtonBase}" />
                     </DockPanel>
                     <TextBox x:Name="RecoveredMnemonicBox"
                              Margin="0,8,0,0"
@@ -294,7 +553,7 @@
             </Border>
         </Grid>
 
-        <Border Grid.Row="5"
+        <Border Grid.Row="6"
                 Background="#0f172a"
                 BorderBrush="#1f2937"
                 BorderThickness="1"

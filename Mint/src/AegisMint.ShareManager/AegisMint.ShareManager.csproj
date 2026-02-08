@@ -1,5 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
@@ -9,16 +8,14 @@
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>AegisMint.ShareManager</AssemblyName>
     <RootNamespace>AegisMint.ShareManager</RootNamespace>
+    <Version>1.1.0</Version>
   </PropertyGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\AegisMint.Core\AegisMint.Core.csproj" />
   </ItemGroup>
-
   <ItemGroup>
     <Content Include="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
-
 </Project>

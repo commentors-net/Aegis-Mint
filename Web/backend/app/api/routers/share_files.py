@@ -177,20 +177,24 @@ async def create_share_files_bulk(
             deployment.safekeeping_share_count = payload.safekeeping_share_count
             if payload.shares_path:
                 deployment.shares_path = payload.shares_path
+            
+            # Flush to persist the is_active=False updates before creating new shares
+            db.flush()
 
         for share_item in payload.shares:
-            # Check for duplicate share number
-            existing = db.query(ShareFile).filter(
-                ShareFile.token_deployment_id == payload.token_deployment_id,
-                ShareFile.share_number == share_item.share_number,
-                ShareFile.is_active.is_(True)
-            ).first()
-            
-            if existing:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Share #{share_item.share_number} already exists"
-                )
+            # Check for duplicate share number (only active shares)
+            if not payload.replace_existing:
+                existing = db.query(ShareFile).filter(
+                    ShareFile.token_deployment_id == payload.token_deployment_id,
+                    ShareFile.share_number == share_item.share_number,
+                    ShareFile.is_active.is_(True)
+                ).first()
+                
+                if existing:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Share #{share_item.share_number} already exists"
+                    )
             
             stored_content = share_item.encrypted_content
 
