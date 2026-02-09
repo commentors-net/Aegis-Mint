@@ -7,7 +7,7 @@ Aegis Mint is a multi-part system for token minting, governance approvals, and s
 - `Web/frontend` - React admin and governance portal (Token approvals, share assignment UI).
 - `ClientWeb/backend` - FastAPI proxy for token users (share portal API).
 - `ClientWeb/frontend` - React Share Portal for token users (login, MFA, downloads).
-- `Mint` - Desktop apps (AegisMint.Mint, TokenControl, RecoverShares).
+- `Mint` - Desktop apps (AegisMint.Mint, TokenControl, ShareManager).
 - `Resources` - User manuals, architecture, requirements, and testing references.
 - `Scripts` - Supporting scripts (vault key export, installer helpers).
 

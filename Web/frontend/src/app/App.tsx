@@ -12,7 +12,7 @@ import AssignDesktopsPage from "../pages/admin/AssignDesktopsPage";
 import AuditLogsPage from "../pages/admin/AuditLogsPage";
 import SystemSettingsPage from "../pages/admin/SystemSettingsPage";
 import CertificateAuthorityPage from "../pages/admin/CertificateAuthorityPage";
-import RecoverSharesPage from "../pages/admin/RecoverSharesPage";
+import ShareManagerPage from "../pages/admin/ShareManagerPage";
 import DownloadsPage from "../pages/admin/DownloadsPage";
 import MintApprovalPage from "../pages/admin/MintApprovalPage";
 import TokensListPage from "../pages/admin/TokensListPage";
@@ -49,7 +49,8 @@ export default function App() {
         <Route path="audit" element={<AuditLogsPage />} />
         <Route path="settings" element={<SystemSettingsPage />} />
         <Route path="certificates" element={<CertificateAuthorityPage />} />
-        <Route path="recover-shares" element={<RecoverSharesPage />} />
+        <Route path="share-manager" element={<ShareManagerPage />} />
+        <Route path="recover-shares" element={<ShareManagerPage />} />
         <Route path="downloads" element={<DownloadsPage />} />
         <Route path="tokens" element={<TokensListPage />} />
         <Route path="tokens/:tokenId/shares" element={<ShareAssignmentPage />} />

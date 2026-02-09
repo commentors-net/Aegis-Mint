@@ -645,9 +645,9 @@ public partial class MainWindow : Window
                 await SendToWebAsync("host-error", new { message = "Threshold must be at least 2 to create recovery shares." });
                 return;
             }
-            if (totalShares > 255)
+            if (totalShares > 99)
             {
-                await SendToWebAsync("host-error", new { message = "Total share count cannot exceed 255." });
+                await SendToWebAsync("host-error", new { message = "Total share count cannot exceed 99." });
                 return;
             }
 
@@ -1064,7 +1064,7 @@ public partial class MainWindow : Window
                     tokenAddress = tokenAddress
                 };
 
-                var fileName = $"aegis-share-{share.Id:D3}{ShareFileCrypto.FileExtension}";
+                var fileName = ShareFileCrypto.BuildFileName(createdAt, tokenName, share.Id, totalShares);
                 var path = Path.Combine(tokenSharesPath, fileName);
                 var json = JsonSerializer.Serialize(sharePayload, options);
                 var encryptedPayload = ShareFileCrypto.EncryptShareJson(json);
@@ -1143,7 +1143,7 @@ public partial class MainWindow : Window
             }
 
             // Read all share files
-            var shareFiles = Directory.GetFiles(sharesPath, $"aegis-share-*{ShareFileCrypto.FileExtension}")
+            var shareFiles = Directory.GetFiles(sharesPath, $"*{ShareFileCrypto.FileExtension}")
                 .OrderBy(f => f)
                 .ToList();
             
@@ -1165,13 +1165,10 @@ public partial class MainWindow : Window
                 var fileName = Path.GetFileName(filePath);
                 var shareContent = await File.ReadAllTextAsync(filePath);
                 
-                // Extract share number from filename (aegis-share-001.aegisshare -> 1)
-                var shareNumberStr = Path.GetFileNameWithoutExtension(fileName)
-                    .Replace("aegis-share-", "");
-                if (!int.TryParse(shareNumberStr, out int shareNumber))
+                if (!TryParseShareMetaFromFileName(fileName, out int shareNumber, out _))
                 {
-                    Logger.Warning($"Could not parse share number from filename: {fileName}");
-                    continue;
+                    Logger.Warning($"Could not parse share metadata from filename: {fileName}");
+                    shareNumber = i + 1;
                 }
 
                 // Share content is already encrypted by AegisMint for portability.
@@ -1975,15 +1972,25 @@ public partial class MainWindow : Window
                 // Upload encrypted share payload as-is.
                 var encryptedContent = shareContent;
                 
+                var shareNumber = i + 1;
+                if (!TryParseShareMetaFromFileName(fileName, out int parsedShareNumber, out _))
+                {
+                    Logger.Warning($"Could not parse share metadata from filename: {fileName}");
+                }
+                else
+                {
+                    shareNumber = parsedShareNumber;
+                }
+
                 shareItems.Add(new
                 {
-                    share_number = i + 1,
+                    share_number = shareNumber,
                     file_name = fileName,
                     encrypted_content = encryptedContent,
                     encryption_key_id = ShareFileCrypto.EncryptionKeyId
                 });
                 
-                Logger.Debug($"Prepared share #{i + 1}: {fileName}");
+                Logger.Debug($"Prepared share #{shareNumber}: {fileName}");
             }
             
             var bulkUploadData = new
@@ -2020,6 +2027,31 @@ public partial class MainWindow : Window
             // Don't throw - deployment was successful, share upload is supplementary
             return false;
         }
+    }
+
+    private static bool TryParseShareMetaFromFileName(string fileName, out int shareNumber, out int totalShares)
+    {
+        shareNumber = 0;
+        totalShares = 0;
+
+        var baseName = Path.GetFileNameWithoutExtension(fileName);
+        if (string.IsNullOrWhiteSpace(baseName) || baseName.Length < 10)
+        {
+            return false;
+        }
+
+        var tail = baseName.Substring(baseName.Length - 4, 4);
+        if (!int.TryParse(tail.Substring(0, 2), out shareNumber))
+        {
+            return false;
+        }
+
+        if (!int.TryParse(tail.Substring(2, 2), out totalShares))
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private void LoadContractArtifacts()

@@ -71,9 +71,11 @@ def get_my_shares(
     # Query assignments with related data
     assignments = (
         db.query(ShareAssignment)
+        .join(ShareFile, ShareAssignment.share_file_id == ShareFile.id)
         .filter(
             ShareAssignment.user_id == current_user.id,
-            ShareAssignment.is_active.is_(True)
+            ShareAssignment.is_active.is_(True),
+            ShareFile.is_active.is_(True)
         )
         .options(
             joinedload(ShareAssignment.share_file).joinedload(ShareFile.token_deployment)
@@ -139,10 +141,12 @@ def download_share(
     # Find assignment
     assignment = (
         db.query(ShareAssignment)
+        .join(ShareFile, ShareAssignment.share_file_id == ShareFile.id)
         .filter(
             ShareAssignment.id == assignment_id,
             ShareAssignment.user_id == current_user.id,
-            ShareAssignment.is_active.is_(True)
+            ShareAssignment.is_active.is_(True),
+            ShareFile.is_active.is_(True)
         )
         .options(
             joinedload(ShareAssignment.share_file).joinedload(ShareFile.token_deployment)

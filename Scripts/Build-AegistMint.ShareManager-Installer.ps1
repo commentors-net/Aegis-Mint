@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$Configuration = "Release",
     [string]$Runtime = "win-x64",
     [string]$AppVersion = "0.1.0",
@@ -12,10 +12,10 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$recoverProject = Join-Path $repoRoot "Mint\src\AegisMint.RecoverShares\AegisMint.RecoverShares.csproj"
+$recoverProject = Join-Path $repoRoot "Mint\src\AegisMint.ShareManager\AegisMint.ShareManager.csproj"
 
 if (-not (Test-Path $recoverProject)) {
-    throw "Cannot find recover shares app project at $recoverProject"
+    throw "Cannot find share manager app project at $recoverProject"
 }
 
 # Helpers: version management
@@ -58,7 +58,7 @@ function Bump-Patch([string]$version) {
 }
 
 $currentVersion = Get-ProjectVersion $recoverProject
-Write-Host "Current AegisMint.RecoverShares version: $currentVersion" -ForegroundColor Yellow
+Write-Host "Current AegisMint.ShareManager version: $currentVersion" -ForegroundColor Yellow
 $inputVersion = Read-Host "Enter new version (blank to bump patch)"
 
 if ([string]::IsNullOrWhiteSpace($inputVersion)) {
@@ -78,16 +78,54 @@ if ([string]::IsNullOrWhiteSpace($inputVersion)) {
 # Persist the chosen version back into the project for consistency
 Set-ProjectVersion $recoverProject $AppVersion
 
-Write-Host "Publishing recover shares app..." -ForegroundColor Cyan
-$recoverPublishDir = "$PSScriptRoot\publish\recovershares"
+# Ask if this is a production build BEFORE publishing
+Write-Host ""
+Write-Host "Configuration Setup" -ForegroundColor Yellow
+Write-Host "==================" -ForegroundColor Yellow
+$isProduction = Read-Host "Is this a PRODUCTION build? (yes/no)"
+
+# Backup original appsettings.json and swap if production
+$sourceProjectDir = Split-Path -Parent $recoverProject
+$originalConfig = Join-Path $sourceProjectDir "appsettings.json"
+$prodConfig = Join-Path $sourceProjectDir "appsettings.json.production"
+$backupConfig = Join-Path $sourceProjectDir "appsettings.json.backup"
+
+if ($isProduction -match "^(y|yes)$") {
+    Write-Host "Using PRODUCTION configuration (https://apkserve.com/govern/api)" -ForegroundColor Green
+    
+    if (Test-Path $prodConfig) {
+        # Backup original
+        Copy-Item $originalConfig $backupConfig -Force
+        # Replace with production config
+        Copy-Item $prodConfig $originalConfig -Force
+        Write-Host "Swapped appsettings.json with production config" -ForegroundColor Green
+    } else {
+        Write-Warning "Production config file not found at $prodConfig"
+        Write-Warning "The application will use development settings (localhost)!"
+    }
+} else {
+    Write-Host "Using DEVELOPMENT configuration (http://localhost:8000/api)" -ForegroundColor Cyan
+}
+
+Write-Host "Publishing share manager app..." -ForegroundColor Cyan
+$recoverPublishDir = "$PSScriptRoot\publish\sharemanager"
 if (Test-Path $recoverPublishDir) { Remove-Item $recoverPublishDir -Recurse -Force }
-dotnet publish $recoverProject `
-    -c $Configuration `
-    -r $Runtime `
-    --self-contained:$SelfContained `
-    -p:PublishSingleFile=true `
-    -p:IncludeNativeLibrariesForSelfExtract=true `
-    -o $recoverPublishDir
+try {
+    dotnet publish $recoverProject `
+        -c $Configuration `
+        -r $Runtime `
+        --self-contained:$SelfContained `
+        -p:PublishSingleFile=true `
+        -p:IncludeNativeLibrariesForSelfExtract=true `
+        -o $recoverPublishDir
+} finally {
+    # Restore original appsettings.json if we backed it up
+    if (Test-Path $backupConfig) {
+        Copy-Item $backupConfig $originalConfig -Force
+        Remove-Item $backupConfig -Force
+        Write-Host "Restored original appsettings.json" -ForegroundColor Cyan
+    }
+}
 
 if (-not (Test-Path $OutputDir)) { New-Item -ItemType Directory -Path $OutputDir | Out-Null }
 
@@ -102,17 +140,17 @@ if (-not $innoCandidates) {
     throw "Inno Setup 6 (ISCC.exe) not found. Set INNOSETUP_PATH or install Inno Setup."
 }
 
-$issPath = Join-Path $PSScriptRoot "AegisMint.RecoverShares.generated.iss"
+$issPath = Join-Path $PSScriptRoot "AegisMint.ShareManager.generated.iss"
 
-$recoverPublishDir = "$PSScriptRoot\publish\recovershares"
-$outputBase = "AegisMint-RecoverShares-Setup-$AppVersion"
+$recoverPublishDir = "$PSScriptRoot\publish\sharemanager"
+$outputBase = "AegisMint-ShareManager-Setup-$AppVersion"
 
 $filesSection = @"
 Source: "{#AdminSourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
 "@
 
 $runSection = @"
-Filename: "{app}\AegisMint.RecoverShares.exe"; Description: "Launch Aegis Mint Recover Shares"; WorkingDir: "{app}"; Flags: postinstall nowait skipifsilent
+Filename: "{app}\AegisMint.ShareManager.exe"; Description: "Launch Aegis Mint Share Manager"; WorkingDir: "{app}"; Flags: postinstall nowait skipifsilent
 "@
 
 $iss = @"
@@ -122,15 +160,15 @@ $iss = @"
 #define ServiceName "$ServiceName"
 
 [Setup]
-AppName=AegisMint Recover Shares
+AppName=AegisMint Share Manager
 AppVersion={#AppVersion}
-DefaultDirName={pf}\AegisMint\RecoverShares
+DefaultDirName={pf}\AegisMint\ShareManager
 DefaultGroupName=AegisMint
 DisableProgramGroupPage=yes
 OutputBaseFilename=$outputBase
 OutputDir={#OutputDir}
-UninstallDisplayIcon={app}\AegisMint.RecoverShares.exe
-UninstallDisplayName=AegisMint Recover Shares
+UninstallDisplayIcon={app}\AegisMint.ShareManager.exe
+UninstallDisplayName=AegisMint Share Manager
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 PrivilegesRequired=admin
@@ -141,11 +179,11 @@ SolidCompression=yes
 $filesSection
 
 [Icons]
-Name: "{group}\Aegis Mint Recover Shares"; Filename: "{app}\AegisMint.RecoverShares.exe"; WorkingDir: "{app}"
-Name: "{commondesktop}\Aegis Mint Recover Shares"; Filename: "{app}\AegisMint.RecoverShares.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{group}\Aegis Mint Share Manager"; Filename: "{app}\AegisMint.ShareManager.exe"; WorkingDir: "{app}"
+Name: "{commondesktop}\Aegis Mint Share Manager"; Filename: "{app}\AegisMint.ShareManager.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Tasks]
-Name: "desktopicon"; Description: "Create a desktop icon for Aegis Mint Recover Shares"
+Name: "desktopicon"; Description: "Create a desktop icon for Aegis Mint Share Manager"
 
 [Run]
 $runSection

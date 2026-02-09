@@ -3,9 +3,9 @@ using System.Windows;
 using System.Windows.Threading;
 using AegisMint.Core.Services;
 
-namespace AegisMint.RecoverShares;
+namespace AegisMint.ShareManager;
 
-public partial class App : Application
+public partial class App : System.Windows.Application
 {
     public App()
     {
@@ -15,7 +15,7 @@ public partial class App : Application
 
     private void OnStartup(object sender, StartupEventArgs e)
     {
-        Logger.Info("Starting AegisMint.RecoverShares");
+        Logger.Info("Starting AegisMint.ShareManager");
 
         var window = new MainWindow();
         MainWindow = window;
@@ -26,11 +26,11 @@ public partial class App : Application
     {
         Logger.Error("Unhandled UI exception", e.Exception);
 
-        var result = MessageBox.Show(
+        var result = System.Windows.MessageBox.Show(
             $"An unexpected error occurred:\n\n{e.Exception.Message}\n\nLog file: {Logger.GetLogFilePath()}\n\nContinue running?",
             "Error",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Error);
+            System.Windows.MessageBoxButton.YesNo,
+            System.Windows.MessageBoxImage.Error);
 
         e.Handled = result == MessageBoxResult.Yes;
     }
@@ -40,11 +40,11 @@ public partial class App : Application
         if (e.ExceptionObject is Exception ex)
         {
             Logger.Error("Unhandled domain exception", ex);
-            MessageBox.Show(
+            System.Windows.MessageBox.Show(
                 $"A fatal error occurred:\n\n{ex.Message}\n\nLog file: {Logger.GetLogFilePath()}",
                 "Fatal Error",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Error);
         }
     }
 }

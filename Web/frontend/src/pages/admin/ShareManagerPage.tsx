@@ -9,7 +9,7 @@ type RecoveryResult = {
   token_address?: string;
 };
 
-export default function RecoverSharesPage() {
+export default function ShareManagerPage() {
   const { token } = useAuth();
   const [files, setFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
@@ -137,9 +137,9 @@ export default function RecoverSharesPage() {
     <>
       <div className="stack">
         <div>
-          <h3>Recover Mnemonic from Shares</h3>
+          <h3>Share Manager</h3>
           <p className="muted">
-            Upload 2 or 3 share files to recover the encrypted mnemonic. All recovery attempts are logged.
+            Recover a mnemonic from share files. All recovery attempts are logged.
           </p>
         </div>
 
@@ -229,7 +229,7 @@ export default function RecoverSharesPage() {
             {/* Recovery Result */}
             <div className="card success-card">
               <div className="hd">
-                <h4>✓ Mnemonic Recovered</h4>
+                <h4>Mnemonic Recovered</h4>
               </div>
               <div className="bd stack">
                 {result.token_address && (
@@ -256,7 +256,7 @@ export default function RecoverSharesPage() {
                   </Button>
                 </div>
                 <p className="muted" style={{ fontSize: '0.875rem' }}>
-                  ⚠️ Keep this mnemonic secure. Do not share it with anyone.
+                  Warning: Keep this mnemonic secure. Do not share it with anyone.
                 </p>
               </div>
             </div>

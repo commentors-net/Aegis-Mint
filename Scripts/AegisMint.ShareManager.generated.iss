@@ -1,18 +1,18 @@
 ﻿#define AppVersion "1.1.0"
-#define AdminSourceDir "D:\Jobs\workspace\DiG\Aegis-Mint\Scripts\publish\recovershares"
+#define AdminSourceDir "D:\Jobs\workspace\DiG\Aegis-Mint\Scripts\publish\sharemanager"
 #define OutputDir "D:\Jobs\workspace\DiG\Aegis-Mint\Scripts\dist"
 #define ServiceName "AegisMintService"
 
 [Setup]
-AppName=AegisMint Recover Shares
+AppName=AegisMint Share Manager
 AppVersion={#AppVersion}
-DefaultDirName={pf}\AegisMint\RecoverShares
+DefaultDirName={pf}\AegisMint\ShareManager
 DefaultGroupName=AegisMint
 DisableProgramGroupPage=yes
-OutputBaseFilename=AegisMint-RecoverShares-Setup-1.1.0
+OutputBaseFilename=AegisMint-ShareManager-Setup-1.1.0
 OutputDir={#OutputDir}
-UninstallDisplayIcon={app}\AegisMint.RecoverShares.exe
-UninstallDisplayName=AegisMint Recover Shares
+UninstallDisplayIcon={app}\AegisMint.ShareManager.exe
+UninstallDisplayName=AegisMint Share Manager
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 PrivilegesRequired=admin
@@ -23,14 +23,14 @@ SolidCompression=yes
 Source: "{#AdminSourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
 
 [Icons]
-Name: "{group}\Aegis Mint Recover Shares"; Filename: "{app}\AegisMint.RecoverShares.exe"; WorkingDir: "{app}"
-Name: "{commondesktop}\Aegis Mint Recover Shares"; Filename: "{app}\AegisMint.RecoverShares.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{group}\Aegis Mint Share Manager"; Filename: "{app}\AegisMint.ShareManager.exe"; WorkingDir: "{app}"
+Name: "{commondesktop}\Aegis Mint Share Manager"; Filename: "{app}\AegisMint.ShareManager.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Tasks]
-Name: "desktopicon"; Description: "Create a desktop icon for Aegis Mint Recover Shares"
+Name: "desktopicon"; Description: "Create a desktop icon for Aegis Mint Share Manager"
 
 [Run]
-Filename: "{app}\AegisMint.RecoverShares.exe"; Description: "Launch Aegis Mint Recover Shares"; WorkingDir: "{app}"; Flags: postinstall nowait skipifsilent
+Filename: "{app}\AegisMint.ShareManager.exe"; Description: "Launch Aegis Mint Share Manager"; WorkingDir: "{app}"; Flags: postinstall nowait skipifsilent
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"

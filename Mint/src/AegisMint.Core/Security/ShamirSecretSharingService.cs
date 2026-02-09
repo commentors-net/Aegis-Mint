@@ -151,7 +151,7 @@ public class ShamirSecretSharingService
     {
         if (power == 0) return 1;
         if (a == 0) return 0;
-        var logVal = _log[a] * power;
+        var logVal = (_log[a] * power) % (FieldSize - 1);
         return _exp[logVal];
     }
 

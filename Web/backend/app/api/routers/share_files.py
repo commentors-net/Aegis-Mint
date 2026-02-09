@@ -3,11 +3,12 @@ import logging
 from datetime import datetime
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_db
+from app.api.desktop_deps import get_authenticated_desktop
 from app.core.time import utcnow
 from app.models.share_assignment import ShareAssignment
 from app.models.share_file import ShareFile
@@ -30,6 +31,13 @@ class ShareFilesBulkCreate(BaseModel):
     """Request model for bulk uploading share files after token deployment."""
     token_deployment_id: str = Field(..., description="ID of the token deployment")
     shares: List[ShareFileItem] = Field(..., min_items=1, description="List of share files")
+    replace_existing: bool = Field(False, description="Replace existing share files for this deployment")
+    total_shares: int | None = Field(None, ge=2, description="New total share count when replacing")
+    gov_threshold: int | None = Field(None, ge=1, description="New threshold when replacing")
+    gov_shares: int | None = Field(None, ge=1, description="New governance share count when replacing")
+    client_share_count: int | None = Field(None, ge=0, description="New client share count when replacing")
+    safekeeping_share_count: int | None = Field(None, ge=1, description="New safekeeping share count when replacing")
+    shares_path: str | None = Field(None, max_length=512, description="New shares path when replacing")
 
 
 class AssignedToInfo(BaseModel):
@@ -68,8 +76,9 @@ class ShareFilesBulkResponse(BaseModel):
 
 
 @router.post("/bulk", response_model=ShareFilesBulkResponse)
-def create_share_files_bulk(
-    request: ShareFilesBulkCreate,
+async def create_share_files_bulk(
+    payload: ShareFilesBulkCreate,
+    request: Request,
     db: Session = Depends(get_db)
 ):
     """
@@ -81,22 +90,50 @@ def create_share_files_bulk(
     try:
         # Verify token deployment exists
         deployment = db.query(TokenDeployment).filter(
-            TokenDeployment.id == request.token_deployment_id
+            TokenDeployment.id == payload.token_deployment_id
         ).first()
         
         if not deployment:
             raise HTTPException(status_code=404, detail=f"Token deployment {request.token_deployment_id} not found")
         
         # Check if shares already uploaded
-        if deployment.shares_uploaded:
+        if deployment.shares_uploaded and not payload.replace_existing:
             raise HTTPException(
                 status_code=400,
                 detail=f"Shares already uploaded for this deployment at {deployment.upload_completed_at_utc}"
             )
+
+        if payload.replace_existing:
+            await get_authenticated_desktop(
+                request=request,
+                desktop_id=request.headers.get("X-Desktop-Id"),
+                app_type=request.headers.get("X-App-Type"),
+                timestamp=request.headers.get("X-Desktop-Timestamp"),
+                signature=request.headers.get("X-Desktop-Signature"),
+                user_agent=request.headers.get("User-Agent"),
+                db=db
+            )
+
+            missing = []
+            if payload.total_shares is None:
+                missing.append("total_shares")
+            if payload.gov_threshold is None:
+                missing.append("gov_threshold")
+            if payload.gov_shares is None:
+                missing.append("gov_shares")
+            if payload.client_share_count is None:
+                missing.append("client_share_count")
+            if payload.safekeeping_share_count is None:
+                missing.append("safekeeping_share_count")
+            if missing:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Missing required fields for replace_existing: {', '.join(missing)}"
+                )
         
         # Validate share numbers are sequential and match expected count
-        share_numbers = sorted([s.share_number for s in request.shares])
-        expected_numbers = list(range(1, len(request.shares) + 1))
+        share_numbers = sorted([s.share_number for s in payload.shares])
+        expected_numbers = list(range(1, len(payload.shares) + 1))
         
         if share_numbers != expected_numbers:
             raise HTTPException(
@@ -105,38 +142,70 @@ def create_share_files_bulk(
             )
         
         # Validate count matches deployment configuration
-        if len(request.shares) != deployment.total_shares:
+        expected_total_shares = payload.total_shares if payload.replace_existing else deployment.total_shares
+        if len(payload.shares) != expected_total_shares:
             raise HTTPException(
                 status_code=400,
-                detail=f"Expected {deployment.total_shares} shares but got {len(request.shares)}"
+                detail=f"Expected {expected_total_shares} shares but got {len(payload.shares)}"
             )
         
         # Create share file records
         created_share_ids = []
         now = utcnow()
         
-        for share_item in request.shares:
-            # Check for duplicate share number
-            existing = db.query(ShareFile).filter(
-                ShareFile.token_deployment_id == request.token_deployment_id,
-                ShareFile.share_number == share_item.share_number
-            ).first()
-            
-            if existing:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Share #{share_item.share_number} already exists"
+        if payload.replace_existing:
+            existing_shares = (
+                db.query(ShareFile)
+                .options(joinedload(ShareFile.assignments))
+                .filter(
+                    ShareFile.token_deployment_id == payload.token_deployment_id,
+                    ShareFile.is_active.is_(True)
                 )
+                .all()
+            )
+            for existing_share in existing_shares:
+                existing_share.is_active = False
+                existing_share.replaced_at_utc = now
+                for assignment in existing_share.assignments:
+                    assignment.is_active = False
+                    assignment.download_allowed = False
+
+            deployment.total_shares = payload.total_shares
+            deployment.gov_threshold = payload.gov_threshold
+            deployment.gov_shares = payload.gov_shares
+            deployment.client_share_count = payload.client_share_count
+            deployment.safekeeping_share_count = payload.safekeeping_share_count
+            if payload.shares_path:
+                deployment.shares_path = payload.shares_path
+            
+            # Flush to persist the is_active=False updates before creating new shares
+            db.flush()
+
+        for share_item in payload.shares:
+            # Check for duplicate share number (only active shares)
+            if not payload.replace_existing:
+                existing = db.query(ShareFile).filter(
+                    ShareFile.token_deployment_id == payload.token_deployment_id,
+                    ShareFile.share_number == share_item.share_number,
+                    ShareFile.is_active.is_(True)
+                ).first()
+                
+                if existing:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Share #{share_item.share_number} already exists"
+                    )
             
             stored_content = share_item.encrypted_content
 
             share_file = ShareFile(
-                token_deployment_id=request.token_deployment_id,
+                token_deployment_id=payload.token_deployment_id,
                 share_number=share_item.share_number,
                 file_name=share_item.file_name,
                 encrypted_content=stored_content,
                 encryption_key_id=share_item.encryption_key_id,
-                created_at_utc=now
+                created_at_utc=now,
+                is_active=True
             )
             
             db.add(share_file)
@@ -146,19 +215,19 @@ def create_share_files_bulk(
         # Update token deployment status
         deployment.shares_uploaded = True
         deployment.upload_completed_at_utc = now
-        deployment.share_files_count = len(request.shares)
+        deployment.share_files_count = len(payload.shares)
         
         db.commit()
         
         logger.info(
-            f"[OK] Bulk uploaded {len(request.shares)} share files for token {deployment.token_name} "
-            f"(deployment_id: {request.token_deployment_id})"
+            f"[OK] Bulk uploaded {len(payload.shares)} share files for token {deployment.token_name} "
+            f"(deployment_id: {payload.token_deployment_id})"
         )
         
         return ShareFilesBulkResponse(
             created_count=len(created_share_ids),
             share_file_ids=created_share_ids,
-            token_deployment_id=request.token_deployment_id
+            token_deployment_id=payload.token_deployment_id
         )
     
     except HTTPException:
@@ -194,7 +263,8 @@ def get_token_share_files(
         shares = db.query(ShareFile).options(
             joinedload(ShareFile.assignments).joinedload(ShareAssignment.user)
         ).filter(
-            ShareFile.token_deployment_id == token_deployment_id
+            ShareFile.token_deployment_id == token_deployment_id,
+            ShareFile.is_active.is_(True)
         ).order_by(ShareFile.share_number).all()
         
         # Build response with assignment status

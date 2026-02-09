@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -40,6 +41,50 @@ public static class ShareFileCrypto
         Buffer.BlockCopy(ciphertext, 0, payload, 1 + NonceSize + TagSize, ciphertext.Length);
 
         return Convert.ToBase64String(payload);
+    }
+
+    public static string BuildFileName(DateTimeOffset createdAtUtc, string tokenName, int shareNumber, int totalShares)
+    {
+        if (shareNumber <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(shareNumber), "Share number must be positive.");
+        }
+
+        if (totalShares <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(totalShares), "Total shares must be positive.");
+        }
+
+        if (shareNumber > 99 || totalShares > 99)
+        {
+            throw new ArgumentOutOfRangeException(nameof(totalShares), "Share naming supports up to 99 shares.");
+        }
+
+        var datePart = createdAtUtc.ToString("MMddyy", CultureInfo.InvariantCulture);
+        var tokenPart = NormalizeTokenName(tokenName);
+        var sharePart = shareNumber.ToString("D2", CultureInfo.InvariantCulture);
+        var totalPart = totalShares.ToString("D2", CultureInfo.InvariantCulture);
+
+        return $"{datePart}{tokenPart}{sharePart}{totalPart}{FileExtension}";
+    }
+
+    public static string NormalizeTokenName(string tokenName)
+    {
+        if (string.IsNullOrWhiteSpace(tokenName))
+        {
+            return "TOKEN";
+        }
+
+        var builder = new StringBuilder(tokenName.Length);
+        foreach (var ch in tokenName)
+        {
+            if (char.IsLetterOrDigit(ch))
+            {
+                builder.Append(char.ToUpperInvariant(ch));
+            }
+        }
+
+        return builder.Length > 0 ? builder.ToString() : "TOKEN";
     }
 
     public static string DecryptSharePayload(string base64Payload)

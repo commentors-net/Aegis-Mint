@@ -9,7 +9,7 @@ const tabs = [
   { path: "mint-approval", label: "Mint Approval" },
   { path: "tokens", label: "Share Management" },
   { path: "certificates", label: "Certificates" },
-  { path: "recover-shares", label: "Recover Shares" },
+  { path: "share-manager", label: "Share Manager" },
   { path: "downloads", label: "Downloads" },
   { path: "audit", label: "Audit Logs" },
   { path: "settings", label: "System Settings" },

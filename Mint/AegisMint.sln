@@ -13,7 +13,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AegisMint.Developer", "src\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AegisMint.TokenControl", "src\AegisMint.TokenControl\AegisMint.TokenControl.csproj", "{FD70CFEF-D34A-494D-A91B-C5E8772549DC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AegisMint.RecoverShares", "src\AegisMint.RecoverShares\AegisMint.RecoverShares.csproj", "{6ADC0067-2937-4B9F-BA77-9BBEB7BD3D52}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AegisMint.ShareManager", "src\AegisMint.ShareManager\AegisMint.ShareManager.csproj", "{6ADC0067-2937-4B9F-BA77-9BBEB7BD3D52}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
