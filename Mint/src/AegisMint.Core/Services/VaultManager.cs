@@ -296,6 +296,12 @@ public class VaultManager
         return newSecret;
     }
 
+    public string? TryGetDesktopSecretKey(string appType = "TokenControl")
+    {
+        var keyName = $"DesktopSecretKey_{appType}";
+        return _store.GetSetting(keyName);
+    }
+
     public void SaveDesktopSecretKey(string secretKey, string appType = "TokenControl")
     {
         var keyName = $"DesktopSecretKey_{appType}";

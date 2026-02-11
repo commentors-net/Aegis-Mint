@@ -108,9 +108,9 @@ public class ShamirSecretSharingService
             throw new ArgumentException("Secret must not be empty.", nameof(secretLength));
         }
 
-        if (threshold < 2)
+        if (threshold < 1)
         {
-            throw new ArgumentException("Threshold must be at least 2.", nameof(threshold));
+            throw new ArgumentException("Threshold must be at least 1.", nameof(threshold));
         }
 
         if (shareCount < threshold)

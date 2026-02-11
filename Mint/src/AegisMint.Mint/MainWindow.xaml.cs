@@ -640,9 +640,14 @@ public partial class MainWindow : Window
             var govShares = GetInt(payload, "govShares");
             var govThreshold = GetInt(payload, "govThreshold");
             var totalShares = govShares + govThreshold;
-            if (govThreshold < 2)
+            if (govThreshold < 1)
             {
-                await SendToWebAsync("host-error", new { message = "Threshold must be at least 2 to create recovery shares." });
+                await SendToWebAsync("host-error", new { message = "Threshold must be at least 1 to create recovery shares." });
+                return;
+            }
+            if (govThreshold > govShares)
+            {
+                await SendToWebAsync("host-error", new { message = "Threshold must be less than or equal to governance shares." });
                 return;
             }
             if (totalShares > 99)
@@ -1026,12 +1031,13 @@ public partial class MainWindow : Window
             var encryptedMnemonicHex = BitConverter.ToString(encryptedBytes).Replace("-", "");
             var ivHex = BitConverter.ToString(aes.IV).Replace("-", "");
             
-            Logger.Info($"Splitting encryption key using Shamir Secret Sharing: {totalShares} shares, {threshold} threshold");
-            // Split the encryption key using Shamir
+            Logger.Info($"Splitting encryption key using Shamir Secret Sharing: {clientShares} unique shares, {threshold} threshold");
+            // Split the encryption key using Shamir (unique shares only)
             var shamir = new ShamirSecretSharingService();
             var keyBytes = Encoding.UTF8.GetBytes(encryptionKeyHex);
-            var shares = shamir.Split(keyBytes, threshold, totalShares);
-            Logger.Info($"Shamir split complete - generated {shares.Count} shares");
+            var shares = shamir.Split(keyBytes, threshold, clientShares);
+            var duplicateCount = Math.Max(0, totalShares - clientShares);
+            Logger.Info($"Shamir split complete - generated {shares.Count} unique shares, {duplicateCount} duplicate copies");
 
             // Create directory path: C:\Shares\{TokenName}
             var sharesBasePath = @"C:\Shares";
@@ -1071,11 +1077,42 @@ public partial class MainWindow : Window
                 await File.WriteAllTextAsync(path, encryptedPayload);
                 Logger.Info($"Share {share.Id}/{totalShares} saved: {fileName}");
             }
+
+            if (duplicateCount > 0)
+            {
+                var shareList = shares.ToList();
+                for (var i = 0; i < duplicateCount; i++)
+                {
+                    var source = shareList[i % shareList.Count];
+                    var duplicateNumber = clientShares + i + 1;
+                    var sharePayload = new
+                    {
+                        createdAtUtc = createdAt,
+                        network = _currentNetwork,
+                        totalShares,
+                        threshold,
+                        clientShareCount = clientShares,
+                        safekeepingShareCount = threshold,
+                        share = $"{source.Id}-{source.Value}",
+                        encryptedMnemonic = encryptedMnemonicHex,
+                        iv = ivHex,
+                        encryptionVersion = 1,
+                        tokenAddress = tokenAddress
+                    };
+
+                    var fileName = ShareFileCrypto.BuildFileName(createdAt, tokenName, duplicateNumber, totalShares);
+                    var path = Path.Combine(tokenSharesPath, fileName);
+                    var json = JsonSerializer.Serialize(sharePayload, options);
+                    var encryptedPayload = ShareFileCrypto.EncryptShareJson(json);
+                    await File.WriteAllTextAsync(path, encryptedPayload);
+                    Logger.Info($"Duplicate share {duplicateNumber}/{totalShares} saved (copy of {source.Id}): {fileName}");
+                }
+            }
             
-            Logger.Info($"=== SHARE CREATION COMPLETED === All {shares.Count} shares saved to {tokenSharesPath}");
+            Logger.Info($"=== SHARE CREATION COMPLETED === All {totalShares} share files saved to {tokenSharesPath}");
             
             // Upload shares to backend
-            await SendToWebAsync("upload-starting", new { path = tokenSharesPath, count = shares.Count });
+            await SendToWebAsync("upload-starting", new { path = tokenSharesPath, count = totalShares });
             var uploadSuccess = await UploadShareFilesToBackendAsync(tokenSharesPath, tokenAddress);
             
             // Log to backend - operation succeeded
@@ -1092,7 +1129,7 @@ public partial class MainWindow : Window
             
             await SendToWebAsync("shares-saved", new { 
                 path = tokenSharesPath, 
-                count = shares.Count, 
+                count = totalShares, 
                 uploadedToBackend = uploadSuccess 
             });
 

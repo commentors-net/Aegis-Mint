@@ -3,6 +3,7 @@ using System.IO;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
@@ -980,7 +981,7 @@ public partial class MainWindow : Window
 
             Logger.Info($"Loading {dialog.FileNames.Length} share files");
 
-            var shares = new List<ShareFilePayload>();
+            var shareSources = new List<ShareFileSource>();
             ShareSetMetadata? metadata = null;
             var jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web)
             {
@@ -995,7 +996,7 @@ public partial class MainWindow : Window
             foreach (var file in dialog.FileNames)
             {
                 Logger.Info($"Parsing share file: {Path.GetFileName(file)}");
-                var payload = ParseShareFile(file, jsonOptions);
+                var payload = ParseShareFile(file, jsonOptions, out var encryptedPayload);
 
                 if (metadata is null)
                 {
@@ -1020,7 +1021,7 @@ public partial class MainWindow : Window
                     throw new InvalidOperationException($"Share file {Path.GetFileName(file)} has mismatched encrypted data.");
                 }
 
-                shares.Add(payload);
+                shareSources.Add(new ShareFileSource(Path.GetFileName(file), encryptedPayload, payload));
             }
 
             if (metadata is null)
@@ -1029,29 +1030,36 @@ public partial class MainWindow : Window
                 throw new InvalidOperationException("No valid shares were loaded.");
             }
 
-            Logger.Info($"Loaded {shares.Count} shares (threshold: {metadata.Threshold})");
+            await EnsureSharesAreActiveAsync(shareSources);
+
+            var uniqueShares = shareSources
+                .GroupBy(s => s.Payload.Share)
+                .Select(g => g.First())
+                .ToList();
+
+            Logger.Info($"Loaded {uniqueShares.Count} unique shares (threshold: {metadata.Threshold})");
             
             // Log to backend - retrieval started
             if (_shareLogger != null)
             {
                 await _shareLogger.LogShareRetrievalStartAsync(
-                    shares.Count, 
+                    uniqueShares.Count, 
                     metadata.Threshold,
-                    shares.FirstOrDefault()?.TokenAddress);
+                    uniqueShares.FirstOrDefault()?.Payload.TokenAddress);
             }
 
-            if (shares.Count < metadata.Threshold)
+            if (uniqueShares.Count < metadata.Threshold)
             {
-                var errorMsg = $"Need at least {metadata.Threshold} shares; only {shares.Count} provided.";
+                var errorMsg = $"Need at least {metadata.Threshold} shares; only {uniqueShares.Count} provided.";
                 Logger.Error(errorMsg);
                 
                 if (_shareLogger != null)
                 {
                     await _shareLogger.LogShareRetrievalFailureAsync(
-                        shares.Count, 
+                        uniqueShares.Count, 
                         metadata.Threshold, 
                         errorMsg,
-                        shares.FirstOrDefault()?.TokenAddress);
+                        uniqueShares.FirstOrDefault()?.Payload.TokenAddress);
                 }
                 
                 throw new InvalidOperationException(errorMsg);
@@ -1065,10 +1073,10 @@ public partial class MainWindow : Window
                 if (_shareLogger != null)
                 {
                     await _shareLogger.LogShareRetrievalFailureAsync(
-                        shares.Count, 
+                        uniqueShares.Count, 
                         metadata.Threshold, 
                         errorMsg,
-                        shares.FirstOrDefault()?.TokenAddress);
+                        uniqueShares.FirstOrDefault()?.Payload.TokenAddress);
                 }
                 
                 throw new InvalidOperationException(errorMsg);
@@ -1076,12 +1084,12 @@ public partial class MainWindow : Window
 
             Logger.Info("Parsing share format and preparing for Shamir reconstruction");
             // Parse share format: "index-hexvalue"
-            var parsedShares = shares
+            var parsedShares = uniqueShares
                 .Take(metadata.Threshold)
                 .Select(s => {
-                    var parts = s.Share?.Split('-', 2);
+                    var parts = s.Payload.Share?.Split('-', 2);
                     if (parts == null || parts.Length != 2)
-                        throw new InvalidOperationException($"Invalid share format: {s.Share}");
+                        throw new InvalidOperationException($"Invalid share format: {s.Payload.Share}");
                     return new ShamirShare(byte.Parse(parts[0]), parts[1]);
                 })
                 .ToArray();
@@ -1126,9 +1134,9 @@ public partial class MainWindow : Window
             if (_shareLogger != null)
             {
                 await _shareLogger.LogShareRetrievalSuccessAsync(
-                    shares.Count, 
+                    uniqueShares.Count, 
                     metadata.Threshold,
-                    shares.FirstOrDefault()?.TokenAddress,
+                    uniqueShares.FirstOrDefault()?.Payload.TokenAddress,
                     metadata.Network);
             }
             
@@ -1148,13 +1156,25 @@ public partial class MainWindow : Window
                     errorMessage: ex.Message);
             }
             
-            await SendToWebAsync("host-error", new { message = $"Recovery failed: {ex.Message}" });
+            if (ex.Message.StartsWith("Inactive share files detected", StringComparison.OrdinalIgnoreCase))
+            {
+                await SendToWebAsync("share-inactive", new { message = ex.Message });
+            }
+            else
+            {
+                await SendToWebAsync("host-error", new { message = $"Recovery failed: {ex.Message}" });
+            }
         }
     }
 
-    private ShareFilePayload ParseShareFile(string path, JsonSerializerOptions options)
+    private ShareFilePayload ParseShareFile(string path, JsonSerializerOptions options, out string encryptedPayload)
     {
-        var encryptedPayload = File.ReadAllText(path);
+        encryptedPayload = File.ReadAllText(path);
+        return ParseSharePayload(encryptedPayload, options);
+    }
+
+    private ShareFilePayload ParseSharePayload(string encryptedPayload, JsonSerializerOptions options)
+    {
         var json = ShareFileCrypto.DecryptSharePayload(encryptedPayload);
         var payload = JsonSerializer.Deserialize<ShareFilePayload>(json, options)
             ?? throw new InvalidOperationException("File did not contain a share payload.");
@@ -1162,6 +1182,11 @@ public partial class MainWindow : Window
         if (payload.Threshold <= 0 || payload.TotalShares <= 0 || payload.Threshold > payload.TotalShares)
         {
             throw new InvalidOperationException("Invalid threshold/total share values.");
+        }
+
+        if (payload.ClientShareCount > 0 && payload.Threshold > payload.ClientShareCount)
+        {
+            throw new InvalidOperationException("Threshold exceeds unique share count.");
         }
 
         if (string.IsNullOrWhiteSpace(payload.Share))
@@ -1182,9 +1207,36 @@ public partial class MainWindow : Window
         return payload;
     }
 
+    private async Task EnsureSharesAreActiveAsync(IReadOnlyCollection<ShareFileSource> shareSources)
+    {
+        if (_authService is null)
+        {
+            throw new InvalidOperationException("Desktop authentication is not initialized.");
+        }
+
+        var payload = new
+        {
+            shares = shareSources.Select(s => new
+            {
+                file_name = s.FileName,
+                encrypted_content = s.EncryptedContent
+            }).ToList()
+        };
+
+        var response = await _authService.PostAuthenticatedAsync<ShareFilesValidationResponse>("/share-files/validate", payload);
+        var inactive = response.Results.Where(r => !r.IsActive).ToList();
+        if (inactive.Count == 0)
+        {
+            return;
+        }
+
+        var names = string.Join(", ", inactive.Select(r => r.FileName));
+        throw new InvalidOperationException($"Inactive share files detected: {names}. Please reselect active share files.");
+    }
+
     private sealed record ShareSetMetadata(int TotalShares, int Threshold, int ClientShareCount, int SafekeepingShareCount, string Network)
     {
-        public string Description => $"{Threshold}-of-{TotalShares} ({Network})";
+        public string Description => $"{Threshold}-of-{(ClientShareCount > 0 ? ClientShareCount : TotalShares)} ({Network})";
 
         public bool IsCompatibleWith(ShareFilePayload payload)
         {
@@ -1209,6 +1261,26 @@ public partial class MainWindow : Window
         public string? Iv { get; set; }
         public int EncryptionVersion { get; set; }
         public string? TokenAddress { get; set; }
+    }
+
+    private sealed record ShareFileSource(string FileName, string EncryptedContent, ShareFilePayload Payload);
+
+    private sealed class ShareFileValidationResult
+    {
+        [JsonPropertyName("file_name")]
+        public string FileName { get; set; } = string.Empty;
+
+        [JsonPropertyName("is_active")]
+        public bool IsActive { get; set; }
+
+        [JsonPropertyName("reason")]
+        public string? Reason { get; set; }
+    }
+
+    private sealed class ShareFilesValidationResponse
+    {
+        [JsonPropertyName("results")]
+        public List<ShareFileValidationResult> Results { get; set; } = new();
     }
 
     // AES-256 decryption with explicit key and IV

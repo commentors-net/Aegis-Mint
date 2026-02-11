@@ -75,6 +75,29 @@ class ShareFilesBulkResponse(BaseModel):
     token_deployment_id: str
 
 
+class ShareFileValidationItem(BaseModel):
+    """Share file to validate against active records."""
+    file_name: str = Field(..., min_length=1, max_length=255)
+    encrypted_content: str = Field(..., min_length=1)
+
+
+class ShareFilesValidationRequest(BaseModel):
+    """Request model for validating share file activity."""
+    shares: List[ShareFileValidationItem] = Field(..., min_items=1)
+
+
+class ShareFileValidationResult(BaseModel):
+    """Validation result for a share file."""
+    file_name: str
+    is_active: bool
+    reason: str | None = None
+
+
+class ShareFilesValidationResponse(BaseModel):
+    """Response model for share validation."""
+    results: List[ShareFileValidationResult]
+
+
 @router.post("/bulk", response_model=ShareFilesBulkResponse)
 async def create_share_files_bulk(
     payload: ShareFilesBulkCreate,
@@ -237,6 +260,55 @@ async def create_share_files_bulk(
         db.rollback()
         logger.error(f"Failed to bulk upload share files: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to upload share files: {str(e)}")
+
+
+@router.post("/validate", response_model=ShareFilesValidationResponse)
+async def validate_share_files(
+    payload: ShareFilesValidationRequest,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """
+    Validate that provided share files are active in the database.
+
+    Requires desktop authentication.
+    """
+    await get_authenticated_desktop(
+        request=request,
+        desktop_id=request.headers.get("X-Desktop-Id"),
+        app_type=request.headers.get("X-App-Type"),
+        timestamp=request.headers.get("X-Desktop-Timestamp"),
+        signature=request.headers.get("X-Desktop-Signature"),
+        user_agent=request.headers.get("User-Agent"),
+        db=db
+    )
+
+    contents = [item.encrypted_content for item in payload.shares]
+    matches = (
+        db.query(ShareFile)
+        .filter(ShareFile.encrypted_content.in_(contents))
+        .all()
+    )
+
+    status_map: dict[str, dict[str, bool]] = {}
+    for share in matches:
+        entry = status_map.setdefault(share.encrypted_content, {"active": False, "inactive": False})
+        if share.is_active:
+            entry["active"] = True
+        else:
+            entry["inactive"] = True
+
+    results: List[ShareFileValidationResult] = []
+    for item in payload.shares:
+        status = status_map.get(item.encrypted_content)
+        if status is None:
+            results.append(ShareFileValidationResult(file_name=item.file_name, is_active=False, reason="not_found"))
+        elif status["active"]:
+            results.append(ShareFileValidationResult(file_name=item.file_name, is_active=True, reason=None))
+        else:
+            results.append(ShareFileValidationResult(file_name=item.file_name, is_active=False, reason="inactive"))
+
+    return ShareFilesValidationResponse(results=results)
 
 
 @router.get("/token/{token_deployment_id}", response_model=List[ShareFileResponse])

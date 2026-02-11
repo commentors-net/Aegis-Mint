@@ -692,6 +692,42 @@
       display: none;
     }
 
+    .share-banner {
+      border: 1px solid rgba(239, 68, 68, 0.6);
+      background: rgba(239, 68, 68, 0.12);
+      color: var(--text-main);
+      padding: 10px 40px 10px 12px;
+      border-radius: 12px;
+      margin: 0 0 12px;
+      display: none;
+      position: relative;
+    }
+
+    .share-banner strong {
+      display: block;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .share-banner .share-banner-close {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      border: 1px solid rgba(239, 68, 68, 0.5);
+      background: rgba(239, 68, 68, 0.12);
+      color: var(--text-main);
+      border-radius: 8px;
+      padding: 2px 6px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+    .share-banner .share-banner-close:hover {
+      background: rgba(239, 68, 68, 0.2);
+      border-color: rgba(239, 68, 68, 0.8);
+    }
+
     .inline-actions {
       display: inline-flex;
       gap: 6px;
@@ -782,6 +818,11 @@
       <div id="lock-banner" class="lock-banner">
         <strong>Page locked</strong>
         <div id="lock-banner-text">Load or import the treasury key and fund it with ETH to enable controls.</div>
+      </div>
+      <div id="share-banner" class="share-banner">
+        <strong>Inactive shares blocked</strong>
+        <div id="share-banner-text">One or more share files are inactive. Please reselect active shares.</div>
+        <button id="share-banner-close" class="share-banner-close" type="button">Dismiss</button>
       </div>
       <header class="app-header">
         <div class="logo-wrap">
