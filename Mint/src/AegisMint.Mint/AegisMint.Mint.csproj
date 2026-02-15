@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
-    <Version>1.1.9</Version>
+    <Version>1.1.10</Version>
     <ApplicationIcon>Assets\aegis-mint.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>

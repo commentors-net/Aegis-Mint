@@ -20,14 +20,22 @@ public class DesktopAuthenticationService
     private string _apiBaseUrl;
     private string _appType;
 
-    public DesktopAuthenticationService(VaultManager vaultManager, string appType = "TokenControl")
+    public DesktopAuthenticationService(VaultManager vaultManager, string appType = "TokenControl", bool requireExistingSecret = false)
     {
         _vaultManager = vaultManager ?? throw new ArgumentNullException(nameof(vaultManager));
         _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         _appType = appType;
         
         _desktopAppId = _vaultManager.GetDesktopAppId();
-        _secretKey = _vaultManager.GetDesktopSecretKey(_appType);
+        if (requireExistingSecret)
+        {
+            _secretKey = _vaultManager.TryGetDesktopSecretKey(_appType)
+                ?? throw new InvalidOperationException($"Desktop secret key not found for {_appType}. Register the {_appType} desktop first.");
+        }
+        else
+        {
+            _secretKey = _vaultManager.GetDesktopSecretKey(_appType);
+        }
         _apiBaseUrl = _vaultManager.GetApiBaseUrl();
     }
 

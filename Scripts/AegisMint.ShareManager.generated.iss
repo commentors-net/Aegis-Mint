@@ -1,4 +1,4 @@
-﻿#define AppVersion "1.1.0"
+﻿#define AppVersion "1.1.1"
 #define AdminSourceDir "D:\Jobs\workspace\DiG\Aegis-Mint\Scripts\publish\sharemanager"
 #define OutputDir "D:\Jobs\workspace\DiG\Aegis-Mint\Scripts\dist"
 #define ServiceName "AegisMintService"
@@ -9,7 +9,7 @@ AppVersion={#AppVersion}
 DefaultDirName={pf}\AegisMint\ShareManager
 DefaultGroupName=AegisMint
 DisableProgramGroupPage=yes
-OutputBaseFilename=AegisMint-ShareManager-Setup-1.1.0
+OutputBaseFilename=AegisMint-ShareManager-Setup-1.1.1
 OutputDir={#OutputDir}
 UninstallDisplayIcon={app}\AegisMint.ShareManager.exe
 UninstallDisplayName=AegisMint Share Manager

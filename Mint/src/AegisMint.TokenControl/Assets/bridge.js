@@ -91,6 +91,9 @@ window.addEventListener('DOMContentLoaded', function() {
   const retrieveToInput = document.getElementById('retrieve-to');
   const lockBanner = document.getElementById('lock-banner');
   const lockBannerText = document.getElementById('lock-banner-text');
+  const shareBanner = document.getElementById('share-banner');
+  const shareBannerText = document.getElementById('share-banner-text');
+  const shareBannerClose = document.getElementById('share-banner-close');
   const exportLogsBtn = document.getElementById('export-logs');
   const refreshBalancesBtn = document.getElementById('refresh-balances');
   const recoverBtn = document.getElementById('recover-btn');
@@ -144,6 +147,7 @@ window.addEventListener('DOMContentLoaded', function() {
   const unfrozenAddresses = new Set();
   const frozenEntries = [];
   const unfrozenEntries = [];
+  let shareBannerTimer = null;
   const alwaysEnabledControls = new Set([
     networkSelect?.id,
     refreshBalancesBtn?.id,
@@ -220,6 +224,31 @@ window.addEventListener('DOMContentLoaded', function() {
         container.remove();
       }
     }, durationMs);
+  }
+
+  function showShareBanner(text) {
+    if (!shareBanner || !shareBannerText) return;
+    shareBannerText.textContent = text || 'One or more share files are inactive. Please reselect active shares.';
+    shareBanner.style.display = 'block';
+    if (shareBannerTimer) {
+      clearTimeout(shareBannerTimer);
+    }
+    shareBannerTimer = setTimeout(() => {
+      hideShareBanner();
+    }, 10000);
+  }
+
+  function hideShareBanner() {
+    if (!shareBanner) return;
+    shareBanner.style.display = 'none';
+    if (shareBannerTimer) {
+      clearTimeout(shareBannerTimer);
+      shareBannerTimer = null;
+    }
+  }
+
+  if (shareBannerClose) {
+    shareBannerClose.addEventListener('click', () => hideShareBanner());
   }
 
   function setPageEnabled(enabled, reason) {
@@ -625,6 +654,7 @@ window.addEventListener('DOMContentLoaded', function() {
   });
 
   recoverBtn?.addEventListener('click', () => {
+    hideShareBanner();
     showProgress('Recovering treasury from shares...');
     sendToHost('recover-from-shares', {});
   });
@@ -793,6 +823,12 @@ window.addEventListener('DOMContentLoaded', function() {
       case 'host-error':
         hideProgress();
         addLog('Error', payload?.message || 'Host error occurred');
+        break;
+      case 'share-inactive':
+        hideProgress();
+        showShareBanner(payload?.message || 'One or more share files are inactive. Please reselect active shares.');
+        addLog('Error', payload?.message || 'Inactive share files detected.');
+        showToast(payload?.message || 'Inactive share files detected.', true, 8000);
         break;
       case 'operation-progress':
         if (payload?.message) {
