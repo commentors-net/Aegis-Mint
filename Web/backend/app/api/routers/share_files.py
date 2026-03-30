@@ -7,9 +7,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, joinedload
 
-from app.api.deps import get_db
+from app.api.deps import get_db, require_role
 from app.api.desktop_deps import get_authenticated_desktop
 from app.core.time import utcnow
+from app.models import User, UserRole
+from app.models.desktop import Desktop
 from app.models.share_assignment import ShareAssignment
 from app.models.share_file import ShareFile
 from app.models.token_deployment import TokenDeployment
@@ -101,7 +103,7 @@ class ShareFilesValidationResponse(BaseModel):
 @router.post("/bulk", response_model=ShareFilesBulkResponse)
 async def create_share_files_bulk(
     payload: ShareFilesBulkCreate,
-    request: Request,
+    desktop: Desktop = Depends(get_authenticated_desktop),
     db: Session = Depends(get_db)
 ):
     """
@@ -111,13 +113,25 @@ async def create_share_files_bulk(
     individual share files separately in the database.
     """
     try:
+        if desktop.app_type != "Mint":
+            raise HTTPException(status_code=403, detail="Only Mint desktops can upload share files")
+
         # Verify token deployment exists
         deployment = db.query(TokenDeployment).filter(
             TokenDeployment.id == payload.token_deployment_id
         ).first()
         
         if not deployment:
-            raise HTTPException(status_code=404, detail=f"Token deployment {request.token_deployment_id} not found")
+            raise HTTPException(status_code=404, detail=f"Token deployment {payload.token_deployment_id} not found")
+
+        if deployment.desktop_id and deployment.desktop_id != desktop.desktop_app_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Authenticated desktop is not allowed to modify this token deployment"
+            )
+
+        if not deployment.desktop_id:
+            deployment.desktop_id = desktop.desktop_app_id
         
         # Check if shares already uploaded
         if deployment.shares_uploaded and not payload.replace_existing:
@@ -127,16 +141,6 @@ async def create_share_files_bulk(
             )
 
         if payload.replace_existing:
-            await get_authenticated_desktop(
-                request=request,
-                desktop_id=request.headers.get("X-Desktop-Id"),
-                app_type=request.headers.get("X-App-Type"),
-                timestamp=request.headers.get("X-Desktop-Timestamp"),
-                signature=request.headers.get("X-Desktop-Signature"),
-                user_agent=request.headers.get("User-Agent"),
-                db=db
-            )
-
             missing = []
             if payload.total_shares is None:
                 missing.append("total_shares")
@@ -314,7 +318,8 @@ async def validate_share_files(
 @router.get("/token/{token_deployment_id}", response_model=List[ShareFileResponse])
 def get_token_share_files(
     token_deployment_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: User = Depends(require_role(UserRole.SUPER_ADMIN)),
 ):
     """
     Get all share files for a specific token deployment.

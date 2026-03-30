@@ -3,11 +3,13 @@ import logging
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
+from app.api.desktop_deps import get_authenticated_desktop
+from app.models.desktop import Desktop
 from app.models.token_deployment import TokenDeployment
 
 logger = logging.getLogger(__name__)
@@ -53,19 +55,12 @@ class TokenDeploymentResponse(BaseModel):
     token_supply: str
     network: str
     contract_address: str
-    treasury_address: str
-    proxy_admin_address: Optional[str]
     gov_shares: int
     gov_threshold: int
     total_shares: int
     client_share_count: int
     safekeeping_share_count: int
-    shares_path: str
     encryption_version: int
-    encrypted_mnemonic: Optional[str]
-    encrypted_shares: Optional[str]
-    desktop_id: Optional[str]
-    deployment_notes: Optional[str]
     shares_uploaded: bool = False
     shares_uploaded_at: Optional[datetime] = Field(None, alias="upload_completed_at_utc")
     shares_uploaded_count: int = Field(0, alias="share_files_count")
@@ -78,6 +73,7 @@ class TokenDeploymentResponse(BaseModel):
 @router.post("/", response_model=TokenDeploymentResponse)
 def create_token_deployment(
     deployment: TokenDeploymentCreate,
+    desktop: Desktop = Depends(get_authenticated_desktop),
     db: Session = Depends(get_db)
 ):
     """
@@ -87,6 +83,18 @@ def create_token_deployment(
     to record all crucial information needed for potential emergency recovery scenarios.
     """
     try:
+        if desktop.app_type != "Mint":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only Mint desktops can record token deployments"
+            )
+
+        if deployment.desktop_id and deployment.desktop_id != desktop.desktop_app_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="deployment.desktop_id does not match the authenticated desktop"
+            )
+
         # Create new deployment record
         db_deployment = TokenDeployment(
             token_name=deployment.token_name,
@@ -106,7 +114,7 @@ def create_token_deployment(
             encrypted_mnemonic=deployment.encrypted_mnemonic,
             encrypted_shares=deployment.encrypted_shares,
             encryption_version=deployment.encryption_version,
-            desktop_id=deployment.desktop_id,
+            desktop_id=desktop.desktop_app_id,
             deployment_notes=deployment.deployment_notes,
         )
         
@@ -116,7 +124,8 @@ def create_token_deployment(
         
         logger.info(
             f"Token deployment recorded: {deployment.token_name} "
-            f"on {deployment.network} at {deployment.contract_address}"
+            f"on {deployment.network} at {deployment.contract_address} "
+            f"by desktop {desktop.desktop_app_id}"
         )
         
         return db_deployment

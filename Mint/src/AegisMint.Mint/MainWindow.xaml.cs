@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Globalization;
 using System.Numerics;
 using System.Net.Http;
@@ -1841,6 +1842,17 @@ public partial class MainWindow : Window
 
     private record BridgeMessage(string? type, JsonElement? payload);
 
+    private sealed class TokenDeploymentRecordResponse
+    {
+        public string Id { get; set; } = string.Empty;
+    }
+
+    private sealed class ShareFilesBulkUploadResponse
+    {
+        [JsonPropertyName("created_count")]
+        public int CreatedCount { get; set; }
+    }
+
     private async Task<string?> StoreDeploymentInformationAsync(
         string tokenName,
         string tokenSymbol,
@@ -1859,15 +1871,12 @@ public partial class MainWindow : Window
         try
         {
             Logger.Info("Storing deployment information in backend for emergency recovery...");
-            
-            // Get API base URL from vault manager (reads from appsettings.json)
-            var apiBaseUrl = _vaultManager.GetApiBaseUrl();
-            Logger.Info($"API Base URL: {apiBaseUrl}");
-            
-            // Use same pattern as DesktopAuthenticationService - TrimEnd and concatenate
-            var endpoint = "/token-deployments/";
-            var fullUrl = apiBaseUrl.TrimEnd('/') + endpoint;
-            Logger.Info($"Full URL: {fullUrl}");
+
+            if (_authService == null)
+            {
+                Logger.Warning("Desktop authentication service not initialized, skipping deployment record upload");
+                return null;
+            }
             
             // Read and encrypt share files for emergency recovery
             string? encryptedSharesJson = null;
@@ -1901,9 +1910,6 @@ public partial class MainWindow : Window
                 // Continue without shares - the deployment info is still valuable
             }
             
-            using var httpClient = new HttpClient();
-            httpClient.Timeout = TimeSpan.FromSeconds(30);
-
             var deploymentData = new
             {
                 token_name = tokenName,
@@ -1927,39 +1933,13 @@ public partial class MainWindow : Window
                 deployment_notes = $"Deployed from Aegis Mint desktop app on {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC"
             };
 
-            var json = JsonSerializer.Serialize(deploymentData);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var response = await _authService!.PostAuthenticatedAsync<TokenDeploymentRecordResponse>(
+                "/token-deployments/",
+                deploymentData
+            );
 
-            var response = await httpClient.PostAsync(fullUrl, content);
-            
-            if (response.IsSuccessStatusCode)
-            {
-                var responseBody = await response.Content.ReadAsStringAsync();
-                Logger.Info($"✓ Deployment information stored in backend successfully");
-                Logger.Debug($"Backend response: {responseBody}");
-                
-                // Extract deployment ID from response
-                try
-                {
-                    using var doc = JsonDocument.Parse(responseBody);
-                    if (doc.RootElement.TryGetProperty("id", out var idProp))
-                    {
-                        return idProp.GetString();
-                    }
-                }
-                catch (Exception parseEx)
-                {
-                    Logger.Warning($"Failed to parse deployment ID from response: {parseEx.Message}");
-                }
-                
-                return null;
-            }
-            else
-            {
-                var errorBody = await response.Content.ReadAsStringAsync();
-                Logger.Warning($"Failed to store deployment info in backend. Status: {response.StatusCode}, Error: {errorBody}");
-                return null;
-            }
+            Logger.Info("✓ Deployment information stored in backend successfully");
+            return response.Id;
         }
         catch (Exception ex)
         {
@@ -1974,6 +1954,12 @@ public partial class MainWindow : Window
         try
         {
             Logger.Info($"Uploading {expectedShareCount} share files to backend...");
+
+            if (_authService == null)
+            {
+                Logger.Warning("Desktop authentication service not initialized, cannot upload share files");
+                return false;
+            }
             
             if (!Directory.Exists(sharesPath))
             {
@@ -1995,10 +1981,7 @@ public partial class MainWindow : Window
             {
                 Logger.Warning($"Expected {expectedShareCount} share files but found {shareFiles.Count}");
             }
-            
-            var apiBaseUrl = _vaultManager.GetApiBaseUrl();
-            var fullUrl = apiBaseUrl.TrimEnd('/') + "/share-files/bulk";
-            
+
             var shareItems = new List<object>();
             for (int i = 0; i < shareFiles.Count; i++)
             {
@@ -2035,28 +2018,14 @@ public partial class MainWindow : Window
                 token_deployment_id = deploymentId,
                 shares = shareItems
             };
-            
-            using var httpClient = new HttpClient();
-            httpClient.Timeout = TimeSpan.FromSeconds(60);
-            
-            var json = JsonSerializer.Serialize(bulkUploadData);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
-            
-            var response = await httpClient.PostAsync(fullUrl, content);
-            
-            if (response.IsSuccessStatusCode)
-            {
-                var responseBody = await response.Content.ReadAsStringAsync();
-                Logger.Info($"✓ Successfully uploaded {shareFiles.Count} share files to backend");
-                Logger.Debug($"Upload response: {responseBody}");
-                return true;
-            }
-            else
-            {
-                var errorBody = await response.Content.ReadAsStringAsync();
-                Logger.Warning($"Failed to upload share files. Status: {response.StatusCode}, Error: {errorBody}");
-                return false;
-            }
+
+            var response = await _authService!.PostAuthenticatedAsync<ShareFilesBulkUploadResponse>(
+                "/share-files/bulk",
+                bulkUploadData
+            );
+
+            Logger.Info($"✓ Successfully uploaded {response.CreatedCount} share files to backend");
+            return true;
         }
         catch (Exception ex)
         {
