@@ -251,6 +251,12 @@ public partial class MainWindow : Window
                 case "set-paused":
                     await HandleSetPausedAsync(message.payload);
                     break;
+                case "increase-supply":
+                    await HandleIncreaseSupplyAsync(message.payload);
+                    break;
+                case "decrease-supply":
+                    await HandleDecreaseSupplyAsync(message.payload);
+                    break;
                 case "refresh-balances":
                     await UpdateBalanceStatsAsync();
                     break;
@@ -954,6 +960,96 @@ public partial class MainWindow : Window
         {
             Logger.Error("Error handling set paused", ex);
             await SendOperationResultAsync("Pause", false, null, ex.Message, _currentContractAddress);
+        }
+    }
+
+    private async Task HandleIncreaseSupplyAsync(JsonElement? payload)
+    {
+        try
+        {
+            if (!payload.HasValue)
+            {
+                Logger.Warning("Increase supply payload is missing");
+                return;
+            }
+
+            var amountStr = payload.Value.TryGetProperty("amount", out var amountProp) ? amountProp.GetString() : null;
+            var reason = payload.Value.TryGetProperty("reason", out var reasonProp) ? reasonProp.GetString() : null;
+
+            if (string.IsNullOrWhiteSpace(_currentContractAddress))
+            {
+                await SendOperationResultAsync("Increase Supply", false, null, "No contract deployed on this network", _currentContractAddress);
+                return;
+            }
+
+            if (!decimal.TryParse(amountStr, out var amount) || amount <= 0)
+            {
+                await SendOperationResultAsync("Increase Supply", false, null, "Invalid amount format", _currentContractAddress);
+                return;
+            }
+
+            Logger.Info($"Increasing token supply by {amount}");
+
+            await SendProgressAsync($"Increasing supply by {amount} tokens...");
+            await Task.Delay(100);
+
+            var result = await _tokenControlService.IncreaseSupplyAsync(_currentContractAddress, amount, reason);
+
+            await SendOperationResultAsync("Increase Supply", result.Success, result.TransactionHash, result.ErrorMessage, _currentContractAddress);
+            if (result.Success)
+            {
+                await UpdateBalanceStatsAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("Error handling increase supply", ex);
+            await SendOperationResultAsync("Increase Supply", false, null, ex.Message, _currentContractAddress);
+        }
+    }
+
+    private async Task HandleDecreaseSupplyAsync(JsonElement? payload)
+    {
+        try
+        {
+            if (!payload.HasValue)
+            {
+                Logger.Warning("Decrease supply payload is missing");
+                return;
+            }
+
+            var amountStr = payload.Value.TryGetProperty("amount", out var amountProp) ? amountProp.GetString() : null;
+            var reason = payload.Value.TryGetProperty("reason", out var reasonProp) ? reasonProp.GetString() : null;
+
+            if (string.IsNullOrWhiteSpace(_currentContractAddress))
+            {
+                await SendOperationResultAsync("Decrease Supply", false, null, "No contract deployed on this network", _currentContractAddress);
+                return;
+            }
+
+            if (!decimal.TryParse(amountStr, out var amount) || amount <= 0)
+            {
+                await SendOperationResultAsync("Decrease Supply", false, null, "Invalid amount format", _currentContractAddress);
+                return;
+            }
+
+            Logger.Info($"Decreasing token supply by {amount}");
+
+            await SendProgressAsync($"Decreasing supply by {amount} tokens...");
+            await Task.Delay(100);
+
+            var result = await _tokenControlService.DecreaseSupplyAsync(_currentContractAddress, amount, reason);
+
+            await SendOperationResultAsync("Decrease Supply", result.Success, result.TransactionHash, result.ErrorMessage, _currentContractAddress);
+            if (result.Success)
+            {
+                await UpdateBalanceStatsAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("Error handling decrease supply", ex);
+            await SendOperationResultAsync("Decrease Supply", false, null, ex.Message, _currentContractAddress);
         }
     }
 

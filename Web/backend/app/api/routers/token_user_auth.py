@@ -2,7 +2,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db
+from app.api.deps import get_current_token_user, get_db
+from app.models.token_user import TokenUser
 from app.schemas.token_user_auth import (
     TokenUserLoginRequest,
     TokenUserLoginResponse,
@@ -82,14 +83,13 @@ def token_user_refresh_token(body: TokenUserRefreshTokenRequest, db: Session = D
 def token_user_change_password(
     body: TokenUserChangePasswordRequest,
     db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_token_user),
 ):
     """
     Change password for token share user.
     Requires current password and new password.
-    Note: This endpoint needs to be called with valid access token.
-    For now, it's open - you should add get_current_token_user dependency.
     """
     token_user_auth_service.change_token_user_password(
-        db, body.user_id, body.current_password, body.new_password
+        db, current_user, body.current_password, body.new_password
     )
     return {"status": "ok"}

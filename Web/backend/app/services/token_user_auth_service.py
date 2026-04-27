@@ -308,20 +308,9 @@ def refresh_token_user_access_token(db: Session, refresh_token: str):
 
 
 def change_token_user_password(
-    db: Session, user_id: str, current_password: str, new_password: str
+    db: Session, user: TokenUser, current_password: str, new_password: str
 ) -> None:
     """Change password for token share user."""
-    user = (
-        db.query(TokenUser)
-        .filter(TokenUser.id == user_id)
-        .first()
-    )
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-    
     if not user.password_hash or not security.verify_password(current_password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

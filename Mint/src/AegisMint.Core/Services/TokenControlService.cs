@@ -607,6 +607,269 @@ public class TokenControlService
     }
 
     /// <summary>
+    /// Increases total token supply through increaseSupply(uint256).
+    /// </summary>
+    public async Task<OperationResult> IncreaseSupplyAsync(string contractAddress, decimal amount, string? reason = null)
+    {
+        return await AdjustSupplyAsync(contractAddress, amount, increase: true, reason);
+    }
+
+    /// <summary>
+    /// Decreases total token supply through decreaseSupply(uint256).
+    /// </summary>
+    public async Task<OperationResult> DecreaseSupplyAsync(string contractAddress, decimal amount, string? reason = null)
+    {
+        return await AdjustSupplyAsync(contractAddress, amount, increase: false, reason);
+    }
+
+    private async Task<OperationResult> AdjustSupplyAsync(string contractAddress, decimal amount, bool increase, string? reason)
+    {
+        if (_rpcClient == null)
+        {
+            return new OperationResult
+            {
+                Success = false,
+                ErrorMessage = "Network not initialized. Please select a network."
+            };
+        }
+
+        var operationName = increase ? "increaseSupply" : "decreaseSupply";
+        var adjustmentId = _dataStore.SaveSupplyAdjustment(new SupplyAdjustment
+        {
+            Network = _currentNetwork,
+            ContractAddress = contractAddress,
+            IsIncrease = increase,
+            Amount = amount.ToString(),
+            Reason = reason,
+            Status = "pending",
+            CreatedAtUtc = DateTimeOffset.UtcNow
+        });
+
+        try
+        {
+            Logger.Info($"Executing {operationName} for {amount} tokens on {contractAddress}. Reason: {reason ?? "n/a"}");
+
+            if (string.IsNullOrWhiteSpace(contractAddress))
+            {
+                _dataStore.UpdateSupplyAdjustmentStatus(adjustmentId, "failed", null, "Contract address is required");
+                return new OperationResult { Success = false, ErrorMessage = "Contract address is required" };
+            }
+
+            if (amount <= 0)
+            {
+                _dataStore.UpdateSupplyAdjustmentStatus(adjustmentId, "failed", null, "Amount must be greater than zero");
+                return new OperationResult { Success = false, ErrorMessage = "Amount must be greater than zero" };
+            }
+
+            var addressUtil = new Nethereum.Util.AddressUtil();
+            if (!addressUtil.IsValidEthereumAddressHexFormat(contractAddress))
+            {
+                _dataStore.UpdateSupplyAdjustmentStatus(adjustmentId, "failed", null, "Invalid contract address format");
+                return new OperationResult { Success = false, ErrorMessage = "Invalid contract address format" };
+            }
+
+            var privateKey = _vaultManager.GetTreasuryPrivateKey();
+            if (string.IsNullOrWhiteSpace(privateKey))
+            {
+                _dataStore.UpdateSupplyAdjustmentStatus(adjustmentId, "failed", null, "Treasury private key not found");
+                return new OperationResult { Success = false, ErrorMessage = "Treasury private key not found" };
+            }
+
+            var fromAddress = _vaultManager.GetTreasuryAddress();
+            if (string.IsNullOrWhiteSpace(fromAddress))
+            {
+                _dataStore.UpdateSupplyAdjustmentStatus(adjustmentId, "failed", null, "Treasury address not found");
+                return new OperationResult { Success = false, ErrorMessage = "Treasury address not found" };
+            }
+
+            var artifactLoader = new ContractArtifactLoader();
+            var artifacts = artifactLoader.LoadTokenImplementation();
+            if (!artifacts.HasAbi)
+            {
+                _dataStore.UpdateSupplyAdjustmentStatus(adjustmentId, "failed", null, "Token ABI not found in Resources folder");
+                return new OperationResult { Success = false, ErrorMessage = "Token ABI not found in Resources folder" };
+            }
+
+            var decimals = GetTokenDecimals();
+            var amountInWei = ConvertToWei(amount, decimals);
+            if (amountInWei <= 0)
+            {
+                _dataStore.UpdateSupplyAdjustmentStatus(adjustmentId, "failed", null, "Amount is too small after decimal conversion");
+                return new OperationResult { Success = false, ErrorMessage = "Amount is too small after decimal conversion" };
+            }
+
+            if (!increase)
+            {
+                // decreaseSupply typically burns from owner; ensure available balance first.
+                var tokenBalance = await GetTokenBalanceInternalAsync(contractAddress, fromAddress);
+                if (tokenBalance < amountInWei)
+                {
+                    var errorMsg = $"Insufficient token balance for burn. Balance: {FormatTokenAmount(tokenBalance, decimals)}, Requested: {amount}";
+                    Logger.Error(errorMsg);
+                    _dataStore.UpdateSupplyAdjustmentStatus(adjustmentId, "failed", null, errorMsg);
+                    return new OperationResult { Success = false, ErrorMessage = errorMsg };
+                }
+            }
+
+            var encodedData = EncodeFunctionCall(
+                artifacts.Abi ?? string.Empty,
+                increase ? "increaseSupply" : "decreaseSupply",
+                new object[] { amountInWei });
+
+            BigInteger gasLimit;
+            try
+            {
+                var estimateTransaction = new
+                {
+                    from = fromAddress,
+                    to = contractAddress,
+                    data = encodedData
+                };
+
+                var gasEstimateHex = await _rpcClient.EstimateGasAsync(estimateTransaction);
+                var gasEstimate = HexToBigInteger(gasEstimateHex);
+                if (gasEstimate <= 0)
+                {
+                    gasEstimate = BigInteger.Parse("70000");
+                }
+
+                gasLimit = (gasEstimate * 12) / 10 + BigInteger.Parse("8000");
+            }
+            catch (JsonRpcClient.JsonRpcException ex)
+            {
+                var errorMsg = !string.IsNullOrWhiteSpace(ex.RevertReason)
+                    ? $"{operationName} reverted: {ex.RevertReason}"
+                    : $"{operationName} failed during gas estimation: {ex.Message}";
+                Logger.Error(errorMsg, ex);
+                _dataStore.UpdateSupplyAdjustmentStatus(adjustmentId, "failed", null, errorMsg);
+                return new OperationResult { Success = false, ErrorMessage = errorMsg };
+            }
+            catch (Exception ex)
+            {
+                var errorMsg = $"{operationName} failed during gas estimation: {ex.Message}";
+                Logger.Error(errorMsg, ex);
+                _dataStore.UpdateSupplyAdjustmentStatus(adjustmentId, "failed", null, errorMsg);
+                return new OperationResult { Success = false, ErrorMessage = errorMsg };
+            }
+
+            var ethBalanceHex = await _rpcClient.GetBalanceAsync(fromAddress);
+            var ethBalance = HexToBigInteger(ethBalanceHex);
+            var gasPriceHex = await _rpcClient.GetGasPriceAsync();
+            var gasPrice = HexToBigInteger(gasPriceHex);
+            var estimatedGasCost = gasPrice * gasLimit;
+
+            if (ethBalance < estimatedGasCost)
+            {
+                var errorMsg = $"Insufficient ETH for gas. Balance: {FormatWei(ethBalance)} ETH, Required: ~{FormatWei(estimatedGasCost)} ETH";
+                Logger.Error(errorMsg);
+                _dataStore.UpdateSupplyAdjustmentStatus(adjustmentId, "failed", null, errorMsg);
+                return new OperationResult { Success = false, ErrorMessage = errorMsg };
+            }
+
+            var chainIdHex = await _rpcClient.GetChainIdAsync();
+            var chainId = HexToBigInteger(chainIdHex);
+
+            var nonceHex = await _rpcClient.GetTransactionCountAsync(fromAddress, "pending");
+            var nonce = HexToBigInteger(nonceHex);
+
+            var signer = new TransactionSigner(privateKey);
+            var signedTx = signer.SignContractCallTransaction(
+                nonce,
+                gasPrice,
+                gasLimit,
+                contractAddress,
+                encodedData,
+                chainId);
+
+            var txHash = await _rpcClient.SendRawTransactionAsync(signedTx);
+            if (string.IsNullOrWhiteSpace(txHash))
+            {
+                _dataStore.UpdateSupplyAdjustmentStatus(adjustmentId, "failed", null, "Transaction signing failed");
+                return new OperationResult
+                {
+                    Success = false,
+                    ErrorMessage = "Transaction signing failed"
+                };
+            }
+
+            Logger.Info($"{operationName} transaction sent: {txHash}");
+            _dataStore.UpdateSupplyAdjustmentStatus(adjustmentId, "submitted", txHash, null);
+
+            var receipt = await WaitForTransactionReceiptAsync(txHash);
+            if (receipt == null)
+            {
+                _dataStore.UpdateSupplyAdjustmentStatus(adjustmentId, "pending", txHash, "Transaction receipt not received within timeout");
+                return new OperationResult
+                {
+                    Success = false,
+                    TransactionHash = txHash,
+                    ErrorMessage = "Transaction receipt not received within timeout"
+                };
+            }
+
+            var status = receipt.Value.TryGetProperty("status", out var statusProp) ? statusProp.GetString() : "0x0";
+            var success = status == "0x1";
+
+            if (success)
+            {
+                Logger.Info($"{operationName} completed successfully: {txHash}");
+                _dataStore.UpdateSupplyAdjustmentStatus(adjustmentId, "confirmed", txHash, null);
+                return new OperationResult
+                {
+                    Success = true,
+                    TransactionHash = txHash
+                };
+            }
+
+            string? revertReason = null;
+            if (receipt.Value.TryGetProperty("blockNumber", out var blockNumberProp))
+            {
+                var blockTag = blockNumberProp.GetString();
+                if (!string.IsNullOrWhiteSpace(blockTag))
+                {
+                    try
+                    {
+                        var callTx = new { from = fromAddress, to = contractAddress, data = encodedData };
+                        await _rpcClient.CallAsync(callTx, blockTag);
+                    }
+                    catch (JsonRpcClient.JsonRpcException ex)
+                    {
+                        revertReason = ex.RevertReason ?? ex.RpcMessage;
+                    }
+                    catch
+                    {
+                        // best-effort only
+                    }
+                }
+            }
+
+            var failedMessage = !string.IsNullOrWhiteSpace(revertReason)
+                ? $"Transaction failed on blockchain: {revertReason}"
+                : "Transaction failed on blockchain";
+
+            Logger.Error($"{operationName} failed: {failedMessage}. Tx: {txHash}");
+            _dataStore.UpdateSupplyAdjustmentStatus(adjustmentId, "failed", txHash, failedMessage);
+            return new OperationResult
+            {
+                Success = false,
+                TransactionHash = txHash,
+                ErrorMessage = failedMessage
+            };
+        }
+        catch (Exception ex)
+        {
+            var displayOperationName = increase ? "Increase supply" : "Decrease supply";
+            Logger.Error($"{displayOperationName} operation failed", ex);
+            _dataStore.UpdateSupplyAdjustmentStatus(adjustmentId, "failed", null, ex.Message);
+            return new OperationResult
+            {
+                Success = false,
+                ErrorMessage = $"{displayOperationName} operation failed: {ex.Message}"
+            };
+        }
+    }
+
+    /// <summary>
     /// Freezes or unfreezes an address using freeze/unfreeze functions from the ABI.
     /// </summary>
     public async Task<OperationResult> FreezeAddressAsync(

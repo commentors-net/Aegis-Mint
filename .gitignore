@@ -29,6 +29,7 @@ ehthumbs.db
 
 # Tooling
 .vscode/
+.dotnet/
 *.DotSettings.user
 
 # Publish / installer outputs

@@ -248,6 +248,7 @@ internal sealed class VaultDataStore
         ExecuteNonQuery(connection, "DELETE FROM contracts;");
         ExecuteNonQuery(connection, "DELETE FROM snapshots;");
         ExecuteNonQuery(connection, "DELETE FROM settings;");
+        ExecuteNonQuery(connection, "DELETE FROM supply_adjustments;");
     }
 
     // Token Transfer Operations
@@ -560,6 +561,64 @@ internal sealed class VaultDataStore
         command.ExecuteNonQuery();
     }
 
+    // Supply Adjustment Operations
+
+    public long SaveSupplyAdjustment(Models.SupplyAdjustment adjustment)
+    {
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO supply_adjustments (
+                network, contract_address, is_increase, amount,
+                reason, transaction_hash, status, error_message,
+                created_at_utc, completed_at_utc
+            )
+            VALUES (
+                $network, $contract_address, $is_increase, $amount,
+                $reason, $transaction_hash, $status, $error_message,
+                $created_at_utc, $completed_at_utc
+            );
+            SELECT last_insert_rowid();
+            """;
+
+        command.Parameters.AddWithValue("$network", adjustment.Network);
+        command.Parameters.AddWithValue("$contract_address", adjustment.ContractAddress);
+        command.Parameters.AddWithValue("$is_increase", adjustment.IsIncrease ? 1 : 0);
+        command.Parameters.AddWithValue("$amount", adjustment.Amount);
+        command.Parameters.AddWithValue("$reason", (object?)adjustment.Reason ?? DBNull.Value);
+        command.Parameters.AddWithValue("$transaction_hash", (object?)adjustment.TransactionHash ?? DBNull.Value);
+        command.Parameters.AddWithValue("$status", adjustment.Status);
+        command.Parameters.AddWithValue("$error_message", (object?)adjustment.ErrorMessage ?? DBNull.Value);
+        command.Parameters.AddWithValue("$created_at_utc", adjustment.CreatedAtUtc.ToString("o"));
+        command.Parameters.AddWithValue("$completed_at_utc",
+            adjustment.CompletedAtUtc.HasValue ? adjustment.CompletedAtUtc.Value.ToString("o") : DBNull.Value);
+
+        var result = command.ExecuteScalar();
+        return result != null ? Convert.ToInt64(result) : 0;
+    }
+
+    public void UpdateSupplyAdjustmentStatus(long id, string status, string? txHash = null, string? errorMessage = null)
+    {
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            UPDATE supply_adjustments
+            SET status = $status,
+                transaction_hash = COALESCE($transaction_hash, transaction_hash),
+                error_message = $error_message,
+                completed_at_utc = $completed_at_utc
+            WHERE id = $id;
+            """;
+
+        command.Parameters.AddWithValue("$id", id);
+        command.Parameters.AddWithValue("$status", status);
+        command.Parameters.AddWithValue("$transaction_hash", (object?)txHash ?? DBNull.Value);
+        command.Parameters.AddWithValue("$error_message", (object?)errorMessage ?? DBNull.Value);
+        command.Parameters.AddWithValue("$completed_at_utc", DateTimeOffset.UtcNow.ToString("o"));
+
+        command.ExecuteNonQuery();
+    }
+
     private SqliteConnection OpenConnection()
     {
         EnsureInitialized();
@@ -725,6 +784,22 @@ internal sealed class VaultDataStore
             """);
 
         ExecuteNonQuery(connection, """
+            CREATE TABLE IF NOT EXISTS supply_adjustments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                network TEXT NOT NULL,
+                contract_address TEXT NOT NULL,
+                is_increase INTEGER NOT NULL,
+                amount TEXT NOT NULL,
+                reason TEXT,
+                transaction_hash TEXT,
+                status TEXT NOT NULL DEFAULT 'pending',
+                error_message TEXT,
+                created_at_utc TEXT NOT NULL,
+                completed_at_utc TEXT
+            );
+            """);
+
+        ExecuteNonQuery(connection, """
             CREATE INDEX IF NOT EXISTS idx_token_transfers_network ON token_transfers(network);
             """);
 
@@ -738,6 +813,10 @@ internal sealed class VaultDataStore
 
         ExecuteNonQuery(connection, """
             CREATE INDEX IF NOT EXISTS idx_pause_operations_network ON pause_operations(network);
+            """);
+
+        ExecuteNonQuery(connection, """
+            CREATE INDEX IF NOT EXISTS idx_supply_adjustments_network ON supply_adjustments(network);
             """);
 
         EnsureColumnExists(connection, "token_retrievals", "wipe_transaction_hash",
