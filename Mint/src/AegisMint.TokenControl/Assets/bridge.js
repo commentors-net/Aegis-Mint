@@ -87,6 +87,8 @@ window.addEventListener('DOMContentLoaded', function() {
   const sendBtn = document.getElementById('send-btn');
   const freezeBtn = document.getElementById('freeze-btn');
   const retrieveBtn = document.getElementById('retrieve-btn');
+  const increaseSupplyBtn = document.getElementById('increase-supply-btn');
+  const decreaseSupplyBtn = document.getElementById('decrease-supply-btn');
   const sendFromInput = document.getElementById('send-from');
   const retrieveToInput = document.getElementById('retrieve-to');
   const lockBanner = document.getElementById('lock-banner');
@@ -98,6 +100,7 @@ window.addEventListener('DOMContentLoaded', function() {
   const refreshBalancesBtn = document.getElementById('refresh-balances');
   const recoverBtn = document.getElementById('recover-btn');
   const tabButtons = document.querySelectorAll('.tab-btn');
+  const accordions = document.querySelectorAll('.accordion');
   const frozenList = document.getElementById('frozen-list');
   const unfrozenList = document.getElementById('unfrozen-list');
 
@@ -459,6 +462,8 @@ window.addEventListener('DOMContentLoaded', function() {
     if (sendBtn) sendBtn.disabled = paused;
     if (freezeBtn) freezeBtn.disabled = paused;
     if (retrieveBtn) retrieveBtn.disabled = paused;
+    if (increaseSupplyBtn) increaseSupplyBtn.disabled = paused;
+    if (decreaseSupplyBtn) decreaseSupplyBtn.disabled = paused;
     
     if (options.logChange) {
       addLog('Pause', `System pause ${paused ? 'ON' : 'OFF'}${options.reason ? ` (${options.reason})` : ''}`);
@@ -646,6 +651,34 @@ window.addEventListener('DOMContentLoaded', function() {
     sendToHost('retrieve-tokens', { from, reason });
   });
 
+  increaseSupplyBtn?.addEventListener('click', () => {
+    const amount = (document.getElementById('supply-amount').value || '').trim();
+    const reason = document.getElementById('supply-reason').value || '';
+
+    if (!amount || Number(amount) <= 0) {
+      addLog('Error', 'Please provide a valid supply amount greater than zero.');
+      return;
+    }
+
+    showProgress(`Increasing supply by ${amount} tokens...`);
+    addLog('Supply', `Increasing supply by ${amount} tokens`);
+    sendToHost('increase-supply', { amount, reason });
+  });
+
+  decreaseSupplyBtn?.addEventListener('click', () => {
+    const amount = (document.getElementById('supply-amount').value || '').trim();
+    const reason = document.getElementById('supply-reason').value || '';
+
+    if (!amount || Number(amount) <= 0) {
+      addLog('Error', 'Please provide a valid supply amount greater than zero.');
+      return;
+    }
+
+    showProgress(`Decreasing supply by ${amount} tokens...`);
+    addLog('Supply', `Decreasing supply by ${amount} tokens`);
+    sendToHost('decrease-supply', { amount, reason });
+  });
+
 
   
   refreshBalancesBtn?.addEventListener('click', () => {
@@ -664,6 +697,22 @@ window.addEventListener('DOMContentLoaded', function() {
   if (tabButtons && tabButtons.length) {
     tabButtons.forEach((btn) => {
       btn.addEventListener('click', () => activateTab(btn.dataset.target));
+    });
+  }
+
+  if (accordions && accordions.length) {
+    accordions.forEach((accordion) => {
+      accordion.addEventListener('toggle', () => {
+        if (!accordion.open) {
+          return;
+        }
+
+        accordions.forEach((other) => {
+          if (other !== accordion) {
+            other.open = false;
+          }
+        });
+      });
     });
   }
 
@@ -872,6 +921,9 @@ window.addEventListener('DOMContentLoaded', function() {
       } else if (opName === 'Retrieve') {
         document.getElementById('retrieve-from').value = '';
         document.getElementById('retrieve-memo').value = '';
+      } else if (opName === 'Increase Supply' || opName === 'Decrease Supply') {
+        document.getElementById('supply-amount').value = '';
+        document.getElementById('supply-reason').value = '';
       }
     } else {
       addLog('Error', `${opName} failed: ${errorMessage || 'Unknown error'}`, transactionHash, addressForLog, ts);

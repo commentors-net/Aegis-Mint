@@ -75,6 +75,24 @@ public record PauseOperation
 }
 
 /// <summary>
+/// Represents a supply adjustment operation on the token contract.
+/// </summary>
+public record SupplyAdjustment
+{
+    public long Id { get; init; }
+    public string Network { get; init; } = string.Empty;
+    public string ContractAddress { get; init; } = string.Empty;
+    public bool IsIncrease { get; init; } // true = increaseSupply, false = decreaseSupply
+    public string Amount { get; init; } = string.Empty;
+    public string? Reason { get; init; }
+    public string? TransactionHash { get; init; }
+    public string Status { get; init; } = "pending"; // pending, submitted, confirmed, failed
+    public string? ErrorMessage { get; init; }
+    public DateTimeOffset CreatedAtUtc { get; init; }
+    public DateTimeOffset? CompletedAtUtc { get; init; }
+}
+
+/// <summary>
 /// Result of a token control operation.
 /// </summary>
 public record OperationResult

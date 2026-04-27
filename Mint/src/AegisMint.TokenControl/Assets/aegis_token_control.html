@@ -273,6 +273,55 @@
       margin-bottom: 12px;
     }
 
+    .accordion {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: #ffffff;
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+
+    .accordion summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--text-soft);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      user-select: none;
+      border-bottom: 1px solid transparent;
+    }
+
+    .accordion summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .accordion summary::after {
+      content: "+";
+      font-size: 16px;
+      line-height: 1;
+      color: var(--accent);
+      transition: transform 0.15s ease;
+    }
+
+    .accordion[open] summary {
+      border-bottom-color: var(--border-soft);
+      background: rgba(215, 38, 56, 0.05);
+    }
+
+    .accordion[open] summary::after {
+      content: "-";
+    }
+
+    .accordion-content {
+      padding: 10px 12px 12px;
+    }
+
     .field-row {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -907,60 +956,109 @@
               <hr class="section-divider" />
 
               <!-- Freeze / Unfreeze -->
-              <div class="field-group">
-                <label class="label" for="freeze-address">
-                  <span class="main">Freeze address</span>
-                  <span class="hint">Block or restore transfers for a wallet</span>
-                </label>
-                <div class="field-row">
+              <details class="accordion">
+                <summary>Freeze/Unfreeze address</summary>
+                <div class="accordion-content">
                   <div class="field-group">
-                    <input id="freeze-address" class="input" type="text" placeholder="0x... address" />
-                    <div class="hint-inline">Frozen addresses cannot send or receive this token.</div>
-                  </div>
-                  <div class="field-group">
-                    <select id="freeze-action" class="select">
-                      <option value="freeze">Freeze</option>
-                      <option value="unfreeze">Unfreeze</option>
-                    </select>
-                  </div>
-                </div>
-                <textarea id="freeze-reason" class="textarea"
-                  placeholder="Internal reason / case reference (off-chain)"></textarea>
-                <div style="margin-top: 8px; display:flex; justify-content:flex-end;">
-                  <button type="button" class="btn btn-outline" id="freeze-btn">
-                    <span class="btn-icon">🧊</span> Apply rule
-                  </button>
-                </div>
-              </div>
-
-              <hr class="section-divider" />
-
-              <!-- Retrieve -->
-              <div class="field-group">
-                <label class="label" for="retrieve-from">
-                  <span class="main">Retrieve tokens From Source address (typically frozen)</span>
-                </label>
-                    <input id="retrieve-from" class="input" type="text" placeholder="0x... source" />
-                    <input id="retrieve-to" type="hidden" value="0x0000...TREASURY"/>
-                <div class="field-row">
-                  <div class="field-group">
-                    <label class="label" for="retrieve-memo">
-                      <span class="main">Reason</span>
-                      <span class="hint">Shown in control log</span>
+                    <label class="label" for="freeze-address">
+                      <span class="main">Freeze address</span>
+                      <span class="hint">Block or restore transfers for a wallet</span>
                     </label>
-                    <input id="retrieve-memo" class="input" type="text" placeholder="Compliance, recovery, etc." />
-                  </div>
-                  <div class="field-group">
-
+                    <div class="field-row">
+                      <div class="field-group">
+                        <input id="freeze-address" class="input" type="text" placeholder="0x... address" />
+                        <div class="hint-inline">Frozen addresses cannot send or receive this token.</div>
+                      </div>
+                      <div class="field-group">
+                        <select id="freeze-action" class="select">
+                          <option value="freeze">Freeze</option>
+                          <option value="unfreeze">Unfreeze</option>
+                        </select>
+                      </div>
+                    </div>
+                    <textarea id="freeze-reason" class="textarea"
+                      placeholder="Internal reason / case reference (off-chain)"></textarea>
                     <div style="margin-top: 8px; display:flex; justify-content:flex-end;">
-                      <button type="button" class="btn btn-outline" id="retrieve-btn">
-                        <span class="btn-icon">📥</span> Retrieve
+                      <button type="button" class="btn btn-outline" id="freeze-btn">
+                        <span class="btn-icon">🧊</span> Apply rule
                       </button>
                     </div>
                   </div>
                 </div>
+              </details>
 
-              </div>
+              <hr class="section-divider" />
+
+              <!-- Retrieve -->
+              <details class="accordion">
+                <summary>Retrieve tokens</summary>
+                <div class="accordion-content">
+                  <div class="field-group">
+                    <label class="label" for="retrieve-from">
+                      <span class="main">Retrieve tokens From Source address (typically frozen)</span>
+                    </label>
+                    <input id="retrieve-from" class="input" type="text" placeholder="0x... source" />
+                    <input id="retrieve-to" type="hidden" value="0x0000...TREASURY"/>
+                    <div class="field-row">
+                      <div class="field-group">
+                        <label class="label" for="retrieve-memo">
+                          <span class="main">Reason</span>
+                          <span class="hint">Shown in control log</span>
+                        </label>
+                        <input id="retrieve-memo" class="input" type="text" placeholder="Compliance, recovery, etc." />
+                      </div>
+                      <div class="field-group">
+
+                        <div style="margin-top: 8px; display:flex; justify-content:flex-end;">
+                          <button type="button" class="btn btn-outline" id="retrieve-btn">
+                            <span class="btn-icon">📥</span> Retrieve
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </details>
+
+              <hr class="section-divider" />
+
+              <!-- Supply controls -->
+              <details class="accordion">
+                <summary>Supply controls</summary>
+                <div class="accordion-content">
+                  <div class="field-group">
+                    <label class="label" for="supply-amount">
+                      <span class="main">Supply controls</span>
+                      <span class="hint">Owner only: mint or burn total supply</span>
+                    </label>
+                    <div class="field-row">
+                      <div class="field-group">
+                        <label class="label" for="supply-amount">
+                          <span class="main">Amount</span>
+                          <span class="hint">Tokens (pre-decimals)</span>
+                        </label>
+                        <input id="supply-amount" class="input" type="number" min="0" step="0.000001" placeholder="0.0" />
+                      </div>
+                      <div class="field-group">
+                        <label class="label" for="supply-reason">
+                          <span class="main">Reason</span>
+                          <span class="hint">Optional internal note</span>
+                        </label>
+                        <input id="supply-reason" class="input" type="text" placeholder="Treasury policy, burn schedule, etc." />
+                      </div>
+                    </div>
+                    <div class="hint-inline">These actions require the treasury key to have contract permission.</div>
+                    <div style="margin-top: 8px; display:flex; justify-content:flex-end; gap:8px;">
+                      <button type="button" class="btn btn-outline" id="decrease-supply-btn">
+                        <span class="btn-icon">📉</span> Decrease supply
+                      </button>
+                      <button type="button" class="btn btn-primary" id="increase-supply-btn">
+                        <span class="btn-icon">📈</span> Increase supply
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </details>
             </div>
           </div>
 
